@@ -94,7 +94,7 @@ namespace ArcSWATPlus
             //}
             //var localePath = os.path.join(this.plugin_dir, "i18n", "ArcSWAT_{}.qm", locale));
             //// set default behaviour for loading files with no CRS to prompt - the safest option
-            //QSettings().setValue("Projections/defaultBehaviour", "prompt");
+            //QSettings().Value = "Projections/defaultBehaviour", "prompt");
             ////# translator
             //if (System.IO.File.Exists(localePath)) {
             //    this.translator = QTranslator();
@@ -297,7 +297,7 @@ namespace ArcSWATPlus
             if (await this.demProcessed(proj)) {
                 this._demIsProcessed = true;
                 this._odlg.allowCreateHRU();
-                var hrus = new HRUs(this._gv, this._odlg.reportsCombo);
+                var hrus = new HRUs(this._gv, this._odlg.reportsCombo, this);
                 if (hrus.HRUsAreCreated()) {
                     this._odlg.showReports();
                     this._odlg.allowEdit();
@@ -325,9 +325,12 @@ namespace ArcSWATPlus
             if (this.delin is not null && this.delin._dlg.Enabled) {
                 this.delin.doClose();
             }
-            this.delin = new Delineation(this._gv, this._demIsProcessed);
+            this.delin = new Delineation(this._gv, this._demIsProcessed, this);
             //Debug.Assert(this.delin is not null);
-            int result = this.delin.run();
+            this.delin.run();
+        }
+
+        public void postDelineation(int result) {
             if (result == 1 && this._gv.isDelinDone()) {
                 this._demIsProcessed = true;
                 this._odlg.allowCreateHRU();
@@ -336,7 +339,7 @@ namespace ArcSWATPlus
                 this._gv.db.clearTable(basinsdataTable);
                 // make sure HRUs starts from scratch
                 if (this.hrus is not null && this.hrus._dlg.Enabled) {
-                    this.hrus.doClose();
+                    this.hrus._dlg.Close();
                 }
                 this.hrus = null;
             } else {
@@ -349,16 +352,19 @@ namespace ArcSWATPlus
         }
 
         // Run the HRU creation dialog.
-        public void doCreateHRUs() {
+        public async Task doCreateHRUs() {
             //Debug.Assert(this._gv is not null);
             // avoid getting second window
             if (this.hrus is not null && this.hrus._dlg.Enabled) {
                 this.hrus._dlg.Close();
             }
-            this.hrus = new HRUs(this._gv, this._odlg.reportsCombo);
+            this.hrus = new HRUs(this._gv, this._odlg.reportsCombo, this);
             //Debug.Assert(this.hrus is not null);
             // non modal
-            var result = this.hrus.run();
+            await this.hrus.run();
+        }
+
+        public void postCreateHRUs(int result) {
             if (result == 1) { 
                 this._odlg.allowEdit();
             }
@@ -788,14 +794,14 @@ namespace ArcSWATPlus
         }
 
         // Run visualise form.
-        public void visualise() {
+        public async Task visualise() {
             // avoid getting second window
-            if (this.vis is not null and this.vis._dlg.Enabled) {
-                this.vis.doClose();
+            if (this.vis is not null) {
+                await this.vis.doClose();
             }
             this.vis = new Visualise(this._gv);
             Debug.Assert(this.vis is not null);
-            this.vis.run();
+            await this.vis.run();
             this.vis = null;
         }
 
@@ -810,7 +816,7 @@ namespace ArcSWATPlus
         //// If we have subs1.shp and riv1.shp and an empty watershed group then add these layers.
         ////         
         ////         Intended for use after a no gis conversion from ArcSWAT.
-        //public virtual object loadVisualisationLayers() {
+        //public virtual void loadVisualisationLayers() {
         //    Debug.Assert(this._gv is not null);
         //    var root = QgsProject.instance().layerTreeRoot();
         //    var wshedLayers = Utils.getLayersInGroup(Utils._WATERSHED_GROUP_NAME, root);

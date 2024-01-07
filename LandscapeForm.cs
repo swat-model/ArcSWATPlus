@@ -93,17 +93,17 @@ namespace ArcSWATPlus
         public virtual void setAreaOfCell() {
             var areaSqM = this._gv.topo.dx * this._gv.topo.dy;
             this.areaOfCell = areaSqM;
-            if (this.areaUnitsBox.SelectedText == Parameters._SQKM) {
+            if (this.areaUnitsBox.Text == Parameters._SQKM) {
                 this.areaOfCell = areaSqM / 1000000.0;
-            } else if (this.areaUnitsBox.SelectedText == Parameters._HECTARES) {
+            } else if (this.areaUnitsBox.Text == Parameters._HECTARES) {
                 this.areaOfCell = areaSqM / 10000.0;
-            } else if (this.areaUnitsBox.SelectedText == Parameters._SQMETRES) {
+            } else if (this.areaUnitsBox.Text == Parameters._SQMETRES) {
                 this.areaOfCell = areaSqM;
-            } else if (this.areaUnitsBox.SelectedText == Parameters._SQMILES) {
+            } else if (this.areaUnitsBox.Text == Parameters._SQMILES) {
                 this.areaOfCell = areaSqM / Parameters._SQMILESTOSQMETRES;
-            } else if (this.areaUnitsBox.SelectedText == Parameters._ACRES) {
+            } else if (this.areaUnitsBox.Text == Parameters._ACRES) {
                 this.areaOfCell = areaSqM / Parameters._ACRESTOSQMETRES;
-            } else if (this.areaUnitsBox.SelectedText == Parameters._SQFEET) {
+            } else if (this.areaUnitsBox.Text == Parameters._SQFEET) {
                 this.areaOfCell = areaSqM * Parameters._SQMETRESTOSQFEET;
             }
         }

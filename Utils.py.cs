@@ -67,7 +67,7 @@ namespace ArcSWATPlus
 
         public static string _DATEFORMAT = "d MMMM yyyy";
 
-        public static string _ARCSWATNAME = "ArcSWAT";
+        public static string _ARCSWATPLUSNAME = "ArcSWAT+";
 
         public static string _SLOPE_GROUP_NAME = "Slope";
 
@@ -183,7 +183,7 @@ namespace ArcSWATPlus
                     }
                 }
             } else {
-                MessageBox.Show("ERROR: " + msg, Utils._ARCSWATNAME);
+                MessageBox.Show("ERROR: " + msg, Utils._ARCSWATPLUSNAME);
             }
             return;
         }
@@ -204,7 +204,7 @@ namespace ArcSWATPlus
             object res;
             // only ask question if interactive
             if (!isBatch) {
-                result = MessageBox.Show(msg, Utils._ARCSWATNAME, MessageBoxButton.YesNo);
+                result = MessageBox.Show(msg, Utils._ARCSWATPLUSNAME, MessageBoxButton.YesNo);
             } else {
                 // batch: use affirm parameter
                 if (affirm) {
@@ -249,7 +249,7 @@ namespace ArcSWATPlus
                     }
                 }
             } else {
-                ArcGIS.Desktop.Framework.Dialogs.MessageBox.Show(msg, Utils._ARCSWATNAME);
+                ArcGIS.Desktop.Framework.Dialogs.MessageBox.Show(msg, Utils._ARCSWATPLUSNAME);
             }
             return;
         }
@@ -408,6 +408,9 @@ namespace ArcSWATPlus
 
         // Return path of raster layer.
         public static async Task<string> layerFilename(Layer layer) {
+            if (layer is null) { 
+                return null; 
+            }
             CIMStandardDataConnection connection = null;
             await QueuedTask.Run(() => {
                 connection = layer.GetDataConnection() as CIMStandardDataConnection;
@@ -443,7 +446,7 @@ namespace ArcSWATPlus
         // Remove directory containing shapefile and any layers.
 
         public static async Task tryRemoveShapefileLayerAndDir(string direc) {
-            var @base = Path.GetDirectoryName(direc);
+            var @base = Path.GetFileName(direc);
             var shapefile = Utils.join(direc, @base + ".shp");
             await Utils.removeLayer(shapefile);
             // need to ignore locks in ArcGIS
@@ -469,6 +472,14 @@ namespace ArcSWATPlus
                     layer = null;
                 }
             }
+        }
+
+        // Remove MapView layer
+
+        public static async Task removeLayer(Layer layer) {
+            await QueuedTask.Run(() => {
+                MapView.Active.Map.RemoveLayer(layer);
+            });
         }
 
         public static bool hasLayer(Layer layer) {
@@ -524,6 +535,8 @@ namespace ArcSWATPlus
         // Find a non-group layer if any whose legend name starts with the legend.
 
         public static Layer getLayerByLegend(string legend) {
+            // avoid default of finding background layer
+            if (string.IsNullOrEmpty(legend)) { return null; }
             List<Layer> layers = MapView.Active.Map.GetLayersAsFlattenedList().Where(layer => layer.Name.StartsWith(legend)).ToList();
             if (layers.Count > 0) {
                 foreach (Layer layer in layers) {
@@ -874,7 +887,7 @@ namespace ArcSWATPlus
                 if (Utils.samePath(layerFile, fileName))
                 {
                     if (layer is FeatureLayer) {
-                        setMapTip((FeatureLayer)layer, ft);
+                        await setMapTip((FeatureLayer)layer, ft);
                     }
                     return (layer, false);
                 }
@@ -963,7 +976,7 @@ namespace ArcSWATPlus
                             mapLayer = LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName));
                         });
                     } else {
-                        mapLayer = await QueuedTask.Run(() => LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName)));
+                        await QueuedTask.Run(() => mapLayer = LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName)));
                         //var dsName = Path.GetFileNameWithoutExtension(fileName);
                         //var parms = Geoprocessing.MakeValueArray(fileName, gv.gdb, dsName);
                         //Utils.runPython("runCopyRaster.py", parms, gv);
@@ -975,7 +988,7 @@ namespace ArcSWATPlus
                         fileName = await Utils.clipLayerToDEM((RasterLayer)mapLayer, fileName, legend, gv);
                         if (fileName != currentName) {
                             // mapLayer needs to be replaced
-                            mapLayer = await QueuedTask.Run(() => LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName)));
+                            await QueuedTask.Run(() => mapLayer = LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName)));
                         }
                     }
                     Utils.copyPrj(gv.demFile, fileName);
@@ -984,9 +997,13 @@ namespace ArcSWATPlus
                     //try { // often fails because filename already locked
                     //    Utils.runPython("runDefineProjection.py", parms, gv);
                     //} catch {; }
-                    mapLayer = await QueuedTask.Run(() => LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName)));
+                    var uri = new Uri(fileName);
+                    var legend2 = String.Format("{0} ({1})", legend, baseName);
+                    await QueuedTask.Run(() => {
+                        mapLayer = LayerFactory.Instance.CreateLayer(uri, groupLayer, index, legend2);
+                    });
                     FileTypes.ApplySymbolToFeatureLayerAsync((FeatureLayer)mapLayer, ft, gv);
-                    setMapTip((FeatureLayer)mapLayer, ft);
+                    await setMapTip((FeatureLayer)mapLayer, ft);
                 }
                 var fun = FileTypes.colourFun(ft);
                 if (fun is not null) {
@@ -1011,14 +1028,14 @@ namespace ArcSWATPlus
             }
         }
 
-        public static void setMapTip(FeatureLayer layer, int ft) {
+        public static async Task setMapTip(FeatureLayer layer, int ft) {
             var (vari, tip) = FileTypes.mapTip(ft);
             if (!string.IsNullOrEmpty(tip)) {
-                setMapTip(layer, vari, tip);
+                await setMapTip(layer, vari, tip);
             }
         }
 
-        public static async void setMapTip(FeatureLayer layer, string vari, string tip) {
+        public static async Task setMapTip(FeatureLayer layer, string vari, string tip) {
             var defn = await QueuedTask.Run(() => layer.GetDefinition()) as CIMBasicFeatureLayer;
             var tabl = defn.FeatureTable;
             tabl.DisplayField = vari;
@@ -1218,7 +1235,7 @@ namespace ArcSWATPlus
             //Utils.information('File is |{0}|', inFileName), False)
             if (inFileName is not null && inFileName != "")
             {
-                //settings.setValue("/QSWATPlus/LastInputPath", os.path.dirname(inFileName.ToString()));
+                //settings.Value = "/QSWATPlus/LastInputPath", os.path.dirname(inFileName.ToString()));
                 // copy to saveDir if necessary
                 var inInfo = new FileInfo(inFileName);
                 var inDir = inInfo.DirectoryName;
@@ -1703,7 +1720,7 @@ namespace ArcSWATPlus
         //                var key = atts.namedItem(attName);
         //                if (key is not null) {
         //                    var att = key.toAttr();
-        //                    var val = att.value();
+        //                    var val = att.Value;
         //                    if (val == attVal) {
         //                        var textNode = tagNode.firstChild().toText();
         //                        textNode.setNodeValue(tagVal);
@@ -2047,7 +2064,7 @@ public class ListFuns
     //    }
 
     //    // Write string plus end-of-line.
-    //    public virtual object WriteLine(string @string) {
+    //    public virtual void WriteLine(string @string) {
     //        this.writer.Write(@string + "\n");
     //    }
 
@@ -2058,7 +2075,7 @@ public class ListFuns
     //    }
 
     //    // Close.
-    //    public virtual object @__exit__(object typ, object value, object traceback) {
+    //    public virtual void @__exit__(object typ, object value, object traceback) {
     //        // @UnusedVariable
     //        this.writer.close();
     //    }
@@ -2141,7 +2158,7 @@ public class ListFuns
                 ft == FileTypes._DRAINSTREAMS || ft == FileTypes._BUFFERSHAPE || ft == FileTypes._CHANNELS || ft == FileTypes._LSUS || ft == FileTypes._LAKES || ft == FileTypes._EXTRAPTSRCANDRES || ft == FileTypes._AQUIFERS || ft == FileTypes._PERMEABILITY || ft == FileTypes._OBSERVATIONLOCATIONS || ft == FileTypes._TILEDRAINS) {
                 return "All files|*.*"; // All supported files(*.pix *.PIX *.nc *.NC *.xml *.XML *.jp2 *.JP2 *.jp2 *.JP2 *.j2k *.J2K *.pdf *.PDF *.mbtiles *.MBTILES *.bag *.BAG *.shp *.SHP *.dbf *.DBF *.shz *.SHZ *.shp.zip *.SHP.ZIP *.mif *.MIF *.tab *.TAB *.xml *.XML * .000 * .000 *.dgn *.DGN *.vrt *.VRT *.ovf *.OVF *.csv *.CSV *.xml *.XML *.gml *.GML *.gpx *.GPX *.kml *.KML *.kmz *.KMZ *.geojson *.GEOJSON *.geojsonl *.GEOJSONL *.geojsons *.GEOJSONS *.nlgeojson *.NLGEOJSON *.json *.JSON *.json *.JSON *.json *.JSON *.topojson *.TOPOJSON *.itf *.ITF *.xml *.XML *.ili *.ILI *.xtf *.XTF *.xml *.XML *.ili *.ILI *.gmt *.GMT *.gpkg *.GPKG *.sqlite *.SQLITE *.db *.DB *.sqlite3 *.SQLITE3 *.db3 *.DB3 *.s3db *.S3DB *.sl3 *.SL3 *.map *.MAP *.mdb *.MDB *.dxf *.DXF *.dwg *.DWG *.fgb *.FGB *.gxt *.GXT *.txt *.TXT *.xml *.XML *.vfk *.VFK *.sql *.SQL *.osm *.OSM *.pbf *.PBF *.mps *.MPS *.gdb *.GDB *.osm *.OSM *.tcx *.TCX *.igc *.IGC *.sos *.SOS *.thf *.THF *.svg *.SVG *.vct *.VCT *.xls *.XLS *.ods *.ODS *.xlsx *.XLSX *.sxf *.SXF *.jml *.JML *.txt *.TXT *.x10 *.X10 *.mvt *.MVT *.mvt.gz *.MVT.GZ *.pbf *.PBF *.parquet *.PARQUET *.arrow *.ARROW *.feather *.FEATHER *.arrows *.ARROWS *.ipc *.IPC *.e00 *.E00 *.zip *.ZIP *.gz *.GZ *.tar *.TAR *.tar.gz *.TAR.GZ *.tgz *.TGZ); ; GDAL / OGR VSIFileHandler(*.zip *.gz *.tar *.tar.gz *.tgz *.ZIP *.GZ *.TAR *.TAR.GZ *.TGZ); ; (Geo)Arrow IPC File Format / Stream(*.arrow *.feather *.arrows *.ipc *.ARROW *.FEATHER *.ARROWS *.IPC); ; (Geo)Parquet(*.parquet *.PARQUET); ; Arc / Info ASCII Coverage(*.e00 *.E00); ; AutoCAD DXF(*.dxf *.DXF); ; AutoCAD Driver(*.dwg *.DWG); ; Bathymetry Attributed Grid(*.bag *.BAG); ; Comma Separated Value(*.csv *.CSV); ; Czech Cadastral Exchange Data Format(*.vfk *.VFK); ; EDIGEO(*.thf *.THF); ; ESRI Personal GeoDatabase(*.mdb *.MDB); ; ESRI Shapefiles(*.shp *.shz *.shp.zip *.SHP *.SHZ *.SHP.ZIP); ; ESRIJSON(*.json *.JSON); ; FlatGeobuf(*.fgb *.FGB); ; GMT ASCII Vectors(.gmt)(*.gmt *.GMT); ; GPS eXchange Format[GPX](*.gpx *.GPX); ; GPSBabel(*.mps *.gdb *.osm *.tcx *.igc *.MPS *.GDB *.OSM *.TCX *.IGC); ; GeoJSON(*.geojson *.GEOJSON); ; GeoJSON Newline Delimited JSON(*.geojsonl *.geojsons *.nlgeojson *.json *.GEOJSONL *.GEOJSONS *.NLGEOJSON *.JSON); ; GeoPackage(*.gpkg *.GPKG); ; GeoRSS(*.xml *.XML); ; Geoconcept(*.gxt *.txt *.GXT *.TXT); ; Geography Markup Language[GML](*.gml *.GML); ; Geospatial PDF(*.pdf *.PDF); ; INTERLIS 1(*.itf *.xml *.ili *.ITF *.XML *.ILI); ; INTERLIS 2(*.xtf *.xml *.ili *.XTF *.XML *.ILI); ; Idrisi Vector(.vct) (*.vct *.VCT); ; Kadaster LV BAG Extract 2.0(*.xml *.XML); ; Keyhole Markup Language[KML](*.kml *.kmz *.KML *.KMZ); ; MBTiles(*.mbtiles *.MBTILES); ; MS Excel format(*.xls *.XLS); ; MS Office Open XML spreadsheet(*.xlsx *.XLSX); ; Mapbox Vector Tiles(*.mvt *.mvt.gz *.pbf *.MVT *.MVT.GZ *.PBF); ; Mapinfo File(*.mif *.tab *.MIF *.TAB); ; Microstation DGN(*.dgn *.DGN); ; NAS - ALKIS(*.xml *.XML); ; Network Common Data Format(*.nc *.NC); ; Open Document Spreadsheet(*.ods *.ODS); ; OpenJUMP JML(*.jml *.JML); ; OpenStreetMap(*.osm *.pbf *.OSM *.PBF); ; PCI Geomatics Database File(*.pix *.PIX); ; Planetary Data Systems TABLE(*.xml *.XML); ; PostgreSQL SQL dump(*.sql *.SQL); ; S - 57 Base file(*.000 * .000); ; SQLite / SpatiaLite(*.sqlite *.db *.sqlite3 *.db3 *.s3db *.sl3 *.SQLITE *.DB *.SQLITE3 *.DB3 *.S3DB *.SL3); ; Scalable Vector Graphics(*.svg *.SVG); ; Storage and eXchange Format(*.sxf *.SXF); ; Systematic Organization of Spatial Information[SOSI](*.sos *.SOS); ; TopoJSON(*.json *.topojson *.JSON *.TOPOJSON); ; VDV - 451 / VDV - 452 / INTREST Data Format(*.txt *.x10 *.TXT *.X10); ; VRT - Virtual Datasource(*.vrt *.ovf *.VRT *.OVF); ; WAsP(*.map *.MAP)";
             } else if (ft == FileTypes._CSV) {
-                return "CSV files|*.csv;;All files|*.*";
+                return "CSV files|*.csv|All files|*.*";
             } else if (ft == FileTypes._SQLITE) {
                 return "SQLite files|*.sqlite; *.db; *.sdb; *.db3; *.s3db; *.sqlite3; *.sl3|All files|*.*";
             } else if (ft == FileTypes._INITIALIZATION) {
@@ -2173,9 +2190,13 @@ public class ListFuns
             } else if (ft == FileTypes._OUTLETS || ft == FileTypes._OUTLETSHUC) {
                 return "Inlets/outlets";
             } else if (ft == FileTypes._STREAMS) {
-                return "Streams";
+                return Utils._STREAMSLEGEND;
+            } else if (ft == FileTypes._CHANNELS) {
+                return Utils._CHANNELSLEGEND;
+            } else if (ft == FileTypes._LAKES) {
+                return Utils._LAKESLEGEND;
             } else if (ft == FileTypes._SUBBASINS || ft == FileTypes._EXISTINGSUBBASINS) {
-                return "Subbasins";
+                return Utils._SUBBASINSLEGEND;
             } else if (ft == FileTypes._LANDUSES) {
                 return "Landuses";
             } else if (ft == FileTypes._SOILS) {

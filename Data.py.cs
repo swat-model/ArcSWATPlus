@@ -1071,9 +1071,10 @@ namespace ArcSWATPlus {
                     foreach (var (crop, area) in cropAreas) {
 
                         double cropArea;
-                        if (result.TryGetValue(crop, out cropArea)) {
-                            result[crop] = cropArea + area;
+                        if (!result.TryGetValue(crop, out cropArea)) {
+                            cropArea = 0;
                         }
+                        result[crop] = cropArea + area;
                     }
                 }
             }
@@ -1089,11 +1090,11 @@ namespace ArcSWATPlus {
                 foreach (var lsuData in channelData.Values) {
                     var soilAreas = isOriginal ? lsuData.originalSoilAreas : lsuData.soilAreas;
                     foreach (var (soil, area) in soilAreas) {
-
                         double soilArea;
-                        if (result.TryGetValue(soil, out soilArea)) {
-                            result[soil] = soilArea + area;
+                        if (!result.TryGetValue(soil, out soilArea)) {
+                            soilArea = 0;
                         }
+                        result[soil] = soilArea + area;
                     }
                 }
             }
@@ -1111,9 +1112,10 @@ namespace ArcSWATPlus {
                     foreach (var (slope, area) in slopeAreas) {
 
                         double slopeArea;
-                        if (result.TryGetValue(slope, out slopeArea)) {
-                            result[slope] = slopeArea + area;
+                        if (!result.TryGetValue(slope, out slopeArea)) {
+                            slopeArea = 0;
                         }
+                        result[slope] = slopeArea + area;
                     }
                 }
             }

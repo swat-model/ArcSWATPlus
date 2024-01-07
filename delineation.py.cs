@@ -126,6 +126,8 @@ namespace ArcSWATPlus {
 
         public GlobalVars _gv;
 
+        public ArcSWATPlus _parent;
+
         public OutletForm _odlg;
 
         public string clipperFile;
@@ -172,8 +174,9 @@ namespace ArcSWATPlus {
 
         public bool thresholdChanged;
 
-        public Delineation(GlobalVars gv, bool isDelineated) {
+        public Delineation(GlobalVars gv, bool isDelineated, ArcSWATPlus parent) {
             this._gv = gv;
+            this._parent = parent;
             this._dlg = new DelineationForm(gv, this);
             //this._dlg.move(this._gv.delineatePos);
             //# when a snap file is created this is set to the file path
@@ -222,7 +225,7 @@ namespace ArcSWATPlus {
 
         // Set connections to controls; read project delineation data.
         public virtual void init() {
-            //this._dlg.numProcesses.setValue(8);
+            //this._dlg.numProcesses.Value = 8);
             //this._dlg.selectDemButton.clicked.connect(this.btnSetDEM);
             //this._dlg.checkBurn.stateChanged.connect(this.changeBurn);
             //this._dlg.useGrid.clicked.connect(this.changeUseGrid);
@@ -265,7 +268,7 @@ namespace ArcSWATPlus {
             //this._dlg.verticalCombo.activated.connect(this.setVerticalUnits);
             ////this._dlg.snapThreshold.setValidator(QIntValidator());
             //this._odlg.resumeButton.clicked.connect(this.resumeDrawing);
-            this._dlg.readProj();
+            //this._dlg.readProj();
             this._dlg.changeUseGrid();
             this.thresholdChanged = false;
             this.checkMPI();
@@ -279,21 +282,10 @@ namespace ArcSWATPlus {
         }
 
         // Do delineation; check done and save topology data.  Return 1 if delineation done and no errors, 2 if not delineated and nothing done, else 0.
-        public virtual int run() {
+        public virtual void run() {
             this.init();
             this._dlg.Show();
             //this._gv.delineatePos = this._dlg.pos();
-            if (this.delineationFinishedOK) {
-                if (this.finishHasRun) {
-                    this._gv.writeProjectConfig(1, 0);
-                    return 1;
-                } else {
-                    // nothing done
-                    return 2;
-                }
-            }
-            this._gv.writeProjectConfig(0, 0);
-            return 0;
         }
 
         // 
@@ -420,7 +412,7 @@ namespace ArcSWATPlus {
                 } else {
                     lakeFile = "";
                 }
-                if (await this._gv.topo.setUp(demLayer, chanFile, this._gv.wshedFile, outletFile, lakeFile, this._gv, this._gv.existingWshed, recalculate, this._gv.useGridModel, this.streamDrainage, true)) {
+                if (await this._gv.topo.setUp(demLayer, chanFile, this._gv.subbasinsFile, outletFile, lakeFile, this._gv, this._gv.existingWshed, recalculate, this._gv.useGridModel, this.streamDrainage, true)) {
                     if (this._gv.topo.inlets.Count == 0) {
                         // no inlets, so no need to expand subbasins layer legend
                         var basinsLayer = Utils.getLayerByLegend(Utils._SUBBASINSLEGEND);
@@ -1673,12 +1665,27 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // Open and load DEM; set default threshold.
         public async Task btnSetDEM() {
-            (string demFile, ArcGIS.Desktop.Mapping.Layer demMapLayer) = await Utils.openAndLoadFile(FileTypes._DEM, this._dlg.delinSelectDem, this._gv.demDir, this._gv, null, Utils._WATERSHED_GROUP_NAME);
+            var pair = await Utils.openAndLoadFile(FileTypes._DEM, this._dlg.delinSelectDem, this._gv.demDir, this._gv, null, Utils._WATERSHED_GROUP_NAME);
+            string demFile = pair.Item1;
+            RasterLayer demMapLayer = pair.Item2 as RasterLayer;
             //Utils.printLayers(root, 1)
             if (!string.IsNullOrEmpty(demFile) && demMapLayer is not null) {
                 this._gv.demFile = demFile;
-                await QueuedTask.Run(() => { this._gv.elevationNoData = (double)((RasterLayer)demMapLayer).GetRaster().GetNoDataValue(); });
-                await this.setDefaultNumCells((RasterLayer)demMapLayer);
+                await QueuedTask.Run(() => {
+                    MapView.Active.ZoomTo(demMapLayer);
+                    // set extent to DEM as otherwise defaults to full globe
+                    var demExtent = demMapLayer.QueryExtent();
+                    var map = MapView.Active.Map;
+                    map.SetCustomFullExtent(demExtent);
+                    dynamic nodata = demMapLayer.GetRaster().GetNoDataValue();
+                    var typ = nodata.GetType();
+                    if (typ.IsArray) {
+                        this._gv.elevationNoData = Convert.ToDouble(nodata[0]);
+                    } else {
+                        this._gv.elevationNoData = Convert.ToDouble(nodata);
+                    }
+                });
+                await this.setDefaultNumCells(demMapLayer);
                 // warn if large DEM
                 var numCells = this.demWidth * this.demHeight;
                 if (numCells > 4000000.0) {
@@ -2686,6 +2693,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             try {
                 await this._gv.topo.setCrs(demLayer, this._gv);
                 unit = this._gv.crsProject.Unit;
+                this._dlg.enableThresholds();
             } catch (Exception ex) {
                 Utils.loginfo(string.Format("Failure to read DEM units: {0}", ex.Message));
                 return false;
@@ -2884,13 +2892,13 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         //// Disable choice of point to be added to show users they must resume adding,
         ////         unless changing to self.mapTool.
-        //public virtual object mapToolChanged(object tool) {
+        //public virtual void mapToolChanged(object tool) {
         //        // @UndefinedVariable
         //        this._odlg.widget.setEnabled(tool == this.mapTool);
         //    }
 
         //// Reset canvas' mapTool.
-        //public virtual object resumeDrawing() {
+        //public virtual void resumeDrawing() {
         //    this._odlg.widget.Enabled = true;
         //    this._gv.iface.setActiveLayer(this.drawOutletLayer);
         //    var canvas = this._gv.iface.mapCanvas();
@@ -2899,7 +2907,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         //// noinspection PyCallByClass,PyCallByClass
         //// Add point to drawOutletLayer.
-        //public virtual object getPoint(object point, object button) {
+        //public virtual void getPoint(object point, object button) {
         //    // @UnusedVariable button
         //    var isInlet = this._odlg.inletButton.Checked || this._odlg.ptsourceButton.Checked;
         //    // can't use feature count as they can't be counted until adding is confirmed
@@ -2930,7 +2938,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         //}
 
         //// Give suitable point ids to drawn points.
-        //public virtual object fixPointIds() {
+        //public virtual void fixPointIds() {
         //    Debug.Assert(this.drawOutletLayer is not null);
         //    // need to commit first or appear to be no features
         //    this.drawOutletLayer.commitChanges();
@@ -3187,7 +3195,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             }
             int lakeId = -1;
             try {
-                lakeId = Convert.ToInt32(this._dlg.delinLakeIdCombo.SelectedText);
+                lakeId = Convert.ToInt32(this._dlg.delinLakeIdCombo.Text);
             } catch {
                 Utils.information("Please select the number of the lake to which you wish to add cells", this._gv.isBatch);
                 return;
@@ -3217,7 +3225,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             using (var gridDs = Ogr.Open(this._gv.subbasinsFile, 1)) {
                 var gridOgrLayer = gridDs.GetLayerByIndex(0);
                 if (selecting) {
-                    lakeId = Convert.ToInt32(this._dlg.delinLakeIdCombo.SelectedText);
+                    lakeId = Convert.ToInt32(this._dlg.delinLakeIdCombo.Text);
                     fids = await QueuedTask.Run(() => {
                         return this.gridLayer.GetSelection().GetObjectIDs();
                     });
@@ -4024,6 +4032,10 @@ assumed that its crossing the lake boundary is an inaccuracy.
             Utils.copyPrj(this._gv.demFile, subbasinsFile);
             // use GDAL to rename gridcode to PolygonId and add Area and Subbasin
             using (var subbasinsDs = Ogr.Open(subbasinsFile, 1)) {
+                if (subbasinsDs is null) {
+                    Utils.error($"Cannot open subbasins file {subbasinsFile}", this._gv.isBatch);
+                    return;
+                }
                 OSGeo.OGR.Driver drv = subbasinsDs.GetDriver();
                 if (drv is null) {
                     Utils.error("Cannot get GDAL driver for subbasins file", this._gv.isBatch);
@@ -5193,6 +5205,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     return false;
                 } else {
                     Utils.loginfo("Added PointId field to inlets/outlets file: " + $@"{result.ReturnValue}");
+                    // need to recalculate ptIdIndex, which was -1.  For safety recalculate idIndex as well.
+                    await QueuedTask.Run(() => {
+                        using (var fc = outletLayer.GetFeatureClass()) {
+                            var defn = fc.GetDefinition();
+                            idIndex = defn.FindField(Topology._ID);
+                            ptIdIndex = defn.FindField(Topology._POINTID);
+                        }
+                    });
                     if (!await Topology.makePositiveOutletIds(outletLayer, idIndex, ptIdIndex)) {
                         Utils.error(string.Format("Failed to set PointId field in inlets/outlets file {0}", outletFile), this._gv.isBatch);
                         return false;
@@ -5228,46 +5248,48 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 var ptsourceSnapIndex = def.GetFieldIndex(Topology._PTSOURCE);
                 var ptIdSnapIndex = def.GetFieldIndex(Topology._POINTID);
                 var ds = Gdal.Open(this._gv.demFile, Access.GA_ReadOnly);
-                double[] transform = new double[6]; ;
+                double[] transform = new double[6]; 
                 ds.GetGeoTransform(transform);
                 count = 0;
                 errorCount = 0;
                 outletCount = 0;
                 //outletLayer = (await Utils.getLayerByFilename(outletFile, FileTypes._OUTLETS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
-                using (var rc = outletLayer.Search()) {
-                    while (rc.MoveNext()) {
-                        var feature = rc.Current as ArcGIS.Core.Data.Feature;
-                        var point = feature.GetShape() as MapPoint;
-                        var pid = Convert.ToInt32(feature[Topology._ID]);
-                        var inlet = Convert.ToInt32(feature[Topology._INLET]);
-                        var res = Convert.ToInt32(feature[Topology._RES]);
-                        var ptsource = Convert.ToInt32(feature[Topology._PTSOURCE]);
-                        var ptId = Convert.ToInt32(feature[Topology._POINTID]);
-                        var inletOrOutlet = inlet == 0 ? res == 0 : ptsource == 0;
-                        var reachLayer = inletOrOutlet ? streamLayer : channelLayer;
-                        var point1 = Topology.snapPointToReach(reachLayer, point, snapThreshold, transform, this._gv.isBatch);
-                        if (point1 is null) {
-                            errorCount += 1;
-                            continue;
+                await QueuedTask.Run(() => {
+                    using (var rc = outletLayer.Search()) {
+                        while (rc.MoveNext()) {
+                            var feature = rc.Current as ArcGIS.Core.Data.Feature;
+                            var point = feature.GetShape() as MapPoint;
+                            var pid = Convert.ToInt32(feature[Topology._ID]);
+                            var inlet = Convert.ToInt32(feature[Topology._INLET]);
+                            var res = Convert.ToInt32(feature[Topology._RES]);
+                            var ptsource = Convert.ToInt32(feature[Topology._PTSOURCE]);
+                            var ptId = Convert.ToInt32(feature[Topology._POINTID]);
+                            var inletOrOutlet = inlet == 0 ? res == 0 : ptsource == 0;
+                            var reachLayer = inletOrOutlet ? streamLayer : channelLayer;
+                            var point1 = Topology.snapPointToReach(reachLayer, point, snapThreshold, transform, this._gv.isBatch);
+                            if (point1 is null) {
+                                errorCount += 1;
+                                continue;
+                            }
+                            if (inlet == 0 && res == 0) {
+                                outletCount += 1;
+                            }
+                            OSGeo.OGR.Feature pt1 = new OSGeo.OGR.Feature(def);
+                            pt1.SetField(idSnapIndex, pid);
+                            pt1.SetField(inletSnapIndex, inlet);
+                            pt1.SetField(resSnapIndex, res);
+                            pt1.SetField(ptsourceSnapIndex, ptsource);
+                            pt1.SetField(ptIdSnapIndex, ptId);
+                            OSGeo.OGR.Geometry ogrPoint = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPoint);
+                            ogrPoint.SetPoint_2D(0, point1.X, point1.Y);
+                            pt1.SetGeometry(ogrPoint);
+                            var num = snapLayer.CreateFeature(pt1);
+                            if (num < 0) { errorCount++; }
+                            count++;
+                            // Utils.information('Snap point at ({0:G0}, {1:G0})', point1.X, point1.Y), self._gv.isBatch)
                         }
-                        if (inlet == 0 && res == 0) {
-                            outletCount += 1;
-                        }
-                        OSGeo.OGR.Feature pt1 = new OSGeo.OGR.Feature(def);
-                        pt1.SetField(idSnapIndex, pid);
-                        pt1.SetField(inletSnapIndex, inlet);
-                        pt1.SetField(resSnapIndex, res);
-                        pt1.SetField(ptsourceSnapIndex, ptsource);
-                        pt1.SetField(ptIdSnapIndex, ptId);
-                        OSGeo.OGR.Geometry ogrPoint = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPoint);
-                        ogrPoint.SetPoint_2D(0, point1.X, point1.Y);
-                        pt1.SetGeometry(ogrPoint);
-                        var num = snapLayer.CreateFeature(pt1);
-                        if (num < 0) { errorCount++; }
-                        count++;
-                        // Utils.information('Snap point at ({0:G0}, {1:G0})', point1.X, point1.Y), self._gv.isBatch)
                     }
-                }
+                });
             }
             var failMessage = errorCount == 0 ? "" : string.Format(": {0} failed", errorCount);
             this._dlg.snappedLabelText = string.Format("{0} snapped{1}", count, failMessage);
@@ -5342,12 +5364,16 @@ assumed that its crossing the lake boundary is an inaccuracy.
             //    }
             //}
             await Utils.removeLayerAndFiles(filePath);
-            using (var driver = Ogr.GetDriverByName("ESRI Shapefile")) {
-                var outletDs = driver.CreateDataSource(filePath, null);
+            using (var driver = Ogr.GetDriverByName("ESRI Shapefile")) 
+             using (var outletDs = driver.CreateDataSource(filePath, null)) { 
                 var wkt = gv.topo.crsProject.Wkt;
                 OSGeo.OSR.SpatialReference srs = new OSGeo.OSR.SpatialReference(wkt);
                 var outletLayer = outletDs.CreateLayer("Outlets", srs, wkbGeometryType.wkbPoint, null);
-                outletLayer.CreateField(new FieldDefn(Topology._ID, OSGeo.OGR.FieldType.OFTInteger), 1);
+                var err = outletLayer.CreateField(new FieldDefn(Topology._ID, OSGeo.OGR.FieldType.OFTInteger), 1);
+                if (err != Ogr.OGRERR_NONE) {
+                    Utils.error($"Failed to create field in outlet file {filePath}", false);
+                    return false;
+                }
                 outletLayer.CreateField(new FieldDefn(Topology._ID, OSGeo.OGR.FieldType.OFTInteger), 1);
                 outletLayer.CreateField(new FieldDefn(Topology._INLET, OSGeo.OGR.FieldType.OFTInteger), 1);
                 outletLayer.CreateField(new FieldDefn(Topology._RES, OSGeo.OGR.FieldType.OFTInteger), 1);
@@ -5356,6 +5382,19 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 if (basinWanted) {
                     outletLayer.CreateField(new FieldDefn(Topology._SUBBASIN, OSGeo.OGR.FieldType.OFTInteger), 1);
                 }
+                err = outletLayer.SyncToDisk();
+                if (err != Ogr.OGRERR_NONE) {
+                    Utils.error($"Failed to save layer of outlet file {filePath}", false);
+                    return false;
+                }
+                outletLayer = null;
+                err = outletDs.SyncToDisk();
+                if (err != Ogr.OGRERR_NONE) {
+                    Utils.error($"Failed to save data source of outlet file {filePath}", false);
+                    return false;
+                }
+                //outletDs.Dispose();
+                //outletDs = null;
             }
             Utils.copyPrj(sourcePath, filePath);
             return true;
@@ -5385,14 +5424,26 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 this._dlg.progress(msg);
             }
 
-            // Close form.
-            public virtual void doClose() {
-                // close any landscape dialog if visible
-                if (this.L is not null && this.L._dlg.Visible) {
-                    this.L.cancel();
-                }
-                this._dlg.Close();
+        // Close form.
+        public virtual void doClose() {
+            // close any landscape dialog if visible
+            if (this.L is not null && this.L._dlg.Visible) {
+                this.L.cancel();
             }
+            this._dlg.Close();
+            if (this.delineationFinishedOK) {
+                if (this.finishHasRun) {
+                    this._gv.writeProjectConfig(1, 0);
+                    this._parent.postDelineation(1);
+                } else {
+                    // nothing done
+                    this._parent.postDelineation(2);
+                }
+            } else {
+                this._gv.writeProjectConfig(0, 0);
+                this._parent.postDelineation(0);
+            }
+        }
 
     //        // Read delineation data from project file.
     //        public virtual void readProj() {
@@ -5421,7 +5472,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
     //            this._dlg.gridBox.setChecked(this._gv.useGridModel);
     //            Utils.loginfo(string.Format("Use grid model is {0}", this._gv.useGridModel));
     //            var gridSize = proj.readNumEntry(title, "delin/gridSize", 0).Item1;
-    //            this._dlg.gridSize.setValue(gridSize);
+    //            this._dlg.gridSize.Value = gridSize);
     //            this._gv.gridSize = gridSize;
     //            this._dlg.drainGridButton.setChecked(proj.readBoolEntry(title, "delin/gridDrainage", true)[0]);
     //            this._dlg.drainStreamsButton.setChecked(proj.readBoolEntry(title, "delin/streamDrainage", false)[0]);
@@ -5577,7 +5628,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
     //            }
     //            if (burnLayer is not null) {
     //                this._gv.burnFile = burnFile;
-    //                this._dlg.checkBurn.setChecked(true);
+    //                this._dlg.checkBurn.Checked = true;
     //                this._dlg.selectBurn.Text = burnFile);
     //            } else {
     //                this._gv.burnFile = "";
@@ -5714,7 +5765,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
 
         //    // Write delineation data to project file.
-        //    public virtual object saveProj() {
+        //    public virtual void saveProj() {
         //        object snapThreshold;
         //        object numCellsSt;
         //        object numCellsCh;

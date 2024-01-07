@@ -128,12 +128,12 @@ namespace ArcSWATPlus
             };
         }
 
-        private void selectDemButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetDEM();
+        private async void selectDemButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetDEM();
         }
 
-        private void burnButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetBurn();
+        private async void burnButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetBurn();
         }
 
         private void checkBurn_CheckedChanged(object sender, EventArgs e) {
@@ -153,10 +153,10 @@ namespace ArcSWATPlus
         public void init() {
             //var settings = QSettings();
             //try {
-            //    this.numProcesses.setValue(Convert.ToInt32(settings.value("/QSWAT/NumProcesses")));
+            //    this.numProcesses.Value = Convert.ToInt32(settings.value("/QSWAT/NumProcesses")));
             //}
             //catch (Exception) {
-            //    this.numProcesses.setValue(8);
+            //    this.numProcesses.Value = 8);
             //}
             this.numProcesses.Value = 8;
             //this.selectDemButton.clicked.connect(this.btnSetDEM);
@@ -211,6 +211,8 @@ namespace ArcSWATPlus
             // initally disable numCells, area and areaUnitsBox (enabled only after loading DEM, when cell-area conversion possible)
             this.numCellsCh.Enabled = false;
             this.areaCh.Enabled = false;
+            this.numCellsSt.Enabled = false;
+            this.areaSt.Enabled = false;
             this.areaUnitsBox.Enabled = false;
             // set area units initially to hectares
             this.areaUnitsBox.SelectedItem = Parameters._HECTARES;
@@ -1275,7 +1277,7 @@ namespace ArcSWATPlus
 
         // Sets vertical units from combo box; sets corresponding factor to apply to elevations.
         public void setVerticalUnits() {
-            this._gv.verticalUnits = this.verticalCombo.SelectedText;
+            this._gv.verticalUnits = this.verticalCombo.Text;
             this._gv.setVerticalFactor();
         }
 
@@ -3004,7 +3006,7 @@ namespace ArcSWATPlus
         }
 
         //// Create grid shapefile for watershed.
-        //public virtual object createGridShapefile(object demLayer, string pFile, string ad8File, string wFile) {
+        //public virtual void createGridShapefile(object demLayer, string pFile, string ad8File, string wFile) {
         //    object gridStreamsFile;
         //    object gridFile;
         //    object readInletsFile(string fileName) {
@@ -3028,7 +3030,7 @@ namespace ArcSWATPlus
         //        }
         //        return result;
         //    }
-        //    var gridSize = this.GridSize.value();
+        //    var gridSize = this.GridSize.Value;
         //    var inlets = new HashSet<object>();
         //    if (this._gv.forTNC) {
         //        // store grid and gridstreams with DEM so can be reused for same grid size
@@ -3097,7 +3099,7 @@ namespace ArcSWATPlus
         //}
 
         //// Create grid data in array and return it.
-        //public virtual object storeGridData(string ad8File, string basinFile, int gridSize) {
+        //public virtual void storeGridData(string ad8File, string basinFile, int gridSize) {
         //    // mask accFile with basinFile to exclude small outflowing watersheds
         //    // only do this if result needs updating and if not from GRASS (since ad8 file from GRASS was masked by basinFile)
         //    var @base = os.path.splitext(ad8File)[0];
@@ -3449,7 +3451,7 @@ namespace ArcSWATPlus
         //===========================================================================
 
         //// Write grid data to grid shapefile.  Also writes centroids dictionary.
-        //public virtual object writeGridShapefile(
+        //public virtual void writeGridShapefile(
         //    object storeGrid,
         //    string gridFile,
         //    string flowFile,
@@ -4116,8 +4118,8 @@ namespace ArcSWATPlus
             this._gv.taudem.taudemHelp();
         }
 
-        private void OKButton_Click(object sender, EventArgs e) {
-            this._parent.finishDelineation();
+        private async void OKButton_Click(object sender, EventArgs e) {
+            await this._parent.finishDelineation();
         }
 
         private void cancelButton_Click(object sender, EventArgs e) {
@@ -4164,7 +4166,7 @@ namespace ArcSWATPlus
             if (this._gv.useGridModel) {
                 (gridSize, found) = proj.readNumEntry(title, "delin/gridSize", 1);
                 if (found) {
-                    //this.GridSize.setValue(gridSize);
+                    //this.GridSize.Value = gridSize);
                     this._gv.gridSize = gridSize;
                 }
             }
@@ -4185,7 +4187,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._DEM));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._DEM)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._DEM)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         demLayer = layer as RasterLayer;
                         demFile = possFile;
                     }
@@ -4234,7 +4236,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(ft));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         subbasinsLayer = layer as FeatureLayer;
                         subbasinsFile = possFile;
                     }
@@ -4255,7 +4257,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(ft));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         wshedLayer = layer as FeatureLayer;
                         wshedFile = possFile;
                     }
@@ -4280,7 +4282,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(ft));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         lakeLayer = layer as FeatureLayer;
                         lakeFile = possFile;
                     }
@@ -4309,7 +4311,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._BURN));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._BURN)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._BURN)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         burnLayer = layer as FeatureLayer;
                         burnFile = possFile;
                     }
@@ -4330,7 +4332,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._STREAMS));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._STREAMS)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._STREAMS)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         streamLayer = layer as FeatureLayer;
                         streamFile = possFile;
                     }
@@ -4352,7 +4354,7 @@ namespace ArcSWATPlus
                     layer = Utils.getLayerByLegend(FileTypes.legend(ft));
                     if (layer is not null) {
                         possFile = await Utils.layerFilename(layer);
-                        if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                        if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(ft)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                             channelLayer = layer as FeatureLayer;
                             channelFile = possFile;
                         }
@@ -4384,7 +4386,7 @@ namespace ArcSWATPlus
                 layer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._OUTLETS));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
-                    if (Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._OUTLETS)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._OUTLETS)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
                         outletLayer = layer as FeatureLayer;
                         outletFile = possFile;
                         useOutlets = true;
@@ -4478,7 +4480,7 @@ namespace ArcSWATPlus
             proj.writeEntryBool(title, "delin/useOutlets", this.useOutlets.Checked);
             proj.writeEntry(title, "delin/outlets", this._gv.outletFile);
             proj.writeEntry(title, "delin/snapOutlets", this._gv.snapFile);
-            proj.writeEntry(title, "delin/extraOutlets", this._gv.extraOutletFile);
+            //proj.writeEntry(title, "delin/extraOutlets", this._gv.extraOutletFile);
             proj.writeEntry(title, "delin/burn", this._gv.burnFile);
             proj.writeEntry("", "delin/verticalUnits", this._gv.verticalUnits);
             try {
@@ -4786,6 +4788,16 @@ namespace ArcSWATPlus
             removeLakeCells.Visible = this._gv.useGridModel;
             this.setDrainage();
             setMergeResGroups(this._parent.isDelineated);
+        }
+
+        // enable channel and stream thresholds
+
+        public void enableThresholds() {
+            this.numCellsCh.Enabled = true;
+            this.areaCh.Enabled = true;
+            this.numCellsSt.Enabled = true;
+            this.areaSt.Enabled = true;
+            this.areaUnitsBox.Enabled = true;
         }
 
         // Update form according to drainage option.

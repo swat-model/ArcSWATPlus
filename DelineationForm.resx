@@ -60,9 +60,6 @@
   <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>157, 54</value>
   </metadata>
-  <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>157, 54</value>
-  </metadata>
   <data name="selectOutletsInteractiveButton.ToolTip" xml:space="preserve">
     <value>Interactively select which inlets, outlets, reservoirs and point sources to use.  You only need to do this if you want to use only a subset of what is in the shapefile.  The default is to use all the points in the shapefile.</value>
   </data>

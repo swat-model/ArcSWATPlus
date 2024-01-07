@@ -464,7 +464,7 @@ namespace ArcSWATPlus {
         
         //// Enable dialog items or not according to hillslopes check box state.
         //public virtual void hillslopesCheck() {
-        //    if (this._dlg.hillslopesCheckBox.isChecked() || this._dlg.methodTab.currentIndex() == 0) {
+        //    if (this._dlg.hillslopesCheckBox.Checked || this._dlg.methodTab.currentIndex() == 0) {
         //        this._dlg.floodplainCheckBox.setEnabled(true);
         //    } else {
         //        this._dlg.floodplainCheckBox.setEnabled(false);
@@ -474,7 +474,7 @@ namespace ArcSWATPlus {
         
         //// Enable dialog items or not according to floodplain check box state.
         //public virtual void floodplainCheck() {
-        //    if (this._dlg.floodplainCheckBox.isChecked()) {
+        //    if (this._dlg.floodplainCheckBox.Checked) {
         //        this._dlg.methodTab.setEnabled(true);
         //        this._dlg.slopePositionSpinBox.setEnabled(true);
         //        this._dlg.slopePositionLabel.setEnabled(true);
@@ -494,8 +494,8 @@ namespace ArcSWATPlus {
         // Run landscape generation.
         public async void generate() {
             bool ok;
-            var doHillslopes = false; //  this._dlg.hillslopesCheckBox.isChecked();
-            var doFloodplain = true; // this._dlg.floodplainCheckBox.isChecked();
+            var doHillslopes = false; //  this._dlg.hillslopesCheckBox.Checked;
+            var doFloodplain = true; // this._dlg.floodplainCheckBox.Checked;
             //if (!doHillslopes && !doFloodplain) {
             //    this._dlg.close();
             //}
@@ -629,7 +629,7 @@ namespace ArcSWATPlus {
                         if (val != noData) {
                             val = 0 - val;
                         }
-                        demInvRaster.Write(row, col, val);
+                        demInvRaster.write(row, col, val);
                     }
                 }
                 demInvRaster.close();
@@ -904,8 +904,8 @@ namespace ArcSWATPlus {
         public virtual void propagate(int val, float elev, List<(int, int)> path) {
             if (path is not null) {
                 foreach (var (row, col) in path) {
-                    this.hillslopeRaster.Write(row, col, val);
-                    this.valleyDepthsRaster.Write(row, col, (float)this.demRaster.read(row, col) - elev);
+                    this.hillslopeRaster.write(row, col, val);
+                    this.valleyDepthsRaster.write(row, col, (float)this.demRaster.read(row, col) - elev);
                 }
             }
         }

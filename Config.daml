@@ -3,7 +3,7 @@
         defaultNamespace="ArcSWATPlus"
         xmlns="http://schemas.esri.com/DADF/Registry"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="http://schemas.esri.com/DADF/Registry file:///C:/Users/Chris/AppData/Local/Programs/ArcGIS/Pro/bin/ArcGIS.Desktop.Framework.xsd">
+        xsi:schemaLocation="http://schemas.esri.com/DADF/Registry file:///C:/Program Files/ArcGIS/Pro/bin/ArcGIS.Desktop.Framework.xsd">
 
   <AddInInfo id="{30101c56-0002-4c2c-bc1f-f83d04fefb23}" version="1.0" desktopVersion="3.1.41833">
     <Name>ArcSWATPlus</Name>   
@@ -21,7 +21,7 @@
     <insertModule id="ArcSWATPlus_Module" className="Module1" autoLoad="false" caption="Module1">
       <!-- uncomment to have the control hosted on a separate tab-->
       <tabs>
-        <tab id="ArcSWATPlus_Tab1" caption="New Tab"  keytip="X">
+        <tab id="ArcSWATPlus_Tab1" caption="ArcSWAT+"  keytip="X">
           <group refID="ArcSWATPlus_Group1"/>
         </tab>
       </tabs>
@@ -38,7 +38,7 @@
       <controls>
         <!-- add your controls here -->
 		  <button id="ArcSWATPlus_StartButton" caption="Start ArcSWAT+" className="StartButton" loadOnClick="true" smallImage="Install/Images/swatplus16.png" largeImage="Install/Images/swatplus32.png" keytip="X2">
-			  <tooltip heading="Start ArcSWAT">
+			  <tooltip heading="Start ArcSWAT+">
 				  Start the ArcSWAT+ plugin<disabledText />
 			  </tooltip>
 		  </button>

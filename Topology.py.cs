@@ -384,7 +384,7 @@ namespace ArcSWATPlus {
             // complete
             this.channelSlopes = new Dictionary<int, double>();
             //# array of total area draining to downstream end of channel in square metres
-            this.drainAreas = null;
+            this.drainAreas = new Dictionary<int, double>(); 
             //# array of Strahler order of channels
             this.strahler = null;
             //# map of lake id to ids of points added to split channels entering lakes
@@ -498,16 +498,17 @@ namespace ArcSWATPlus {
                 Utils.loginfo(string.Format("Failure to read DEM units: {0}", units.ToString()));
                 return false;
             }
-            var XYSizes = await QueuedTask.Run<Tuple<double, double>>(() => {
-                return demLayer.GetRaster().GetMeanCellSize();
+            Tuple<double, double> XYSizes = null;
+            await QueuedTask.Run(() => {
+                XYSizes = demLayer.GetRaster().GetMeanCellSize();
+                dynamic nodata = demLayer.GetRaster().GetNoDataValue();
+                var typ = nodata.GetType();
+                if (typ.IsArray) {
+                    this.demNodata = Convert.ToDouble(nodata[0]);
+                } else {
+                    this.demNodata = Convert.ToDouble(nodata);
+                }
             });
-            dynamic nodata = demLayer.GetRaster().GetNoDataValue();
-            var typ = nodata.GetType();
-            if (typ.IsArray) {
-                this.demNodata = Convert.ToDouble(nodata[0]);
-            } else {
-                this.demNodata = Convert.ToDouble(nodata);
-            }
             this.dx = XYSizes.Item1 * gv.horizontalFactor;
             this.dy = XYSizes.Item1 * gv.horizontalFactor;
             this.xThreshold = this.dx / gv.horizontalFactor * Parameters._NEARNESSTHRESHOLD;
@@ -535,10 +536,10 @@ namespace ArcSWATPlus {
         // Set crsProject and transformToLatLong if necessary.
         public async Task setCrs(RasterLayer demLayer, GlobalVars gv) {
             if (gv.crsProject is null) {
-                gv.crsProject ??= await QueuedTask.Run(() => demLayer.GetSpatialReference());
-                this.crsProject = gv.crsProject;
-                this.transformToLatLong = ProjectionTransformation.Create(gv.crsProject, this.crsLatLong, this.demExtent);
+                await QueuedTask.Run(() => { gv.crsProject = demLayer.GetSpatialReference(); });
             }
+            this.crsProject = gv.crsProject;
+            this.transformToLatLong = ProjectionTransformation.Create(gv.crsProject, this.crsLatLong, this.demExtent);
         }
 
         // Establish subbasinToStream, downStreams and streamLengths dictionaries.
@@ -659,44 +660,44 @@ namespace ArcSWATPlus {
                     var lakesDs = Ogr.Open(lakesFile, 0);
                     lakesLayer = lakesDs.GetLayerByIndex(0);
                 }
-                this.channelIndex = this.getIndex(channelDefn, channelFile, Topology._LINKNO, ignoreMissing: ignoreError);
+                this.channelIndex = this.getIndex(channelDefn, Topology._LINKNO, channelFile, ignoreMissing: ignoreError);
                 if (this.channelIndex < 0) {
                     Utils.loginfo("No LINKNO field in channels layer");
                     return false;
                 }
                 var DSLINKNO = this.isHUC ? Topology._DSLINKNO1 : Topology._DSLINKNO;
-                this.dsChannelIndex = this.getIndex(channelDefn, channelFile, DSLINKNO, ignoreMissing: ignoreError);
+                this.dsChannelIndex = this.getIndex(channelDefn, DSLINKNO, channelFile, ignoreMissing: ignoreError);
                 if (this.dsChannelIndex < 0) {
                     Utils.loginfo("No DSLINKNO field in channels layer");
                     return false;
                 }
                 var DSNODEID = this.isHUC ? Topology._DSNODEID1 : Topology._DSNODEID;
-                var dsNodeIndex = this.getIndex(channelDefn, channelFile, DSNODEID, ignoreMissing: ignoreWithExisting);
-                var dsNode2Index = this.getIndex(channelDefn, channelFile, Topology._DSNODEID2, ignoreMissing: !this.isHUC);
-                this.wsnoIndex = this.getIndex(channelDefn, channelFile, Topology._WSNO, ignoreMissing: ignoreError);
+                var dsNodeIndex = this.getIndex(channelDefn, DSNODEID, channelFile, ignoreMissing: ignoreWithExisting);
+                var dsNode2Index = this.getIndex(channelDefn, Topology._DSNODEID2, channelFile, ignoreMissing: !this.isHUC);
+                this.wsnoIndex = this.getIndex(channelDefn, Topology._WSNO, channelFile, ignoreMissing: ignoreError);
                 if (this.wsnoIndex < 0) {
                     Utils.loginfo("No WSNO field in channels layer");
                     return false;
                 }
                 int orderIndex;
                 if (this.isHUC) {
-                    orderIndex = this.getIndex(channelDefn, channelFile, Topology._ORDERHUC, ignoreMissing: false);
+                    orderIndex = this.getIndex(channelDefn, Topology._ORDERHUC, channelFile, ignoreMissing: false);
                 } else {
-                    orderIndex = this.getIndex(channelDefn, channelFile, Topology._ORDER, ignoreMissing: ignoreWithGridOrExisting);
+                    orderIndex = this.getIndex(channelDefn, Topology._ORDER, channelFile, ignoreMissing: ignoreWithGridOrExisting);
                     if (orderIndex < 0 && ignoreWithGridOrExisting) {
-                        orderIndex = this.getIndex(channelDefn, channelFile, Topology._ORDER2, ignoreMissing: ignoreWithGridOrExisting);
+                        orderIndex = this.getIndex(channelDefn, Topology._ORDER2, channelFile, ignoreMissing: ignoreWithGridOrExisting);
                     }
                 }
-                var drainAreaIndex = this.getIndex(channelDefn, channelFile, Topology._DRAINAREA, ignoreMissing: ignoreWithGridOrExisting);
+                var drainAreaIndex = this.getIndex(channelDefn, Topology._DRAINAREA, channelFile, ignoreMissing: ignoreWithGridOrExisting);
                 if (drainAreaIndex < 0 && ignoreWithGridOrExisting) {
-                    drainAreaIndex = this.getIndex(channelDefn, channelFile, Topology._DRAINAREA2, ignoreMissing: ignoreWithGridOrExisting);
+                    drainAreaIndex = this.getIndex(channelDefn, Topology._DRAINAREA2, channelFile, ignoreMissing: ignoreWithGridOrExisting);
                 }
-                var lengthIndex = this.getIndex(channelDefn, channelFile, Topology._LENGTH, ignoreMissing: ignoreWithGridOrExisting);
-                var dropIndex = this.getIndex(channelDefn, channelFile, Topology._DROP, ignoreMissing: ignoreWithGridOrExisting);
+                var lengthIndex = this.getIndex(channelDefn, Topology._LENGTH, channelFile, ignoreMissing: ignoreWithGridOrExisting);
+                var dropIndex = this.getIndex(channelDefn, Topology._DROP, channelFile, ignoreMissing: ignoreWithGridOrExisting);
                 if (dropIndex < 0 && ignoreWithGridOrExisting) {
-                    dropIndex = this.getIndex(channelDefn, channelFile, Topology._DROP2, ignoreMissing: ignoreWithGridOrExisting);
+                    dropIndex = this.getIndex(channelDefn, Topology._DROP2, channelFile, ignoreMissing: ignoreWithGridOrExisting);
                 }
-                var totDAIndex = this.getIndex(channelDefn, channelFile, Topology._TOTDASQKM, ignoreMissing: ignoreTotDA);
+                var totDAIndex = this.getIndex(channelDefn, Topology._TOTDASQKM, channelFile, ignoreMissing: ignoreTotDA);
                 var polyIndex = this.getIndex(subbasinsLayer, Topology._POLYGONID, ignoreMissing: ignoreError);
                 if (polyIndex < 0) {
                     Utils.loginfo("No POLYGONID field in subbasins layer");
@@ -1091,7 +1092,7 @@ namespace ArcSWATPlus {
                     }
                 }
                 var time6 = DateTime.Now;
-                Utils.loginfo(string.Format("Topology setting SWATBasin numbers took {0} seconds", Convert.ToInt32(time6 - time5)));
+                Utils.loginfo(string.Format("Topology setting SWATBasin numbers took {0} seconds", Convert.ToInt32(time6.Subtract(time5).TotalSeconds)));
                 //subbasinsLayer.setLabelsEnabled(true);
                 //subbasinsLayer.triggerRepaint();
                 if (!useGridModel) {
@@ -2800,11 +2801,11 @@ namespace ArcSWATPlus {
             OSGeo.OGR.Geometry line = null; ;
             double length;
             var channelDefn = channelLayer.GetLayerDefn();
-            var bsnIdx = this.getIndex(channelDefn, channelFile, Topology._BASINNO, ignoreMissing: true);
+            var bsnIdx = this.getIndex(channelDefn, Topology._BASINNO, channelFile, ignoreMissing: true);
             if (bsnIdx < 0) {
                 var field = new FieldDefn(Topology._BASINNO, OSGeo.OGR.FieldType.OFTInteger);
                 channelLayer.CreateField(field, 1);
-                bsnIdx = this.getIndex(channelDefn, channelFile, Topology._BASINNO);
+                bsnIdx = this.getIndex(channelDefn, Topology._BASINNO, channelFile);
             }
             using (var ds = Gdal.Open(wStreamFile, Access.GA_ReadOnly)) {
                 Band band = ds.GetRasterBand(1);
@@ -2813,7 +2814,7 @@ namespace ArcSWATPlus {
                 double noData;
                 int hasData;
                 band.GetNoDataValue(out noData, out hasData);
-                var lenIdx = this.getIndex(channelDefn, channelFile, Topology._LENGTH, ignoreMissing: true);
+                var lenIdx = this.getIndex(channelDefn, Topology._LENGTH, channelFile, ignoreMissing: true);
                 channelLayer.ResetReading();
                 OSGeo.OGR.Feature feature;
                 do {
@@ -2840,7 +2841,7 @@ namespace ArcSWATPlus {
                                 break;
                             }
                         }
-                        var numPoints = line.GetGeometryCount();
+                        var numPoints = line.GetPointCount();
                         if (numPoints < 2) {
                             Utils.error(string.Format("Link in channel with id {0} has less than two points", feature.GetFID()), this.isBatch);
                             return;
@@ -3077,27 +3078,37 @@ namespace ArcSWATPlus {
                 var op = new ArcGIS.Desktop.Editing.EditOperation();
                 op.Name = "Set PointId";
                 using (var rc = outletLayer.Search()) {
-                    while (rc is not null) {
-                        var f = rc.Current as ArcGIS.Core.Data.Feature;
-                        var pointId = (int)f[idIndex];
-                        if (pointId == 0) {
-                            zeroId = f.GetObjectID();
-                        } else {
-                            op.Modify(f, ptIdIndex, pointId);
-                            if (!op.IsEmpty) {
-                                if (!op.Execute()) { // returns true if the operation was successful and false if not
-                                    return false;
-                                }
-                            } else { return false; }
-                            maxId = Math.Max(maxId, pointId);
+                    //if (rc is null) {
+                    //    Utils.error("rc is null", false);
+                    //    return false;
+                    //}
+                    while (rc.MoveNext()) {
+                        //if (rc.Current is null) {
+                        //    Utils.error("rc.Current is null", false);
+                        //    return false;
+                        //}
+                        using (var f = rc.Current as ArcGIS.Core.Data.Feature) { 
+                            var pointId = Convert.ToInt32(f[idIndex]);
+                            if (pointId == 0) {
+                                zeroId = f.GetObjectID();
+                            } else {
+                                op.Modify(f, ptIdIndex, pointId);
+                                if (!op.IsEmpty) {
+                                    if (!op.Execute()) { // returns true if the operation was successful and false if not
+                                        return false;
+                                    }
+                                } else { return false; }
+                                maxId = Math.Max(maxId, pointId);
+                            }
                         }
                     }
                 }
                 if (zeroId >= 0) {
                     var qf = new ArcGIS.Core.Data.QueryFilter() {
-                        WhereClause = "ObjectID = " + zeroId.ToString() 
+                        WhereClause = "FID = " + zeroId.ToString() 
                     };
                     using (var rc = outletLayer.Search(qf)) {
+                        rc.MoveNext();
                         var f = rc.Current as ArcGIS.Core.Data.Feature;
                         op.Modify(f, ptIdIndex, maxId + 1);
                         if (!op.IsEmpty) {
@@ -3690,14 +3701,15 @@ namespace ArcSWATPlus {
         }
 
         // Write the gis_points table in the project database.
-        public virtual void writePointsTable(RasterLayer demLayer, IEnumerable<int> mergees, bool useGridModel, bool existingWshed) {
+        public virtual async void writePointsTable(RasterLayer demLayer, IEnumerable<int> mergees, bool useGridModel, bool existingWshed) {
 
             var table = "gis_points";
             var clearSQL = "DROP TABLE IF EXISTS " + table;
             db.execNonQuery(clearSQL);
             db.execNonQuery(DBUtils._POINTSCREATESQL);
             var waterAdded = new List<int>();
-            ArcGIS.Core.Data.Raster.Raster demRaster = demLayer.GetRaster();
+            ArcGIS.Core.Data.Raster.Raster demRaster = null;
+            await QueuedTask.Run(() => { demRaster = demLayer.GetRaster(); });
             // Add outlets from streams
             foreach (var (subbasin, (pointId, pt, _)) in this.outlets) {
                 if (this.upstreamFromInlets.Contains(subbasin)) {
@@ -4116,6 +4128,7 @@ namespace ArcSWATPlus {
                     reach.SetField(chIdx, SWATChannel);
                     reach.SetField(chRIdx, downSWATChannel);
                     reach.SetField(subIdx, SWATBasin);
+                    rivs1Layer.SetFeature(reach);
                 } while (reach is not null);
                 foreach (var rid in zeroRids) {
                     rivs1Layer.DeleteFeature(rid);
@@ -5004,6 +5017,7 @@ namespace ArcSWATPlus {
                     layer.DeleteField(idx);
                     // don't skip next field, which may have a reduced index
                     idx--;
+                    fieldCount--;
                 }
             }
         }
@@ -5085,20 +5099,25 @@ namespace ArcSWATPlus {
                 threshold = Convert.ToInt32(2 * maxContrib);
                 // copy ad8 to hd8 and then set outlet point values to threshold
                 var driver = Gdal.GetDriverByName("GTiff");
-                var hd8Ds = driver.CreateCopy(gv.hd8File, ad8Ds, 0, null, null, "");
-                if (hd8Ds is null) {
-                    Utils.error(string.Format("Failed to create hd8 file {0}", gv.hd8File), this.isBatch);
-                    return -1;
+                using (var hd8Ds = driver.CreateCopy(gv.hd8File, ad8Ds, 0, null, null, "")) {
+                    if (hd8Ds is null) {
+                        Utils.error(string.Format("Failed to create hd8 file {0}", gv.hd8File), this.isBatch);
+                        return -1;
+                    }
+                    Utils.copyPrj(gv.ad8File, gv.hd8File);
+                    var hd8Band = hd8Ds.GetRasterBand(1);
+                    int[] arr = new int[1];
+                    arr[0] = threshold;
+                    foreach (var (_, pt, _) in this.outlets.Values) {
+                        (int x, int y) = Topology.projToCell(pt[0], pt[1], transform);
+                        var err = hd8Band.WriteRaster(x, y, 1, 1, arr, 1, 1, 0, 0);
+                        if (err != CPLErr.CE_None) {
+                            Utils.error($"Failed to write value {threshold} to hd8 file at ({y}, {x})", gv.isBatch);
+                            return -1;
+                        }
+                    }
+                    //hd8Ds = null;
                 }
-                Utils.copyPrj(gv.ad8File, gv.hd8File);
-                var hd8Band = hd8Ds.GetRasterBand(1);
-                int[] arr = new int[1];
-                arr[0] = threshold;
-                foreach (var (_, pt, _) in this.outlets.Values) {
-                    (int x, int y) = Topology.projToCell(pt[0], pt[1], transform);
-                    hd8Band.WriteRaster(x, y, 1, 1, arr, 1, 1, 0, 0);
-                }
-                hd8Ds = null;
             }
             return threshold;
         }
@@ -5562,12 +5581,14 @@ namespace ArcSWATPlus {
         public async Task<int> getIndex(ArcGIS.Desktop.Mapping.FeatureLayer layer, string name, bool ignoreMissing = false) {
 
             bool eqName(FieldDescription fd) {
-                return fd.Name.ToUpper() == name.Substring(0, 10).Trim().ToUpper(); 
+                var len = Math.Min(name.Length, 10);
+                return fd.Name.ToUpper() == name.Substring(0, len).Trim().ToUpper(); 
             }
             var predicate = new Predicate<FieldDescription>(eqName);
             var index = await QueuedTask.Run(() => { return layer.GetFieldDescriptions().FindIndex(0, predicate); });
             if (!ignoreMissing && index < 0) {
-                Utils.error(string.Format("Cannot find field {0} in {1}", name, layer.URI), this.isBatch);
+                var filename = await Utils.layerFilename(layer);
+                Utils.error(string.Format("Cannot find field {0} in {1}", name, filename), this.isBatch);
                 throw new Exception();
             }
             return index;
@@ -6487,7 +6508,7 @@ namespace ArcSWATPlus {
 
         //// lakeGeom is a polygon representing a lake.  reach is known to intersect with the lake..
         ////         Returns a pair of inflowing and outflowing reaches, either or both of which may be None.
-        //public virtual object splitReachByLake(object lakeGeom, object reachGeom, ReachData reachData) {
+        //public virtual void splitReachByLake(object lakeGeom, object reachGeom, ReachData reachData) {
         //    var sourcePt = MapPointBuilderEx.CreateMapPoint(reachData.upperX, reachData.upperY);
         //    var sourceToLake = Topology.toIntersection(reachGeom, lakeGeom, sourcePt, !this.outletAtStart, this.xThreshold, this.yThreshold);
         //    var outletPt = MapPointBuilderEx.CreateMapPoint(reachData.lowerX, reachData.lowerY);

@@ -208,7 +208,7 @@ namespace ArcSWATPlus {
 
         // Return raster value at [row, col], which is array[chunkrow * numCols + col],
         // where chunkRow is row - chunk.rowOffset
-        public virtual object read(int row, int col) {
+        public virtual double read(int row, int col) {
             if (0 > col || col >= this.numCols) {
                 return this.noData;
             }

@@ -205,13 +205,13 @@ namespace ArcSWATPlus
             }
         }
 
-        private void OKButton_Click(object sender, EventArgs e) {
-            this._parent.finish(DialogResult.OK).RunSynchronously();
+        private async void OKButton_Click(object sender, EventArgs e) {
+            await this._parent.finish(DialogResult.OK);
             this.Close();
         }
 
-        private void cancelButton_Click(object sender, EventArgs e) {
-            this._parent.finish(DialogResult.Cancel).RunSynchronously(); 
+        private async void cancelButton_Click(object sender, EventArgs e) {
+            await this._parent.finish(DialogResult.Cancel); 
             this.Close();
         }
 
@@ -221,24 +221,24 @@ namespace ArcSWATPlus
             this._gv.SetFontSize(this);
         }
 
-        private void hrusButton_Click(object sender, EventArgs e) {
-            this._parent.doCreateHRUs();
+        private async void hrusButton_Click(object sender, EventArgs e) {
+            await this._parent.doCreateHRUs();
         }
 
         private void editButton_Click(object sender, EventArgs e) {
             this._parent.startEditor();
         }
 
-        private void existingButton_Click(object sender, EventArgs e) {
-            this._parent.existingProject().RunSynchronously();
+        private async void existingButton_Click(object sender, EventArgs e) {
+            await this._parent.existingProject();
         }
 
-        private void newButton_Click(object sender, EventArgs e) {
-            this._parent.newProject().RunSynchronously();
+        private async void newButton_Click(object sender, EventArgs e) {
+            await this._parent.newProject();
         }
 
-        private void visualiseButton_Click(object sender, EventArgs e) {
-            this._parent.visualise();
+        private async void visualiseButton_Click(object sender, EventArgs e) {
+            await this._parent.visualise();
         }
 
         private void exportButton_Click(object sender, EventArgs e) {

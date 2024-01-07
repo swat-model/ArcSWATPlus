@@ -27,6 +27,7 @@ using ArcGIS.Core.Data;
 using Microsoft.Win32;
 using System.Windows.Forms;
 using System.Resources;
+using System.Windows.Shapes;
 
 namespace ArcSWATPlus {
 
@@ -386,48 +387,53 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             // avoid opening proj or ref db again (and closing it!)
             var isProjDb = File.Equals(db, this.dbFile);
             var isRefDb = File.Equals(db, this.dbRefFile);
-            SQLiteConnection conn = null;
+            SQLiteConnection localConn = null;
             if (isProjDb) {
-                conn = this.conn;
+                localConn = this.conn;
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
             } else {
-                conn = new SQLiteConnection("Data Source=" + db);
-                conn.Open();
+                localConn = new SQLiteConnection("Data Source=" + db);
+                localConn.Open();
             }
-            if (conn is null) {
+            if (localConn is null) {
                 return false;
             }
             try {
-                return this.hasTableConn(conn, table);
+                return this.hasTableConn(localConn, table);
             } catch (Exception) {
                 return false;
             } finally {
                 if (!(isProjDb || isRefDb)) {
-                    conn.Close();
+                    localConn.Close();
+                    localConn.Dispose();
                 }
             }
         }
 
-        // Uses existing connection conn to return true if table exists.
-        public virtual bool hasTableConn(SQLiteConnection conn, string table) {
+        // Uses existing connection to return true if table exists.
+        public virtual bool hasTableConn(SQLiteConnection localConn, string table) {
             try {
-                var sql = "SELECT name FROM sqlite_master WHERE TYPE=\"table\"";
-                var cmd = new SQLiteCommand(sql, conn);
-                var reader = cmd.ExecuteReader();
-                return reader.HasRows;
+                var sql = "SELECT name FROM sqlite_master WHERE TYPE='table'";
+                using (var cmd = new SQLiteCommand(sql, localConn)) {
+                    using (var reader = cmd.ExecuteReader()) {
+                        return reader.HasRows;
+                    }
+                }
             } catch (Exception) {
                 return false;
             }
         }
 
         // Return true if table exists in existing connection and has data.
-        public virtual bool hasDataConn(string table, SQLiteConnection conn) {
+        public virtual bool hasDataConn(string table, SQLiteConnection localConn) {
             try {
                 var sql = sqlSelect(table, "*", "", "");
-                var cmd = new SQLiteCommand(sql, conn);
-                var reader = cmd.ExecuteReader();
-                return reader.HasRows;
+                using (var cmd = new SQLiteCommand(sql, localConn)) {
+                    using (var reader = cmd.ExecuteReader()) {
+                        return reader.HasRows;
+                    }
+                }
             } catch (Exception) {
                 return false;
             }
@@ -444,23 +450,41 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         }
 
         public void execNonQuery(string sql, object[] parms = null) {
-            var cmd = new SQLiteCommand(sql, this.conn);
-            if (parms != null) {
-                for (int i = 1; i <= parms.Length; i++) {
-                    cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+            using (var cmd = new SQLiteCommand(sql, this.conn)) {
+                if (parms != null) {
+                    for (int i = 1; i <= parms.Length; i++) {
+                        cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+                    }
+                }
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public bool hasColumn (string table, string columnName) {
+            var sql = string.Format("PRAGMA TABLE_INFO({0})", table);
+            using (var cmd = new SQLiteCommand(sql, this.conn)) {
+                using (var reader = cmd.ExecuteReader()) {
+                    if (reader.HasRows) {
+                        while (reader.Read()) {
+                            if (reader.GetString(1).Trim().ToLower().Equals(columnName.ToLower())) {
+                                return true;
+                            }
+                        }
+                    }
                 }
             }
-            cmd.ExecuteNonQuery();
+            return false;
         }
 
         public SQLiteDataReader getReader(string sql, object[] parms = null) {
-            var cmd = new SQLiteCommand(sql, this.conn);
-            if (parms != null) {
-                for (int i = 1; i <= parms.Length; i++) {
-                    cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+            using (var cmd = new SQLiteCommand(sql, this.conn)) {
+                if (parms != null) {
+                    for (int i = 1; i <= parms.Length; i++) {
+                        cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+                    }
                 }
+                return cmd.ExecuteReader();
             }
-            return cmd.ExecuteReader();
         }
 
         // Add key to table entry in gis_keys.
@@ -603,25 +627,23 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             this.landuseTableNames = new List<string>();
             this.soilTableNames = new List<string>();
             this._allTableNames = new List<string>();
-            using (var conn = this.conn) {
-                var sql = "SELECT name FROM sqlite_master WHERE TYPE=\"table\"";
-                var cmd = new SQLiteCommand(sql, this.conn);
-                using (var reader = cmd.ExecuteReader()) {
-                    try {
-                        while (reader.Read()) {
-                            var table = reader.GetString(0);
-                            if (table.Contains("landuse")) {
-                                this.landuseTableNames.Add(table);
-                            } else if (table.Contains("soil") && !table.Contains("usersoil") && !table.Contains(DBUtils._SOILS_SOL_NAME)) {
-                                this.soilTableNames.Add(table);
-                            }
-                            this._allTableNames.Add(table);
+            var sql = "SELECT name FROM sqlite_master WHERE TYPE='table'";
+            var cmd = new SQLiteCommand(sql, this.conn);
+            using (var reader = cmd.ExecuteReader()) {
+                try {
+                    while (reader.Read()) {
+                        var table = reader.GetString(0);
+                        if (table.Contains("landuse")) {
+                            this.landuseTableNames.Add(table);
+                        } else if (table.Contains("soil") && !table.Contains("usersoil") && !table.Contains(DBUtils._SOILS_SOL_NAME)) {
+                            this.soilTableNames.Add(table);
                         }
+                        this._allTableNames.Add(table);
                     }
-                    catch (Exception) {
-                        Utils.exceptionError(string.Format("Could not read tables in project database {0}", this.dbFile), this.isBatch);
-                        return;
-                    }
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not read tables in project database {0}", this.dbFile), this.isBatch);
+                    return;
                 }
             }
         }
@@ -638,26 +660,26 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             var isProjDb = Path.Equals(this.plantSoilDatabase, this.dbFile);
             var isRefDb = Path.Equals(this.plantSoilDatabase, this.dbRefFile);
             var ignoreList = new List<string>();
-            SQLiteConnection conn = null;
+            SQLiteConnection localConn = null;
             if (isProjDb) {
-                conn = this.conn;
+                localConn = this.conn;
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
                 if (tableName == "plant") {
                     ignoreList.Add("plant_ini");
                     ignoreList.Add("plant_ini_item");
                 }
             } else {
-                conn = new SQLiteConnection(string.Format("Data Source={0}", this.plantSoilDatabase));
-                conn.Open();
+                localConn = new SQLiteConnection(string.Format("Data Source={0}", this.plantSoilDatabase));
+                localConn.Open();
             }
-            if (conn is null) {
+            if (localConn is null) {
                 return new List<string>();
             }
             comboBox.Items.Clear();
             var tableNames = new List<string>();
-            var sql = "SELECT name FROM sqlite_master WHERE TYPE=\"table\"";
-            var cmd = new SQLiteCommand(sql, conn);
+            var sql = "SELECT name FROM sqlite_master WHERE TYPE='table'";
+            var cmd = new SQLiteCommand(sql, localConn);
             using (var reader = cmd.ExecuteReader()) {
                 try {
                     while (reader.Read()) {
@@ -674,7 +696,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     return new List<string>();
                 } finally {
                     if (!(isProjDb || isRefDb)) {
-                        conn.Close();
+                        localConn.Close();
+                        localConn.Dispose();
                     }
                 }
             }
@@ -799,15 +822,15 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             var urbanId = 0;
             string table = null;
             var OK = true;
-            // make sure no extra spaces
-            landuseCode = landuseCode.Trim();
-            if (landuseCode.ToUpper() == "BARR") {
+            // make sure no extra spaces and use lower case
+            landuseCode = landuseCode.Trim().ToLower();
+            if (landuseCode == "barr") {
                 // replaced by NULL later
                 // use -1 as the landuseId
                 this.landuseCodes[landuseCat] = landuseCode;
                 this.landuseIds[landuseCat] = -1;
                 return true;
-            } else if (landuseCode.ToUpper() == "WATR") {
+            } else if (landuseCode == "watr") {
                 // no longer in plant table; replaced by WETW later
                 // but needed for now as may form pond, reservoir or be added to lake
                 this.landuseCodes[landuseCat] = landuseCode;
@@ -818,16 +841,16 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             var database = this.plantSoilDatabase;
             var isProjDb = File.Equals(database, this.dbFile);
             var isRefDb = File.Equals(database, this.dbRefFile);
-            SQLiteConnection conn = null;
+            SQLiteConnection localConn = null;
             if (isProjDb) {
-                conn = this.conn;
+                localConn = this.conn;
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
             } else {
-                conn = new SQLiteConnection(string.Format("Data Source={0}", database));
-                conn.Open();
+                localConn = new SQLiteConnection(string.Format("Data Source={0}", database));
+                localConn.Open();
             }
-            if (conn is null) {
+            if (localConn is null) {
                 Utils.error(string.Format("Failed to connect to database {0} to read landuse tables", database), this.isBatch);
                 return false;
             }
@@ -835,13 +858,15 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 // look in plant database first
                 table = this.plantTable;
                 var sqlp = DBUtils.sqlSelect(table, "id", "", "name=@p1 COLLATE NOCASE");
-                var cmdp = new SQLiteCommand(sqlp, conn);
+                var cmdp = new SQLiteCommand(sqlp, localConn);
+                cmdp.Parameters.Clear();
                 cmdp.Parameters.AddWithValue("@p1", landuseCode);
                 using (SQLiteDataReader readerp = cmdp.ExecuteReader()) {
                     if (!readerp.HasRows) {
                         table = this.urbanTable;
                         var sqlu = DBUtils.sqlSelect(table, "id", "", "name=@p1 COLLATE NOCASE");
-                        var cmdu = new SQLiteCommand(sqlu, conn);
+                        var cmdu = new SQLiteCommand(sqlu, localConn);
+                        cmdp.Parameters.Clear();
                         cmdu.Parameters.AddWithValue("@p1", landuseCode);
                         using (SQLiteDataReader readeru = cmdu.ExecuteReader()) {
                             if (!readeru.HasRows) {
@@ -854,11 +879,13 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 Utils.error(string.Format("No data for landuse {0}", landuseCode), this.isBatch);
                                 OK = false;
                             } else {
+                                readeru.Read();
                                 urbanId = Convert.ToInt32(readeru.GetValue(0));
                                 this.urbanIds[landuseCat] = urbanId;
                             }
                         }
                     } else {
+                        readerp.Read();
                         landuseId = Convert.ToInt32(readerp.GetValue(0));
                     }
                     this.landuseCodes[landuseCat] = landuseCode;
@@ -866,13 +893,14 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     return OK;
                 }
             }
-            catch (Exception) {
-                Utils.exceptionError(string.Format("Could not read table {0} in database {1}", table, database), this.isBatch);
+            catch (Exception ex) {
+                Utils.exceptionError(string.Format("Could not read table {0} in database {1}: {2}", table, database, ex.Message), this.isBatch);
                 return false;
             }
             finally {
                 if (!(isProjDb || isRefDb)) {
-                    conn.Close();
+                    localConn.Close();
+                    localConn.Dispose();
                 }
             }
         }
@@ -1043,7 +1071,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         public static string _SOILS_SOL_NAME = "soils_sol";
 
-        public static string _SOILS_SOL_LAYER_TABLE = string.Format(@"
+        public static string _SOILS_SOL_LAYER_TABLE = @"
     (id       INTEGER NOT NULL PRIMARY KEY,
     soil_id   INTEGER NOT NULL,
     layer_num INTEGER NOT NULL,
@@ -1060,12 +1088,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
     usle_k    REAL    NOT NULL,
     ec        REAL    NOT NULL,
     caco3     REAL,
-    ph        REAL,
-    FOREIGN KEY (
-        soil_id
-    )
-    REFERENCES {0} (id) ON DELETE CASCADE)
-    ", _SOILS_SOL_NAME);
+    ph        REAL)
+    ";
 
         public static string _SOILS_SOL_LAYER_NAME = "soils_sol_layer";
 
@@ -1147,12 +1171,13 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         public static string _URBAN_URB_NAME = "urban_urb";
 
-        // Count the columns in table in database currently connected to conn.
-        public static int countCols(string table, SQLiteConnection conn) {
+        // Count the columns in table in database currently connected to localConn.
+        public static int countCols(string table, SQLiteConnection localConn) {
             try {
-                var sql = string.Format("SELECT COUNT(*) FROM pragma_table_info(\"{0}\")", table);
-                var cmd = new SQLiteCommand(sql, conn);
-                return (int)cmd.ExecuteScalar();
+                var sql = string.Format("SELECT COUNT(*) FROM pragma_table_info('{0}')", table);
+                using (var cmd = new SQLiteCommand(sql, localConn)) {
+                    return (int)cmd.ExecuteScalar();
+                }
             }
             catch (Exception) {
                 return -1;
@@ -1169,20 +1194,20 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
             var isProjDb = File.Equals(database, this.dbFile);
             var isRefDb = File.Equals(database, this.dbRefFile);
-            SQLiteConnection conn = null;
+            SQLiteConnection localConn = null;
             if (isProjDb) {
-                conn = this.conn;
+                localConn = this.conn;
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
             } else {
-                conn = new SQLiteConnection(string.Format("DataSource={0}", database));
-                conn.Open();
+                localConn = new SQLiteConnection(string.Format("DataSource={0}", database));
+                localConn.Open();
             }
             var usersoilTable = this.getUsersoilTable();
             try {
                 // single usersoil table has 152 columns, one with separate layer table has 11: 
                 // we leave room for expansion by using 20 as limit
-                var columnCount = DBUtils.countCols(usersoilTable, conn);
+                var columnCount = DBUtils.countCols(usersoilTable, localConn);
                 if (columnCount < 0) {
                     Utils.error(string.Format("Could not find table {0} in soil database {1}", usersoilTable, database), this.isBatch);
                     return false;
@@ -1191,88 +1216,91 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 string sqlLayer = null;
                 if (hasSeparateLayerTable) {
                     var layerTable = usersoilTable + "_layer";
-                    if (!this.hasTableConn(conn, layerTable)) {
+                    if (!this.hasTableConn(localConn, layerTable)) {
                         Utils.error(string.Format("Table {0} has {1} columns but cannot find layer table {2} in soil database {3}", usersoilTable, columnCount, layerTable, database), this.isBatch);
                         return false;
                     }
                     sqlLayer = DBUtils.sqlSelect(layerTable, "*", "layer_num", "soil_id=@p1");
                 }
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_NAME);
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_TABLE);
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_LAYER_NAME);
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_LAYER_NAME, DBUtils._SOILS_SOL_LAYER_TABLE);
-                cmd.ExecuteNonQuery();
-                var insert = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)", DBUtils._SOILS_SOL_NAME);
-                var insertLayer = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17)", DBUtils._SOILS_SOL_LAYER_NAME);
-                string sql = null;
-                if (this.useSTATSGO) {
-                    if (this.addSeqn) {
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND seqn=@p2");
-                    } else if (this.addName) {
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND name=@p2");
-                    } else if (this.useS5id) {
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "s5id=@p1");
-                    } else {
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1");
-                    }
-                } else if (this.useSSURGO) {
-                    sql = DBUtils.sqlSelect(usersoilTable, "*", "", "muid=@p1");
-                } else if (hasSeparateLayerTable) {
-                    sql = DBUtils.sqlSelect(usersoilTable, "*", "", "name=@p1");
-                } else {
-                    sql = DBUtils.sqlSelect(usersoilTable, "*", "", "SNAM=@p1");
-                }
-                var sid = 0;
-                var lid = 0;
-                cmd.CommandText = sql;
-                if (this.useSSURGO) {
-                    foreach (var ssurgoId in this.ssurgoSoils) {
-                        cmd.Parameters.Clear();
-                        cmd.Parameters.AddWithValue("@p1", ssurgoId);
-                        var readerSSURGO = cmd.ExecuteReader();
-                        if (!readerSSURGO.HasRows) {
-                            if (this.isHUC) {
-                                continue;
-                            }
-                            Utils.error(string.Format("SSURGO soil {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", ssurgoId, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
-                            return false;
-                        }
-                        sid += 1;
-                        if (hasSeparateLayerTable) {
-                            lid = this.writeUsedSoilRowSeparate(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, sqlLayer);
+                using (var cmd = localConn.CreateCommand()) {
+                    cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_NAME);
+                    cmd.ExecuteNonQuery();
+                    cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_TABLE);
+                    cmd.ExecuteNonQuery();
+                    cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_LAYER_NAME);
+                    cmd.ExecuteNonQuery();
+                    cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_LAYER_NAME, DBUtils._SOILS_SOL_LAYER_TABLE);
+                    cmd.ExecuteNonQuery();
+                    var insert = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)", DBUtils._SOILS_SOL_NAME);
+                    var insertLayer = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17)", DBUtils._SOILS_SOL_LAYER_NAME);
+                    string sql = null;
+                    if (this.useSTATSGO) {
+                        if (this.addSeqn) {
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND seqn=@p2");
+                        } else if (this.addName) {
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND name=@p2");
+                        } else if (this.useS5id) {
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "s5id=@p1");
                         } else {
-                            lid = this.writeUsedSoilRow(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer);
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1");
                         }
+                    } else if (this.useSSURGO) {
+                        sql = DBUtils.sqlSelect(usersoilTable, "*", "", "muid=@p1");
+                    } else if (hasSeparateLayerTable) {
+                        sql = DBUtils.sqlSelect(usersoilTable, "*", "", "name=@p1");
+                    } else {
+                        sql = DBUtils.sqlSelect(usersoilTable, "*", "", "SNAM=@p1");
                     }
-                } else {
-                    foreach (string name in this.usedSoilNames.Values) {
-                        cmd.Parameters.Clear();
-                        if (this.useSTATSGO) {
-                            if (this.useS5id) {
-                                cmd.Parameters.AddWithValue("@p1", name);
-                            } else if (this.addSeqn || this.addName) {
-                                cmd.Parameters.AddWithValue("@p1", name.Substring(0, 5));
-                                cmd.Parameters.AddWithValue("@p2", name.Substring(6));
+                    var sid = 0;
+                    var lid = 0;
+                    cmd.CommandText = sql;
+                    if (this.useSSURGO) {
+                        foreach (var ssurgoId in this.ssurgoSoils) {
+                            cmd.Parameters.Clear();
+                            cmd.Parameters.AddWithValue("@p1", ssurgoId);
+                            using (var readerSSURGO = cmd.ExecuteReader()) {
+                                if (!readerSSURGO.HasRows) {
+                                    if (this.isHUC) {
+                                        continue;
+                                    }
+                                    Utils.error(string.Format("SSURGO soil {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", ssurgoId, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
+                                    return false;
+                                }
+                                sid += 1;
+                                if (hasSeparateLayerTable) {
+                                    lid = this.writeUsedSoilRowSeparate(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, sqlLayer);
+                                } else {
+                                    lid = this.writeUsedSoilRow(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer);
+                                }
+                            }
+                        }
+                    } else {
+                        foreach (string name in this.usedSoilNames.Values) {
+                            cmd.Parameters.Clear();
+                            if (this.useSTATSGO) {
+                                if (this.useS5id) {
+                                    cmd.Parameters.AddWithValue("@p1", name);
+                                } else if (this.addSeqn || this.addName) {
+                                    cmd.Parameters.AddWithValue("@p1", name.Substring(0, 5));
+                                    cmd.Parameters.AddWithValue("@p2", name.Substring(6));
+                                } else {
+                                    cmd.Parameters.AddWithValue("@p1", name);
+                                }
                             } else {
                                 cmd.Parameters.AddWithValue("@p1", name);
                             }
-                        } else {
-                            cmd.Parameters.AddWithValue("@p1", name);
-                        }
-                        var reader = cmd.ExecuteReader();
-                        if (!reader.HasRows) {
-                            Utils.error(string.Format("Soil name {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", name, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
-                            return false;
-                        }
-                        sid += 1;
-                        if (hasSeparateLayerTable) {
-                            lid = this.writeUsedSoilRowSeparate(sid, lid, name, cmd, reader, insert, insertLayer, sqlLayer);
-                        } else {
-                            lid = this.writeUsedSoilRow(sid, lid, name, cmd, reader, insert, insertLayer);
+                            using (var reader = cmd.ExecuteReader()) {
+                                if (!reader.HasRows) {
+                                    Utils.error(string.Format("Soil name {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", name, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
+                                    return false;
+                                }
+                                sid += 1;
+                                if (hasSeparateLayerTable) {
+                                    lid = this.writeUsedSoilRowSeparate(sid, lid, name, cmd, reader, insert, insertLayer, sqlLayer);
+                                } else {
+                                    lid = this.writeUsedSoilRow(sid, lid, name, cmd, reader, insert, insertLayer);
+                                }
+                            }
                         }
                     }
                 }
@@ -1284,7 +1312,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 //this.hashDbTable(this.conn, DBUtils._SOILS_SOL_NAME);
                 //this.hashDbTable(this.conn, DBUtils._SOILS_SOL_LAYER_NAME);
                 if (!(isProjDb || isRefDb)) {
-                    conn.Close();
+                    localConn.Close();
+                    localConn.Dispose();
                 }
             }
         }
@@ -1364,22 +1393,23 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             cmd.Parameters.Clear();
             var soilId = reader.GetString(0);
             cmd.Parameters.AddWithValue("@p1", soilId);
-            var readLayer = cmd.ExecuteReader();
-            if (!readLayer.HasRows) {
-                Utils.error(string.Format("Failed to find soil layers in table {0} with soil_id {1}", this.getUsersoilTable() + "_layer", soilId), this.isBatch);
-                return lid;
-            }
-            cmd.CommandText = insertLayer;
-            while (readLayer.Read()) {
-                cmd.Parameters.Clear();
-                lid += 1;
-                cmd.Parameters.AddWithValue("@p1", lid);
-                cmd.Parameters.AddWithValue("@p2", sid);
-                // layer table has 17 fields
-                for (int i = 2; i < 17; i++) {
-                    cmd.Parameters.AddWithValue(string.Format("@p{0}", i + 1), readLayer.GetValue(i));
+            using (var readLayer = cmd.ExecuteReader()) {
+                if (!readLayer.HasRows) {
+                    Utils.error(string.Format("Failed to find soil layers in table {0} with soil_id {1}", this.getUsersoilTable() + "_layer", soilId), this.isBatch);
+                    return lid;
                 }
-                cmd.ExecuteNonQuery();
+                cmd.CommandText = insertLayer;
+                while (readLayer.Read()) {
+                    cmd.Parameters.Clear();
+                    lid += 1;
+                    cmd.Parameters.AddWithValue("@p1", lid);
+                    cmd.Parameters.AddWithValue("@p2", sid);
+                    // layer table has 17 fields
+                    for (int i = 2; i < 17; i++) {
+                        cmd.Parameters.AddWithValue(string.Format("@p{0}", i + 1), readLayer.GetValue(i));
+                    }
+                    cmd.ExecuteNonQuery();
+                }
             }
             return lid;
         }
@@ -1466,8 +1496,9 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             var isRefDb = File.Equals(this.plantSoilDatabase, this.dbRefFile);
             var copyPlant = true;
             var copyUrban = true;
+            SQLiteConnection localConn;
             if (isProjDb) {
-                var conn = this.conn;
+                localConn = this.conn;
                 // avoid trying to copy table to itself
                 copyPlant = this.plantTable != DBUtils._PLANTS_PLT_NAME;
                 copyUrban = this.urbanTable != DBUtils._URBAN_URB_NAME;
@@ -1475,98 +1506,105 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     return true;
                 }
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
             } else {
-                conn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
-                conn.Open();
+                localConn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
+                localConn.Open();
             }
-            var cmd = new SQLiteCommand(conn);
-            try {
-                if (copyPlant) {
-                    sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._PLANTS_PLT_NAME);
-                    cmd.CommandText = sql;
-                    cmd.ExecuteNonQuery();
-                    sql = string.Format("CREATE TABLE {0} {1}", DBUtils._PLANTS_PLT_NAME, DBUtils._PLANTS_PLT_TABLE);
-                    cmd.CommandText = sql;
-                    cmd.ExecuteNonQuery();
-                }
-                if (copyUrban) {
-                    sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._URBAN_URB_NAME);
-                    cmd.CommandText = sql;
-                    cmd.ExecuteNonQuery();
-                    sql = string.Format("CREATE TABLE {0} {1}", DBUtils._URBAN_URB_NAME, DBUtils._URBAN_URB_TABLE);
-                    cmd.CommandText = sql;
-                    cmd.ExecuteNonQuery();
-                }
-                var plantSelect = DBUtils.sqlSelect(this.plantTable, "*", "", "name=@p1 COLLATE NOCASE");
-                var urbanSelect = DBUtils.sqlSelect(this.urbanTable, "*", "", "name=@p1 COLLATE NOCASE");
-                // changed to copy all of plant and urban tables
-                // pid = 0
-                // uid = 0
-                var readCmd = new SQLiteCommand(conn);
-                foreach (var crop in this.landuseVals) {
-                    var name = this.getLanduseCode(crop);
-                    if (name.ToUpper() == "BARR" || name.ToUpper() == "WATR") {
-                        // BARR will become NULL later, WATR will become WETW; neither in plant table
-                        continue;
+            using (var cmd = new SQLiteCommand(localConn)) {
+                try {
+                    if (copyPlant) {
+                        sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._PLANTS_PLT_NAME);
+                        cmd.CommandText = sql;
+                        cmd.ExecuteNonQuery();
+                        sql = string.Format("CREATE TABLE {0} {1}", DBUtils._PLANTS_PLT_NAME, DBUtils._PLANTS_PLT_TABLE);
+                        cmd.CommandText = sql;
+                        cmd.ExecuteNonQuery();
                     }
-                    var args = ValueTuple.Create(name);
-                    // look first in plantTable
-                    cmd.Parameters.Clear();
-                    readCmd.Parameters.AddWithValue("@p1", name);
-                    readCmd.CommandText = plantSelect;
-                    using (var readPlant = readCmd.ExecuteReader()) {
-                        if (!readPlant.HasRows) {
-                            readCmd.CommandText = urbanSelect;
-                            using (var readUrban = readCmd.ExecuteReader()) {
-                                if (!readUrban.HasRows) {
-                                    Utils.error(string.Format("Landuse name {0} (and perhaps others) not defined in {1} or {2} tables in database {3}.", name, this.plantTable, this.urbanTable, this.plantSoilDatabase), this.isBatch);
-                                    return false;
+                    if (copyUrban) {
+                        sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._URBAN_URB_NAME);
+                        cmd.CommandText = sql;
+                        cmd.ExecuteNonQuery();
+                        sql = string.Format("CREATE TABLE {0} {1}", DBUtils._URBAN_URB_NAME, DBUtils._URBAN_URB_TABLE);
+                        cmd.CommandText = sql;
+                        cmd.ExecuteNonQuery();
+                    }
+                    var plantSelect = DBUtils.sqlSelect(this.plantTable, "*", "", "name=@p1 COLLATE NOCASE");
+                    var urbanSelect = DBUtils.sqlSelect(this.urbanTable, "*", "", "name=@p1 COLLATE NOCASE");
+                    // changed to copy all of plant and urban tables
+                    // pid = 0
+                    // uid = 0
+                    using (var readCmd = new SQLiteCommand(localConn)) { 
+                        foreach (var crop in this.landuseVals) {
+                            var name = this.getLanduseCode(crop);
+                            if (name.ToUpper() == "BARR" || name.ToUpper() == "WATR") {
+                                // BARR will become NULL later, WATR will become WETW; neither in plant table
+                                continue;
+                            }
+                            var args = ValueTuple.Create(name);
+                            // look first in plantTable
+                            readCmd.Parameters.Clear();
+                            readCmd.Parameters.AddWithValue("@p1", name);
+                            readCmd.CommandText = plantSelect;
+                            using (var readPlant = readCmd.ExecuteReader()) {
+                                if (!readPlant.HasRows) {
+                                    readCmd.CommandText = urbanSelect;
+                                    using (var readUrban = readCmd.ExecuteReader()) {
+                                        if (!readUrban.HasRows) {
+                                            Utils.error(string.Format("Landuse name {0} (and perhaps others) not defined in {1} or {2} tables in database {3}.", name, this.plantTable, this.urbanTable, this.plantSoilDatabase), this.isBatch);
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // copy all of plant and urban tables
+                        var insertPlant = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18,@p19,@p20,@p21,@p22,@p23,@p24,@p25,@p26,@p27,@p28,@p29,@p30,@p31,@p32,@p33,@p34,@p35,@p36,@p37,@p38,@p39,@p40,@p41,@p42,@p43,@p44,@p45,@p46,@p47,@p48,@p49,@p50,@p51,@p52,@p53,@p54,@p55)", DBUtils._PLANTS_PLT_NAME);
+                        var insertUrban = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13)", DBUtils._URBAN_URB_NAME);
+                        if (copyPlant) {
+                            var plantAll = DBUtils.sqlSelect(this.plantTable, "*", "", "");
+                            readCmd.Parameters.Clear();
+                            readCmd.CommandText = plantAll;
+                            using (var writeCommand = new SQLiteCommand(insertPlant, localConn)) {
+                                using (var reader = readCmd.ExecuteReader()) {
+                                    while (reader.Read()) {
+                                        for (int i = 0; i < 55; i++) {
+                                            writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
+                                        }
+                                        writeCommand.ExecuteNonQuery();
+                                    }
+                                }
+                            }
+                        }
+                        if (copyUrban) {
+                            var urbanAll = DBUtils.sqlSelect(this.urbanTable, "*", "", "");
+                            readCmd.Parameters.Clear();
+                            readCmd.CommandText = urbanAll;
+                            using (var writeCommand = new SQLiteCommand(insertUrban, localConn)) {
+                                using (var reader = readCmd.ExecuteReader()) {
+                                    while (reader.Read()) {
+                                        for (int i = 0; i < 13; i++) {
+                                            writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
+                                        }
+                                        writeCommand.ExecuteNonQuery();
+                                    }
                                 }
                             }
                         }
                     }
+                    return true;
                 }
-                // copy all of plant and urban tables
-                var insertPlant = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18,@p19,@p20,@p21,@p22,@p23,@p24,@p25,@p26,@p27,@p28,@p29,@p30,@p31,@p32,@p33,@p34,@p35,@p36,@p37,@p38,@p39,@p40,@p41,@p42,@p43,@p44,@p45,@p46,@p47,@p48,@p49,@p50,@p51,@p52,@p53,@p54,@p55)", DBUtils._PLANTS_PLT_NAME);
-                var insertUrban = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13)", DBUtils._URBAN_URB_NAME);
-                if (copyPlant) {
-                    var plantAll = DBUtils.sqlSelect(this.plantTable, "*", "", "");
-                    readCmd.Parameters.Clear();
-                    readCmd.CommandText = plantAll;
-                    var writeCommand = new SQLiteCommand(insertPlant, conn);
-                    using (var reader = readCmd.ExecuteReader()) {
-                        while (reader.Read()) {
-                            for (int i = 0; i < 55; i++) {
-                                writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
-                            }
-                            writeCommand.ExecuteNonQuery();
-                        }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create {3} and {4} tables from {0} and {1} tables in landuse and soil database {2}", this.plantTable, this.urbanTable, this.plantSoilDatabase, DBUtils._PLANTS_PLT_NAME, DBUtils._URBAN_URB_NAME), this.isBatch);
+                    return false;
+                }
+                finally {
+                    // this.hashDbTable(this.conn, DBUtils._PLANTS_PLT_NAME);
+                    // this.hashDbTable(this.conn, DBUtils._URBAN_URB_NAME);
+                    if (!(isProjDb || isRefDb)) {
+                        localConn.Close();
+                        localConn.Dispose();
                     }
-                }
-                if (copyUrban) {
-                    var urbanAll = DBUtils.sqlSelect(this.urbanTable, "*", "", "");
-                    readCmd.Parameters.Clear();
-                    readCmd.CommandText = urbanAll;
-                    var writeCommand = new SQLiteCommand(insertUrban, conn);
-                    using (var reader = readCmd.ExecuteReader()) {
-                        while (reader.Read()) {
-                            for (int i = 0; i < 13; i++) {
-                                writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
-                            }
-                            writeCommand.ExecuteNonQuery();
-                        }
-                    }
-                }
-                return true;
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create {3} and {4} tables from {0} and {1} tables in landuse and soil database {2}", this.plantTable, this.urbanTable, this.plantSoilDatabase, DBUtils._PLANTS_PLT_NAME, DBUtils._URBAN_URB_NAME), this.isBatch);
-                return false;
-            } finally {
-                // this.hashDbTable(this.conn, DBUtils._PLANTS_PLT_NAME);
-                // this.hashDbTable(this.conn, DBUtils._URBAN_URB_NAME);
-                if (!(isProjDb || isRefDb)) {
-                    conn.Close();
                 }
             }
         }
@@ -1578,17 +1616,18 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             string code;
             var isProjDb = File.Equals(this.plantSoilDatabase, this.dbFile);
             var isRefDb = File.Equals(this.plantSoilDatabase, this.dbRefFile);
+            SQLiteConnection localConn;
             if (isProjDb) {
-                var conn = this.conn;
+                localConn = this.conn;
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
             } else {
-                conn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
-                conn.Open();
+                localConn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
+                localConn.Open();
             }
             var landuseSql = DBUtils.sqlSelect(this.plantTable, "name, description", "", "");
             var urbanSql = DBUtils.sqlSelect(this.urbanTable, "name, description", "", "");
-            var cmd = new SQLiteCommand(conn);
+            var cmd = new SQLiteCommand(localConn);
             try {
                 cmd.CommandText = landuseSql;
                 using (var reader = cmd.ExecuteReader()) {
@@ -1607,6 +1646,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 }
             } catch (Exception) {
                 Utils.exceptionError(string.Format("Could not read table {0} in landuse and soil database {1}", this.plantTable, this.plantSoilDatabase), this.isBatch);
+                if (!(isProjDb || isRefDb) ) {
+                    localConn.Close();
+                    localConn.Dispose();
+                }
                 return luses;
             }
             try {
@@ -1628,6 +1671,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             } catch (Exception) {
                 Utils.exceptionError(string.Format("Could not read table {0} in landuse and soil database {1}", this.urbanTable, this.plantSoilDatabase), this.isBatch);
                 return luses;
+            } finally {
+                if (!(isProjDb || isRefDb)) {
+                    localConn.Close();
+                    localConn.Dispose();
+                }
             }
             luses.Sort();
             return luses;
@@ -1637,15 +1685,16 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public Dictionary<int, (string, string)> getLanduseDescriptions(IEnumerable<int> crops) {
             var isProjDb = File.Equals(this.plantSoilDatabase, this.dbFile);
             var isRefDb = File.Equals(this.plantSoilDatabase, this.dbRefFile);
+            SQLiteConnection localConn;
             if (isProjDb) {
-                var conn = this.conn;
+                localConn = this.conn;
             } else if (isRefDb) {
-                conn = this.connRef;
+                localConn = this.connRef;
             } else {
-                conn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
-                conn.Open();
+                localConn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
+                localConn.Open();
             }
-            var cmd = new SQLiteCommand(conn);
+            var cmd = new SQLiteCommand(localConn);
             var plantSql = DBUtils.sqlSelect(this.plantTable, "description", "", "name=@p1 COLLATE NOCASE");
             var urbanSql = DBUtils.sqlSelect(this.urbanTable, "description", "", "name=@p1 COLLATE NOCASE");
             var result = new Dictionary<int, (string, string)>();
@@ -1671,11 +1720,15 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     }
                 }
             }
+            if (!(isProjDb || isRefDb)) {
+                localConn.Close();
+                localConn.Dispose();
+            }
             return result;
         }
 
         // Put all landuse codes except WATR from landuse values vals in combo box.
-        public virtual void populateMapLanduses(List<int> vals, ComboBox combo, bool includeWATR = true) {
+        public virtual void populateMapLanduses(IEnumerable<int> vals, ComboBox combo, bool includeWATR = true) {
             foreach (var i in vals) {
                 var code = this.getLanduseCode(i);
                 var include = code.ToUpper() == "WATR" ? includeWATR : true;
@@ -1723,7 +1776,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         public static string _LSUSDATATABLE = @"
     (lsu INTEGER PRIMARY KEY UNIQUE NOT NULL, 
-    basin INTEGER REFERENCES BASINSDATA (basin), 
+    basin INTEGER, 
     category INTEGER,
     channel INTEGER,
     cellCount INTEGER, 
@@ -1752,7 +1805,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         public static string _HRUSDATATABLE = @"
     (hru INTEGER,  
-    lsu INTEGER REFERENCES LSUSDATA (lsu),  
+    lsu INTEGER,  
     crop INTEGER,  
     soil INTEGER,  
     slope INTEGER,  
@@ -1769,7 +1822,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public static string _WATERDATA = "WATERDATA";
 
         public static string _WATERDATATABLE = @"
-    (lsu INTEGER REFERENCES LSUSDATA (lsu), 
+    (lsu INTEGER, 
     cellCount INTEGER,  
     area REAL, 
     originalArea REAL, 
@@ -2004,126 +2057,140 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         // Write submapping table for HUC projects.
         public virtual void writeSubmapping() {
-            var cmd = new SQLiteCommand(this.conn);
-            var sql0 = "DROP TABLE IF EXISTS submapping";
-            cmd.CommandText = sql0;
-            cmd.ExecuteNonQuery();
-            var sql1 = DBUtils._SUBMAPPINGCREATESQL;
-            cmd.CommandText = sql1;
-            cmd.ExecuteNonQuery();
-            var sql2 = "INSERT INTO submapping VALUES(@p1,@p2,@p3)";
-            cmd.CommandText = sql2;
-            var submapping = Utils.join(this.projDir, "submapping.csv");
-            using (var sr = new StreamReader(submapping)) {
-                // skip heading
-                var _ = sr.ReadLine();
-                var line = sr.ReadLine();
-                while (line != null) {
-                    var items = line.Split(',');
-                    cmd.Parameters.Clear();
-                    cmd.Parameters.AddWithValue("@p1", items[0]);
-                    cmd.Parameters.AddWithValue("@p2", items[1]);
-                    cmd.Parameters.AddWithValue("@p3", items[2]);
-                    cmd.ExecuteNonQuery();
-                    line = sr.ReadLine();
+            using (var cmd = new SQLiteCommand(this.conn)) {
+                var sql0 = "DROP TABLE IF EXISTS submapping";
+                cmd.CommandText = sql0;
+                cmd.ExecuteNonQuery();
+                var sql1 = DBUtils._SUBMAPPINGCREATESQL;
+                cmd.CommandText = sql1;
+                cmd.ExecuteNonQuery();
+                var sql2 = "INSERT INTO submapping VALUES(@p1,@p2,@p3)";
+                cmd.CommandText = sql2;
+                var submapping = Utils.join(this.projDir, "submapping.csv");
+                using (var sr = new StreamReader(submapping)) {
+                    // skip heading
+                    var _ = sr.ReadLine();
+                    var line = sr.ReadLine();
+                    while (line != null) {
+                        var items = line.Split(',');
+                        cmd.Parameters.Clear();
+                        cmd.Parameters.AddWithValue("@p1", items[0]);
+                        cmd.Parameters.AddWithValue("@p2", items[1]);
+                        cmd.Parameters.AddWithValue("@p3", items[2]);
+                        cmd.ExecuteNonQuery();
+                        line = sr.ReadLine();
+                    }
                 }
             }
         }
 
         // Create BASINSDATA, LUSDATA, WATERDATA and HRUSDATA in project database.
         public virtual bool createBasinsDataTables() {
-            var cmd = new SQLiteCommand(this.conn);
-            // remove old table completely, for backward compatibility, in case structure changed
-            var tableBasins = DBUtils._BASINSDATA;
-            var dropSQL = "DROP TABLE IF EXISTS " + tableBasins;
-            try {
-                cmd.CommandText = dropSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not drop table {0} from project database {1}", tableBasins, this.dbFile), this.isBatch);
-                return false;
-            }
-            var createSQL = "CREATE TABLE " + tableBasins + DBUtils._BASINSDATATABLE;
-            try {
-                cmd.CommandText = createSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableBasins, this.dbFile), this.isBatch);
-                return false;
-            }
-            var tableLus = DBUtils._LSUSDATA;
-            dropSQL = "DROP TABLE IF EXISTS " + tableLus;
-            try {
-                cmd.CommandText = dropSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not drop table {0} from project database {1}", tableLus, this.dbFile), this.isBatch);
-                return false;
-            }
-            createSQL = "CREATE TABLE " + tableLus + " " + DBUtils._LSUSDATATABLE;
-            try {
-                cmd.CommandText = createSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableLus, this.dbFile), this.isBatch);
-                return false;
-            }
-            var indexSQL = string.Format("CREATE INDEX IF NOT EXISTS basin_index on {0} (basin)", tableLus);
-            try {
-                cmd.CommandText = indexSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create index for basin in table {0} in project database {1}", tableLus, this.dbFile), this.isBatch);
-            }
-            var tableWater = DBUtils._WATERDATA;
-            dropSQL = "DROP TABLE IF EXISTS " + tableWater;
-            try {
-                cmd.CommandText = dropSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not drop table1 {0} from project database {1}", tableWater, this.dbFile), this.isBatch);
-                return false;
-            }
-            createSQL = "CREATE TABLE " + tableWater + " " + DBUtils._WATERDATATABLE;
-            try {
-                cmd.CommandText = createSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableWater, this.dbFile), this.isBatch);
-                return false;
-            }
-            indexSQL = string.Format("CREATE INDEX IF NOT EXISTS lsu_index on {0} (lsu)", tableWater);
-            try {
-                cmd.CommandText = indexSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create index for lsu in table {0} in project database {1}", tableWater, this.dbFile), this.isBatch);
-                return false;
-            }
-            var tableHrus = DBUtils._HRUSDATA;
-            dropSQL = "DROP TABLE IF EXISTS " + tableHrus;
-            try {
-                cmd.CommandText = dropSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not drop table1 {0} from project database {1}", tableHrus, this.dbFile), this.isBatch);
-                return false;
-            }
-            createSQL = "CREATE TABLE " + tableHrus + " " + DBUtils._HRUSDATATABLE;
-            try {
-                cmd.CommandText = createSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableHrus, this.dbFile), this.isBatch);
-                return false;
-            }
-            indexSQL = string.Format("CREATE INDEX IF NOT EXISTS lsu_index on {0} (lsu)", tableHrus);
-            try {
-                cmd.CommandText = indexSQL;
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create index for lsu in table {0} in project database {1}", tableHrus, this.dbFile), this.isBatch);
-                return false;
+            using (var cmd = new SQLiteCommand(this.conn)) {
+                // remove old table completely, for backward compatibility, in case structure changed
+                var tableHrus = DBUtils._HRUSDATA;
+                var dropSQL = "DROP TABLE IF EXISTS " + tableHrus;
+                try {
+                    cmd.CommandText = dropSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not drop table1 {0} from project database {1}", tableHrus, this.dbFile), this.isBatch);
+                    return false;
+                }
+                var tableLus = DBUtils._LSUSDATA;
+                dropSQL = "DROP TABLE IF EXISTS " + tableLus;
+                try {
+                    cmd.CommandText = dropSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not drop table {0} from project database {1}", tableLus, this.dbFile), this.isBatch);
+                    return false;
+                }
+                var tableWater = DBUtils._WATERDATA;
+                dropSQL = "DROP TABLE IF EXISTS " + tableWater;
+                try {
+                    cmd.CommandText = dropSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not drop table1 {0} from project database {1}", tableWater, this.dbFile), this.isBatch);
+                    return false;
+                }
+                var tableBasins = DBUtils._BASINSDATA;
+                Utils.loginfo("Dropping BASINSDATA");
+                dropSQL = "DROP TABLE IF EXISTS " + tableBasins;
+                try {
+                    cmd.CommandText = dropSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not drop table {0} from project database {1}", tableBasins, this.dbFile), this.isBatch);
+                    return false;
+                }
+                var createSQL = "CREATE TABLE " + tableBasins + DBUtils._BASINSDATATABLE;
+                try {
+                    cmd.CommandText = createSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableBasins, this.dbFile), this.isBatch);
+                    return false;
+                }
+                createSQL = "CREATE TABLE " + tableLus + " " + DBUtils._LSUSDATATABLE;
+                try {
+                    cmd.CommandText = createSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableLus, this.dbFile), this.isBatch);
+                    return false;
+                }
+                var indexSQL = string.Format("CREATE INDEX IF NOT EXISTS basin_index on {0} (basin)", tableLus);
+                try {
+                    cmd.CommandText = indexSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create index for basin in table {0} in project database {1}", tableLus, this.dbFile), this.isBatch);
+                }
+                createSQL = "CREATE TABLE " + tableWater + " " + DBUtils._WATERDATATABLE;
+                try {
+                    cmd.CommandText = createSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableWater, this.dbFile), this.isBatch);
+                    return false;
+                }
+                indexSQL = string.Format("CREATE INDEX IF NOT EXISTS lsu_index on {0} (lsu)", tableWater);
+                try {
+                    cmd.CommandText = indexSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create index for lsu in table {0} in project database {1}", tableWater, this.dbFile), this.isBatch);
+                    return false;
+                }
+                createSQL = "CREATE TABLE " + tableHrus + " " + DBUtils._HRUSDATATABLE;
+                try {
+                    cmd.CommandText = createSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create table {0} in project database {1}", tableHrus, this.dbFile), this.isBatch);
+                    return false;
+                }
+                indexSQL = string.Format("CREATE INDEX IF NOT EXISTS lsu_index on {0} (lsu)", tableHrus);
+                try {
+                    cmd.CommandText = indexSQL;
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not create index for lsu in table {0} in project database {1}", tableHrus, this.dbFile), this.isBatch);
+                    return false;
+                }
             }
             return true;
         }
@@ -2145,98 +2212,105 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         // Write data for one basin in BASINSDATA, LSUSDATA, HRUSDATA and WATERDATA tables in project database.
         public virtual bool writeBasinsDataItem(int basin, BasinData data) {
-            var cmd = new SQLiteCommand(this.conn);
-            try {
-                cmd.CommandText = DBUtils._BASINSDATAINSERTSQL;
-                cmd.Parameters.AddWithValue("@p1", basin);
-                cmd.Parameters.AddWithValue("@p2", data.farDistance);
-                cmd.Parameters.AddWithValue("@p3", data.minElevation);
-                cmd.Parameters.AddWithValue("@p4", data.maxElevation);
-                cmd.Parameters.AddWithValue("@p5", data.waterId);
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._BASINSDATA, this.dbFile), this.isBatch);
-                return false;
-            }
-            foreach (var (channel, channeldata) in data.lsus) {
-                foreach (var (landscape, lsuData) in channeldata) {
-                    var lsuId = Utils.landscapeUnitId(channel, landscape);
-                    try {
-                        cmd.CommandText = DBUtils._LSUSDATAINSERTSQL;
-                        cmd.Parameters.Clear();
-                        cmd.Parameters.AddWithValue("@p1", lsuId);
-                        cmd.Parameters.AddWithValue("@p2", basin);
-                        cmd.Parameters.AddWithValue("@p3", landscape);
-                        cmd.Parameters.AddWithValue("@p4", channel);
-                        cmd.Parameters.AddWithValue("@p5", lsuData.cellCount);
-                        cmd.Parameters.AddWithValue("@p6", lsuData.area);
-                        cmd.Parameters.AddWithValue("@p7", lsuData.outletElevation);
-                        cmd.Parameters.AddWithValue("@p8", lsuData.sourceElevation);
-                        cmd.Parameters.AddWithValue("@p9", lsuData.channelLength);
-                        cmd.Parameters.AddWithValue("@p10", lsuData.channelOrder);
-                        cmd.Parameters.AddWithValue("@p11", lsuData.farElevation);
-                        cmd.Parameters.AddWithValue("@p12", lsuData.farDistance);
-                        cmd.Parameters.AddWithValue("@p13", lsuData.farPointX);
-                        cmd.Parameters.AddWithValue("@p14", lsuData.farPointY);
-                        cmd.Parameters.AddWithValue("@p15", lsuData.midPointX);
-                        cmd.Parameters.AddWithValue("@p16", lsuData.midPointY);
-                        cmd.Parameters.AddWithValue("@p17", lsuData.totalElevation);
-                        cmd.Parameters.AddWithValue("@p18", lsuData.totalSlope);
-                        cmd.Parameters.AddWithValue("@p19", lsuData.totalLatitude);
-                        cmd.Parameters.AddWithValue("@p20", lsuData.totalLongitude);
-                        cmd.Parameters.AddWithValue("@p21", lsuData.cropSoilSlopeArea);
-                        cmd.Parameters.AddWithValue("@p22", lsuData.lastHru);
-                        cmd.ExecuteNonQuery();
-                    } catch (Exception) {
-                        Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._LSUSDATA, this.dbFile), this.isBatch);
-                        return false;
-                    }
-                    var waterBody = lsuData.waterBody;
-                    // note that empty reservoirs created by addReservoirs will not be included in the WATERDATA table
-                    // because they have been added to the mergedLsus, and DATA tables are written from (unmerged) lsus.
-                    // But after regenerating from the DATA tables the reservoirs will be recreated, so there is no harm.
-                    if (waterBody is not null) {
+            using (var cmd = new SQLiteCommand(this.conn)) {
+                try {
+                    cmd.CommandText = DBUtils._BASINSDATAINSERTSQL;
+                    cmd.Parameters.AddWithValue("@p1", basin);
+                    cmd.Parameters.AddWithValue("@p2", data.farDistance);
+                    cmd.Parameters.AddWithValue("@p3", data.minElevation);
+                    cmd.Parameters.AddWithValue("@p4", data.maxElevation);
+                    cmd.Parameters.AddWithValue("@p5", data.waterId);
+                    Utils.loginfo("Writing BASINSDATA item");
+                    cmd.ExecuteNonQuery();
+                    Utils.loginfo("Finished writing BASINSDATA item");
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._BASINSDATA, this.dbFile), this.isBatch);
+                    return false;
+                }
+                foreach (var (channel, channeldata) in data.lsus) {
+                    foreach (var (landscape, lsuData) in channeldata) {
+                        var lsuId = Utils.landscapeUnitId(channel, landscape);
                         try {
-                            cmd.CommandText = DBUtils._WATERDATAINSERTSQL;
+                            cmd.CommandText = DBUtils._LSUSDATAINSERTSQL;
                             cmd.Parameters.Clear();
                             cmd.Parameters.AddWithValue("@p1", lsuId);
-                            cmd.Parameters.AddWithValue("@p2", waterBody.cellCount);
-                            cmd.Parameters.AddWithValue("@p3", waterBody.area);
-                            cmd.Parameters.AddWithValue("@p4", waterBody.originalArea);
-                            cmd.Parameters.AddWithValue("@p5", waterBody.totalElevation);
-                            cmd.Parameters.AddWithValue("@p6", waterBody.totalLatitude);
-                            cmd.Parameters.AddWithValue("@p7", waterBody.totalLongitude);
-                            cmd.Parameters.AddWithValue("@p8", waterBody.id);
-                            cmd.Parameters.AddWithValue("@p9", waterBody.channelRole);
-                            cmd.Parameters.AddWithValue("@p10", waterBody.waterRole);
+                            cmd.Parameters.AddWithValue("@p2", basin);
+                            cmd.Parameters.AddWithValue("@p3", landscape);
+                            cmd.Parameters.AddWithValue("@p4", channel);
+                            cmd.Parameters.AddWithValue("@p5", lsuData.cellCount);
+                            cmd.Parameters.AddWithValue("@p6", lsuData.area);
+                            cmd.Parameters.AddWithValue("@p7", lsuData.outletElevation);
+                            cmd.Parameters.AddWithValue("@p8", lsuData.sourceElevation);
+                            cmd.Parameters.AddWithValue("@p9", lsuData.channelLength);
+                            cmd.Parameters.AddWithValue("@p10", lsuData.channelOrder);
+                            cmd.Parameters.AddWithValue("@p11", lsuData.farElevation);
+                            cmd.Parameters.AddWithValue("@p12", lsuData.farDistance);
+                            cmd.Parameters.AddWithValue("@p13", lsuData.farPointX);
+                            cmd.Parameters.AddWithValue("@p14", lsuData.farPointY);
+                            cmd.Parameters.AddWithValue("@p15", lsuData.midPointX);
+                            cmd.Parameters.AddWithValue("@p16", lsuData.midPointY);
+                            cmd.Parameters.AddWithValue("@p17", lsuData.totalElevation);
+                            cmd.Parameters.AddWithValue("@p18", lsuData.totalSlope);
+                            cmd.Parameters.AddWithValue("@p19", lsuData.totalLatitude);
+                            cmd.Parameters.AddWithValue("@p20", lsuData.totalLongitude);
+                            cmd.Parameters.AddWithValue("@p21", lsuData.cropSoilSlopeArea);
+                            cmd.Parameters.AddWithValue("@p22", lsuData.lastHru);
                             cmd.ExecuteNonQuery();
-                        } catch (Exception) {
-                            Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._WATERDATA, this.dbFile), this.isBatch);
+                        }
+                        catch (Exception) {
+                            Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._LSUSDATA, this.dbFile), this.isBatch);
                             return false;
                         }
-                    }
-                    foreach (var (crop, soilSlopeNumbers) in lsuData.cropSoilSlopeNumbers) {
-                        foreach (var (soil, slopeNumbers) in soilSlopeNumbers) {
-                            foreach (var (slope, hru) in slopeNumbers) {
-                                var cd = lsuData.hruMap[hru];
-                                try {
-                                    cmd.CommandText = DBUtils._HRUSDATAINSERTSQL;
-                                    cmd.Parameters.Clear();
-                                    cmd.Parameters.AddWithValue("@p1", hru);
-                                    cmd.Parameters.AddWithValue("@p2", lsuId);
-                                    cmd.Parameters.AddWithValue("@p3", crop);
-                                    cmd.Parameters.AddWithValue("@p4", soil);
-                                    cmd.Parameters.AddWithValue("@p5", slope);
-                                    cmd.Parameters.AddWithValue("@p6", cd.cellCount);
-                                    cmd.Parameters.AddWithValue("@p7", cd.area);
-                                    cmd.Parameters.AddWithValue("@p8", cd.totalElevation);
-                                    cmd.Parameters.AddWithValue("@p9", cd.totalSlope);
-                                    cmd.Parameters.AddWithValue("@p10", cd.totalLatitude);
-                                    cmd.Parameters.AddWithValue("@p11", cd.totalLongitude);
-                                    cmd.ExecuteNonQuery();
-                                } catch (Exception) {
-                                    Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._HRUSDATA, this.dbFile), this.isBatch);
-                                    return false;
+                        var waterBody = lsuData.waterBody;
+                        // note that empty reservoirs created by addReservoirs will not be included in the WATERDATA table
+                        // because they have been added to the mergedLsus, and DATA tables are written from (unmerged) lsus.
+                        // But after regenerating from the DATA tables the reservoirs will be recreated, so there is no harm.
+                        if (waterBody is not null) {
+                            try {
+                                cmd.CommandText = DBUtils._WATERDATAINSERTSQL;
+                                cmd.Parameters.Clear();
+                                cmd.Parameters.AddWithValue("@p1", lsuId);
+                                cmd.Parameters.AddWithValue("@p2", waterBody.cellCount);
+                                cmd.Parameters.AddWithValue("@p3", waterBody.area);
+                                cmd.Parameters.AddWithValue("@p4", waterBody.originalArea);
+                                cmd.Parameters.AddWithValue("@p5", waterBody.totalElevation);
+                                cmd.Parameters.AddWithValue("@p6", waterBody.totalLatitude);
+                                cmd.Parameters.AddWithValue("@p7", waterBody.totalLongitude);
+                                cmd.Parameters.AddWithValue("@p8", waterBody.id);
+                                cmd.Parameters.AddWithValue("@p9", waterBody.channelRole);
+                                cmd.Parameters.AddWithValue("@p10", waterBody.waterRole);
+                                cmd.ExecuteNonQuery();
+                            }
+                            catch (Exception) {
+                                Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._WATERDATA, this.dbFile), this.isBatch);
+                                return false;
+                            }
+                        }
+                        foreach (var (crop, soilSlopeNumbers) in lsuData.cropSoilSlopeNumbers) {
+                            foreach (var (soil, slopeNumbers) in soilSlopeNumbers) {
+                                foreach (var (slope, hru) in slopeNumbers) {
+                                    var cd = lsuData.hruMap[hru];
+                                    try {
+                                        cmd.CommandText = DBUtils._HRUSDATAINSERTSQL;
+                                        cmd.Parameters.Clear();
+                                        cmd.Parameters.AddWithValue("@p1", hru);
+                                        cmd.Parameters.AddWithValue("@p2", lsuId);
+                                        cmd.Parameters.AddWithValue("@p3", crop);
+                                        cmd.Parameters.AddWithValue("@p4", soil);
+                                        cmd.Parameters.AddWithValue("@p5", slope);
+                                        cmd.Parameters.AddWithValue("@p6", cd.cellCount);
+                                        cmd.Parameters.AddWithValue("@p7", cd.area);
+                                        cmd.Parameters.AddWithValue("@p8", cd.totalElevation);
+                                        cmd.Parameters.AddWithValue("@p9", cd.totalSlope);
+                                        cmd.Parameters.AddWithValue("@p10", cd.totalLatitude);
+                                        cmd.Parameters.AddWithValue("@p11", cd.totalLongitude);
+                                        cmd.ExecuteNonQuery();
+                                    }
+                                    catch (Exception) {
+                                        Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._HRUSDATA, this.dbFile), this.isBatch);
+                                        return false;
+                                    }
                                 }
                             }
                         }
@@ -2259,6 +2333,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 try {
                     cmd.CommandText = DBUtils.sqlSelect(DBUtils._BASINSDATA, "*", "", "");
                     using (var reader = cmd.ExecuteReader()) {
+                        Utils.loginfo("Reading BASINSDATA");
                         // first read basins to get domain of basins map fixed
                         while (reader.Read()) {
                             var basin = Convert.ToInt32(reader.GetValue(0));
@@ -2268,6 +2343,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             basins[basin] = bd;
                         }
                     }
+                    Utils.loginfo("Finished reading BASINSDATA");
                     cmd.CommandText = DBUtils.sqlSelect(DBUtils._LSUSDATA, "*", "", "");
                     using (var reader = cmd.ExecuteReader()) {
                         // next read lsus to set up lsusData in each basin and to populate lsuMap
@@ -2876,7 +2952,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     return;
                 }
             }
-            //this.hashDbTable(conn, table);
+            //this.hashDbTable(this.conn, table);
         }
 
         public static string _LANDUSELOOKUPTABLE2 = "(LANDUSE_ID INTEGER, SWAT_CODE TEXT)";
@@ -2978,7 +3054,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public virtual string importCsv(string table, string typ, string fil) {
             string design;
             string values = "";
-            SQLiteConnection conn;
+            SQLiteConnection localConn = null;
             bool isRefDb;
             bool isProjDb;
             string db;
@@ -2999,11 +3075,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 isProjDb = File.Equals(this.plantSoilDatabase, this.dbFile);
                 isRefDb = File.Equals(this.plantSoilDatabase, this.dbRefFile);
                 if (isProjDb) {
-                    conn = this.conn;
+                    localConn = this.conn;
                 } else if (isRefDb) {
-                    conn = this.connRef;
+                    localConn = this.connRef;
                 } else {
-                    conn = new SQLiteConnection("DataSource=" + this.plantSoilDatabase);
+                    localConn = new SQLiteConnection("DataSource=" + this.plantSoilDatabase);
                 }
                 if (typ == "usersoil") {
                     // we should have have either 152 columns
@@ -3031,7 +3107,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     values = makeValues(13);
                 }
             } else {
-                conn = this.conn;
+                localConn = this.conn;
                 isProjDb = true;
                 isRefDb = false;
                 db = this.dbFile;
@@ -3039,17 +3115,19 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 isLanduse = typ == "landuse";
             }
             var sql = "INSERT INTO " + table + values;
-            if (conn is null) {
+            if (localConn is null) {
                 return "";
             }
             // should not happen, but safety first
             var dropSQL = "DROP TABLE IF EXISTS " + table;
-            var cmd = new SQLiteCommand(dropSQL, conn);
-            try {
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not drop table {0} from database {1}", table, db), this.isBatch);
-                return "";
+            using (var cmd = new SQLiteCommand(dropSQL, localConn)) {
+                try {
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.exceptionError(string.Format("Could not drop table {0} from database {1}", table, db), this.isBatch);
+                    return "";
+                }
             }
             if (typ == "usersoil") {
                 if (needsSeparateLayerTable) {
@@ -3069,12 +3147,18 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 design = DBUtils._SOILLOOKUPTABLE;
             }
             var createSQL = "CREATE TABLE " + table + design;
-            cmd = new SQLiteCommand(createSQL, conn);
-            try {
-                cmd.ExecuteNonQuery();
-            } catch (Exception) {
-                Utils.error(string.Format("Could not create table {0} in database {1}", table, db), this.isBatch);
-                return "";
+            using (var cmd = new SQLiteCommand(createSQL, localConn)) {
+                try {
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception) {
+                    Utils.error(string.Format("Could not create table {0} in database {1}", table, db), this.isBatch);
+                    if (!(isProjDb || isRefDb)) {
+                        localConn.Close();
+                        localConn.Dispose();
+                    }
+                    return "";
+                }
             }
             using (var reader = new StreamReader(fil)) {
                 var headers = reader.ReadLine().Split(',');
@@ -3088,12 +3172,16 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                         sql = "INSERT INTO " + table + " VALUES(@p1,@p2,@p3)";
                     }
                 }
-                var line = reader.ReadLine();
-                while (line != null) {
+                string line;
+                while ((line = reader.ReadLine()) != null) {
                     try {
                         this.execNonQuery(sql, line.Split(','));
                     } catch (Exception) {
                         Utils.exceptionError(string.Format("Could not write to table {0} in database {1} from file {2}", table, db, fil), this.isBatch);
+                        if (!(isProjDb || isRefDb)) {
+                            localConn.Close();
+                            localConn.Dispose();
+                        }
                         return "";
                     }
                 }
@@ -3106,14 +3194,15 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 } else {
                     this.urbanTableNames.Add(table);
                 }
-                if (!(isProjDb || isRefDb)) {
-                    conn.Close();
-                }
             } else if (typ == "usersoil_layer") {
             } else if (isLanduse) {
                 this.landuseTableNames.Add(table);
             } else {
                 this.soilTableNames.Add(table);
+            }
+            if (!(isProjDb || isRefDb)) {
+                localConn.Close();
+                localConn.Dispose();
             }
             return table;
         }
@@ -3271,7 +3360,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         //         and everything not a final outlet has a sink appearing as a source in gis_routing.  Also check routing for each
         //         source totals 100%.  Return lists of error messages (loops; percents not totalling 100) and 
         //         warning messages (loops but with a zero percent somwehere)
-        public static (List<string>, List<string>) checkRouting(SQLiteConnection conn) {
+        public static (List<string>, List<string>) checkRouting(SQLiteConnection localConn) {
             var errors = new List<string>();
             var warnings = new List<string>();
             var table = "gis_routing";
@@ -3289,125 +3378,127 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             // add to pending for multiple sinks, so then e.g. A -> A 90% would just loop.
             // So we prefer a count.
             var sql = "SELECT COUNT(*) FROM " + table;
-            var cmd = new SQLiteCommand(sql, conn);
+            var cmd = new SQLiteCommand(sql, localConn);
             var maxSteps = Convert.ToInt32(cmd.ExecuteScalar());
-            cmd = new SQLiteCommand(nextSql, conn);
-            var reader = cmd.ExecuteReader();
-            while (reader.Read()) {
-                var sid = Convert.ToInt32(reader.GetValue(0)); // "sourceid"
-                var scat = reader.GetString(1); // "sourcecat"
-                var hydTyp = reader.GetString(2); // "hyd_typ"];
-                var tid = Convert.ToInt32(reader.GetValue(3));  // "sinkid"
-                var tcat = reader.GetString(4); // "sinkcat"];
-                var percent = Convert.ToDouble(reader.GetValue(5));  // "percent"]);
-                var hasZero = percent == 0;
-                var count = maxSteps;
-                while (count > 0) {
-                    if (done.ContainsKey(scat) && done[scat].Contains(sid)) {
-                        // move pending to done
-                        foreach (var (pcat, pids) in pending) {
-                            if (done.ContainsKey(pcat)) {
-                                done[pcat].UnionWith(pids);
-                            } else {
-                                done[pcat] = pids;
+            cmd = new SQLiteCommand(nextSql, localConn);
+            using (var reader = cmd.ExecuteReader()) {
+                while (reader.Read()) {
+                    var sid = Convert.ToInt32(reader.GetValue(0)); // "sourceid"
+                    var scat = reader.GetString(1); // "sourcecat"
+                    var hydTyp = reader.GetString(2); // "hyd_typ"];
+                    var tid = Convert.ToInt32(reader.GetValue(3));  // "sinkid"
+                    var tcat = reader.GetString(4); // "sinkcat"];
+                    var percent = Convert.ToDouble(reader.GetValue(5));  // "percent"]);
+                    var hasZero = percent == 0;
+                    var count = maxSteps;
+                    while (count > 0) {
+                        if (done.ContainsKey(scat) && done[scat].Contains(sid)) {
+                            // move pending to done
+                            foreach (var (pcat, pids) in pending) {
+                                if (done.ContainsKey(pcat)) {
+                                    done[pcat].UnionWith(pids);
+                                } else {
+                                    done[pcat] = pids;
+                                }
                             }
+                            pending = new Dictionary<string, HashSet<int>>();
+                            break;
                         }
-                        pending = new Dictionary<string, HashSet<int>>();
-                        break;
-                    }
-                    if (percent < 100) {
-                        // add percent to percentages for this source
-                        Dictionary<int, Dictionary<string, double>> sourcePercentages = null;
-                        Dictionary<string, double> hydTypPercentages = null;
-                        if (percentages.TryGetValue(scat, out sourcePercentages)) {
-                            if (sourcePercentages.TryGetValue(sid, out hydTypPercentages)) {
-                                hydTypPercentages[hydTyp] += percent;
-                            } else {
-                                hydTypPercentages = new Dictionary<string, double> {
+                        if (percent < 100) {
+                            // add percent to percentages for this source
+                            Dictionary<int, Dictionary<string, double>> sourcePercentages = null;
+                            Dictionary<string, double> hydTypPercentages = null;
+                            if (percentages.TryGetValue(scat, out sourcePercentages)) {
+                                if (sourcePercentages.TryGetValue(sid, out hydTypPercentages)) {
+                                    hydTypPercentages[hydTyp] += percent;
+                                } else {
+                                    hydTypPercentages = new Dictionary<string, double> {
                                     {hydTyp, percent}
                                 };
-                            }
-                            sourcePercentages[sid] = hydTypPercentages;
-                            percentages[scat] = sourcePercentages;
-                        } else {
-                            hydTypPercentages = new Dictionary<string, double> {
+                                }
+                                sourcePercentages[sid] = hydTypPercentages;
+                                percentages[scat] = sourcePercentages;
+                            } else {
+                                hydTypPercentages = new Dictionary<string, double> {
                                     {hydTyp, percent}};
-                            percentages[scat] = new Dictionary<int, Dictionary<string, double>> {
+                                percentages[scat] = new Dictionary<int, Dictionary<string, double>> {
                                 { sid, hydTypPercentages }
                             };
-                        }
-                    } else {
-                        // Only include source in pending (which should become done) 
-                        // if there is only one sink for it, else other sinks will be ignored.
-                        // Pending is only used for efficiency, to avoid tracking every source to a final outlet,
-                        // so little harm in omitting some sources from it.
-                        if (pending.ContainsKey(scat)) {
-                            pending[scat].Add(sid);
+                            }
                         } else {
-                            pending[scat] = new HashSet<int> {
+                            // Only include source in pending (which should become done) 
+                            // if there is only one sink for it, else other sinks will be ignored.
+                            // Pending is only used for efficiency, to avoid tracking every source to a final outlet,
+                            // so little harm in omitting some sources from it.
+                            if (pending.ContainsKey(scat)) {
+                                pending[scat].Add(sid);
+                            } else {
+                                pending[scat] = new HashSet<int> {
                                 sid
                             };
-                        }
-                    }
-                    if (tcat == "X") {
-                        // move pending to done
-                        foreach (var (pcat, pids) in pending) {
-                            if (done.ContainsKey(pcat)) {
-                                done[pcat].UnionWith(pids);
-                            } else {
-                                done[pcat] = pids;
                             }
                         }
-                        pending = new Dictionary<string, HashSet<int>>();
-                        break;
-                    }
-                    count -= 1;
-                    if (count == 0) {
-                        if (hasZero) {
-                            warnings.Add(string.Format("WARNING: There is a loop in the {0} table involving id {1}, category {2}, flow type {3} but with a zero percentage", table, sid, scat, hydTyp));
-                        } else {
-                            errors.Add(string.Format("There is a loop in the {0} table involving id {1}, category {2}, flow type {3}", table, sid, scat, hydTyp));
-                        }
-                        // move pending to done
-                        foreach (var (pcat, pids) in pending) {
-                            if (done.ContainsKey(pcat)) {
-                                done[pcat].UnionWith(pids);
-                            } else {
-                                done[pcat] = pids;
+                        if (tcat == "X") {
+                            // move pending to done
+                            foreach (var (pcat, pids) in pending) {
+                                if (done.ContainsKey(pcat)) {
+                                    done[pcat].UnionWith(pids);
+                                } else {
+                                    done[pcat] = pids;
+                                }
                             }
+                            pending = new Dictionary<string, HashSet<int>>();
+                            break;
                         }
-                        pending = new Dictionary<string, HashSet<int>>();
-                        break;
+                        count -= 1;
+                        if (count == 0) {
+                            if (hasZero) {
+                                warnings.Add(string.Format("WARNING: There is a loop in the {0} table involving id {1}, category {2}, flow type {3} but with a zero percentage", table, sid, scat, hydTyp));
+                            } else {
+                                errors.Add(string.Format("There is a loop in the {0} table involving id {1}, category {2}, flow type {3}", table, sid, scat, hydTyp));
+                            }
+                            // move pending to done
+                            foreach (var (pcat, pids) in pending) {
+                                if (done.ContainsKey(pcat)) {
+                                    done[pcat].UnionWith(pids);
+                                } else {
+                                    done[pcat] = pids;
+                                }
+                            }
+                            pending = new Dictionary<string, HashSet<int>>();
+                            break;
+                        }
                     }
-                }
-                var cmd2 = new SQLiteCommand(findSql, conn);
-                cmd2.Parameters.AddWithValue("@p1", tid);
-                cmd2.Parameters.AddWithValue("@p2", tcat);
-                var reader2 = cmd.ExecuteReader();
-                if (!reader2.HasRows) {
-                    // unnecessary to report as done in checkRoutingTable
-                    //                     report = False
-                    //                     if tcat not in erroneous:
-                    //                         report = True
-                    //                         erroneous[tcat] = {tid}
-                    //                     elif tid not in erroneous[tcat]:
-                    //                         erroneous[tcat].add(tid)
-                    //                         report = True
-                    //                     if report:
-                    //                         errors.append('Cannot find id {1} category {2} as a source in the {0} table', table, tid, tcat))
-                    break;
-                }
-                while (reader2.Read()) {
-                    sid = tid;
-                    scat = tcat;
-                    hydTyp = reader2.GetString(0); // "hyd_typ"
-                    tid = Convert.ToInt32(reader2.GetValue(1)); // "sinkid"
-                    tcat = reader2.GetString(2); // "sinkcat"
-                    percent = Convert.ToDouble(reader2.GetValue(3)); // "percent"
-                    hasZero = hasZero || percent == 0;
-                    //end of while loop
-                    // end of for loop
-                    // check all percentages are approximately 100
+                    var cmd2 = new SQLiteCommand(findSql, localConn);
+                    cmd2.Parameters.AddWithValue("@p1", tid);
+                    cmd2.Parameters.AddWithValue("@p2", tcat);
+                    using (var reader2 = cmd.ExecuteReader()) {
+                        if (!reader2.HasRows) {
+                            // unnecessary to report as done in checkRoutingTable
+                            //                     report = False
+                            //                     if tcat not in erroneous:
+                            //                         report = True
+                            //                         erroneous[tcat] = {tid}
+                            //                     elif tid not in erroneous[tcat]:
+                            //                         erroneous[tcat].add(tid)
+                            //                         report = True
+                            //                     if report:
+                            //                         errors.append('Cannot find id {1} category {2} as a source in the {0} table', table, tid, tcat))
+                            break;
+                        }
+                        while (reader2.Read()) {
+                            sid = tid;
+                            scat = tcat;
+                            hydTyp = reader2.GetString(0); // "hyd_typ"
+                            tid = Convert.ToInt32(reader2.GetValue(1)); // "sinkid"
+                            tcat = reader2.GetString(2); // "sinkcat"
+                            percent = Convert.ToDouble(reader2.GetValue(3)); // "percent"
+                            hasZero = hasZero || percent == 0;
+                            //end of while loop
+                            // end of for loop
+                            // check all percentages are approximately 100
+                        }
+                    }
                 }
             }
             foreach (var (scat, sourceDdata) in percentages) {
@@ -3644,7 +3735,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public static string _CREATELAKELINKS = @"
     CREATE TABLE LAKELINKS (
     linkno    INTEGER,
-    lakeid    INTEGER REFERENCES LAKESDATA (id),
+    lakeid    INTEGER,
     inlet     BOOLEAN,
     inside    BOOLEAN,
     inletid   INTEGER,
@@ -3659,7 +3750,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public static string _CREATELAKEBASINS = @"
     CREATE TABLE LAKEBASINS (
     subbasin  INTEGER PRIMARY KEY,
-    lakeid    INTEGER REFERENCES LAKESDATA (id)
+    lakeid    INTEGER
     )
     ";
         
@@ -3707,7 +3798,21 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         private GlobalVars gv;
 
-        public Proj(GlobalVars gv) { this.gv = gv; }
+        public Proj(GlobalVars gv) { 
+            this.gv = gv;
+        }
+
+        // if any parameter tables are empty initialise them with default values
+        // this enables UPDATE commands to work.
+        public void init() {
+            var paramTables = new List<string> { "delin", "hru", "landuse", "lsu", "observed", "params", "soil" };
+            foreach (var table in paramTables) {
+                var projTable = "config_" + table;
+                if (this.gv.db.hasData(projTable)) { continue; }
+                var sql = $"INSERT INTO {projTable} DEFAULT VALUES;";
+                this.gv.db.execNonQuery(sql);
+            }
+        }
 
         // imitation of QGIS readEntry
         // assume result is a relative path and prefix with projDir if title is not empty
@@ -3887,6 +3992,9 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         public string writePath(string path) {
             // imitation of QGSProject writePath to relativise path to project directory
+            if (string.IsNullOrEmpty(path)) {
+                return "";
+            }
             return Path.GetRelativePath(gv.projDir, path);
         }
 

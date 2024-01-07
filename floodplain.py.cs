@@ -220,7 +220,7 @@ namespace ArcSWATPlus {
                         }
                         foreach (var row in Enumerable.Range(0, this.numRows)) {
                             foreach (var col in Enumerable.Range(0, this.numCols)) {
-                                if ((float)this.demRaster.read(row, col) != this.demNoData) {
+                                if (this.demRaster.read(row, col) != this.demNoData) {
                                     var (val, path) = this.valueAtNearest(row, col, ridgepRaster, ridgesRaster, this.ridgeThresh);
                                     if (path is not null) {
                                         this.propagate(val, path);
@@ -387,7 +387,7 @@ namespace ArcSWATPlus {
         //         For each point on path, set result to val (ridge elevation) - point elevation.
         public virtual void propagate(float val, List<(int, int)> path) {
             foreach (var (row, col) in path) {
-                this.ridgeHeightsRaster.Write(row, col, val - (float)this.demRaster.read(row, col));
+                this.ridgeHeightsRaster.write(row, col, val - (float)this.demRaster.read(row, col));
             }
         }
         
@@ -476,7 +476,7 @@ namespace ArcSWATPlus {
                                 Utils.information(string.Format("Problem in calculating slope position at {0}: numerator {1}; denominator {2}: {3}. Set to 0", Topology.cellToProj(col, row, valleyTransform), vd, rh + vd, ex.Message), this._gv.isBatch);
                                 sp = 0;
                             }
-                            this.floodplainRaster.Write(row, col, sp <= this.floodThresh ? 1 : (int)this.noData);
+                            this.floodplainRaster.write(row, col, sp <= this.floodThresh ? 1 : (int)this.noData);
                         }
                     }
                 }
@@ -753,16 +753,16 @@ namespace ArcSWATPlus {
                                 // have a previously stored value
                                 if (pathLength < currentPathLength) {
                                     // new path length from ridge is shorter: update heights raster 
-                                    this.ridgeHeightsRaster.Write(nextRow, nextCol, elevation - nextElev);
-                                    this.ridgeDistancesRaster.Write(nextRow, nextCol, pathLength);
+                                    this.ridgeHeightsRaster.write(nextRow, nextCol, elevation - nextElev);
+                                    this.ridgeDistancesRaster.write(nextRow, nextCol, pathLength);
                                 } else {
                                     // already had shorter path from ridge - no point in continuing down flow path
                                     break;
                                 }
                             } else {
                                 // no value stored yet
-                                this.ridgeHeightsRaster.Write(nextRow, nextCol, elevation - nextElev);
-                                this.ridgeDistancesRaster.Write(nextRow, nextCol, pathLength);
+                                this.ridgeHeightsRaster.write(nextRow, nextCol, elevation - nextElev);
+                                this.ridgeDistancesRaster.write(nextRow, nextCol, pathLength);
                             }
                             var (pt, isDiag) = this.alongDirPoint(nextRow, nextCol, dirRaster);
                             if (pt.Item1 < 0) {
@@ -796,7 +796,7 @@ namespace ArcSWATPlus {
                         } else {
                             val = pair.Item1;
                         }
-                        ridgeRaster.Write(row, col, val == -1 ? 0 : 1);
+                        ridgeRaster.write(row, col, val == -1 ? 0 : 1);
                     }
                 }
             }

@@ -112,11 +112,12 @@ namespace ArcSWATPlus
                 }
                 this._dlg.tables.Items.Clear();
                 var tables = new List<string>();
-                var sql = "SELECT name FROM sqlite_master WHERE TYPE=\"table\"";
+                var sql = "SELECT name FROM sqlite_master WHERE TYPE='table'";
                 var cmd = new SQLiteCommand(sql, this.conn);
-                var reader = cmd.ExecuteReader();
-                while (reader.Read()) {
-                    tables.Add(reader.GetString(0));
+                using (var reader = cmd.ExecuteReader()) {
+                    while (reader.Read()) {
+                        tables.Add(reader.GetString(0));
+                    }
                 }
                 tables.Sort();
                 foreach (var table in tables) {
@@ -139,9 +140,10 @@ namespace ArcSWATPlus
             var sql = string.Format("PRAGMA TABLE_INFO({0})", table);
             var varz = new List<string>();
             var cmd = new SQLiteCommand(sql, this.conn);
-            var reader = cmd.ExecuteReader();
-            while (reader.Read()) {
-                varz.Add(reader.GetString(1));
+            using (var reader = cmd.ExecuteReader()) {
+                while (reader.Read()) {
+                    varz.Add(reader.GetString(1));
+                }
             }
             var path = Path.GetDirectoryName(this._gv.db.dbFile);
             var title = Utils.trans("Select csv file name");
@@ -160,20 +162,21 @@ namespace ArcSWATPlus
                     var vals = new List<string>();
                     sql = string.Format("SELECT * FROM {0}", table);
                     cmd = new SQLiteCommand(sql, this.conn);
-                    reader = cmd.ExecuteReader();
-                    Object[] values = new Object[reader.FieldCount];
-                    while (reader.Read()) {
-                        var fields = reader.GetValues(values);
-                        foreach (var val in values) {
-                            if (DBNull.Value.Equals(val)) {
-                                vals.Add("");
-                            } else {
-                                vals.Add(val.ToString());
+                    using (var reader = cmd.ExecuteReader()) {
+                        Object[] values = new Object[reader.FieldCount];
+                        while (reader.Read()) {
+                            var fields = reader.GetValues(values);
+                            foreach (var val in values) {
+                                if (DBNull.Value.Equals(val)) {
+                                    vals.Add("");
+                                } else {
+                                    vals.Add(val.ToString());
+                                }
                             }
                         }
-                        var line = string.Join(",", vals) + "\r\n";
-                        fs.Write(System.Text.Encoding.ASCII.GetBytes(line));
                     }
+                    var line = string.Join(",", vals) + "\r\n";
+                    fs.Write(System.Text.Encoding.ASCII.GetBytes(line));
                 }
                 Utils.information(string.Format("Table {0} written to {1}", table, csvFile), this._gv.isBatch);
             }

@@ -447,28 +447,6 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.proj = new Proj(this);
             var title = this.projName;
             var proj = this.proj;
-            //# Stream burn-in depth
-            this.burninDepth = proj.readDoubleEntry(title, "params/burninDepth", Parameters._BURNINDEPTH).Item1;
-            //# Channel width multiplier
-            this.channelWidthMultiplier = proj.readDoubleEntry(title, "params/channelWidthMultiplier", Parameters._CHANNELWIDTHMULTIPLIER).Item1;
-            //# Channel width exponent
-            this.channelWidthExponent = proj.readDoubleEntry(title, "params/channelWidthExponent", Parameters._CHANNELWIDTHEXPONENT).Item1;
-            //# Channel depth multiplier
-            this.channelDepthMultiplier = proj.readDoubleEntry(title, "params/channelDepthMultiplier", Parameters._CHANNELDEPTHMULTIPLIER).Item1;
-            //# Channel depth exponent
-            this.channelDepthExponent = proj.readDoubleEntry(title, "params/channelDepthExponent", Parameters._CHANNELDEPTHEXPONENT).Item1;
-            //# reach slope multiplier
-            this.reachSlopeMultiplier = proj.readDoubleEntry(title, "params/reachSlopeMultiplier", Parameters._MULTIPLIER).Item1;
-            //# tributary slope multiplier
-            this.tributarySlopeMultiplier = proj.readDoubleEntry(title, "params/tributarySlopeMultiplier", Parameters._MULTIPLIER).Item1;
-            //# mean slope multiplier
-            this.meanSlopeMultiplier = proj.readDoubleEntry(title, "params/meanSlopeMultiplier", Parameters._MULTIPLIER).Item1;
-            //# main length multiplier
-            this.mainLengthMultiplier = proj.readDoubleEntry(title, "params/mainLengthMultiplier", Parameters._MULTIPLIER).Item1;
-            //# tributary length multiplier
-            this.tributaryLengthMultiplier = proj.readDoubleEntry(title, "params/tributaryLengthMultiplier", Parameters._MULTIPLIER).Item1;
-            //# upslope HRU drain percent
-            this.upslopeHRUDrain = proj.readDoubleEntry(title, "params/upslopeHRUDrain", Parameters._UPSLOPEHRUDRAIN).Item1;
             //# ArcSWAT+ version
             this.version = version;
             //# DEM directory
@@ -518,6 +496,30 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.logFile = logFile;
             //# Path of project database
             this.db = new DBUtils(this.projDir, this.projName, this.dbProjTemplate, this.dbRefTemplate, this.isHUC, this.isHAWQS, this.logFile, this.isBatch);
+            // initialise parameter tables now db is available
+            this.proj.init();
+            //# Stream burn-in depth
+            this.burninDepth = proj.readDoubleEntry(title, "params/burninDepth", Parameters._BURNINDEPTH).Item1;
+            //# Channel width multiplier
+            this.channelWidthMultiplier = proj.readDoubleEntry(title, "params/channelWidthMultiplier", Parameters._CHANNELWIDTHMULTIPLIER).Item1;
+            //# Channel width exponent
+            this.channelWidthExponent = proj.readDoubleEntry(title, "params/channelWidthExponent", Parameters._CHANNELWIDTHEXPONENT).Item1;
+            //# Channel depth multiplier
+            this.channelDepthMultiplier = proj.readDoubleEntry(title, "params/channelDepthMultiplier", Parameters._CHANNELDEPTHMULTIPLIER).Item1;
+            //# Channel depth exponent
+            this.channelDepthExponent = proj.readDoubleEntry(title, "params/channelDepthExponent", Parameters._CHANNELDEPTHEXPONENT).Item1;
+            //# reach slope multiplier
+            this.reachSlopeMultiplier = proj.readDoubleEntry(title, "params/reachSlopeMultiplier", Parameters._MULTIPLIER).Item1;
+            //# tributary slope multiplier
+            this.tributarySlopeMultiplier = proj.readDoubleEntry(title, "params/tributarySlopeMultiplier", Parameters._MULTIPLIER).Item1;
+            //# mean slope multiplier
+            this.meanSlopeMultiplier = proj.readDoubleEntry(title, "params/meanSlopeMultiplier", Parameters._MULTIPLIER).Item1;
+            //# main length multiplier
+            this.mainLengthMultiplier = proj.readDoubleEntry(title, "params/mainLengthMultiplier", Parameters._MULTIPLIER).Item1;
+            //# tributary length multiplier
+            this.tributaryLengthMultiplier = proj.readDoubleEntry(title, "params/tributaryLengthMultiplier", Parameters._MULTIPLIER).Item1;
+            //# upslope HRU drain percent
+            this.upslopeHRUDrain = proj.readDoubleEntry(title, "params/upslopeHRUDrain", Parameters._UPSLOPEHRUDRAIN).Item1;
             //# multiplier to turn DEM distances to metres
             this.horizontalFactor = 1.0;
             //# multiplier to turn elevations to metres
@@ -675,19 +677,21 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             if (this.db.conn is null) {
                 return;
             }
-            string sql = DBUtils.sqlSelect(exemptTable, "LANDUSE", "", "");
-            var reader = this.db.getReader(sql);
-            while (reader.Read()) {
-                this.exemptLanduses.Add(reader.GetString(0));
-            }
-            sql = DBUtils.sqlSelect(splitTable, "LANDUSE, SUBLU, PERCENT", "", "");
-            reader = this.db.getReader(sql);
-            while (reader.Read()) {
-                var luse = reader.GetString(0);
-                if (!this.splitLanduses.ContainsKey(luse)) {
-                    this.splitLanduses[luse] = new Dictionary<string, int>();
+            string sql = DBUtils.sqlSelect(exemptTable, "landuse", "", "");
+            using (var reader = this.db.getReader(sql)) {
+                while (reader.Read()) {
+                    this.exemptLanduses.Add(reader.GetString(0));
                 }
-                this.splitLanduses[luse][reader.GetString(1)] = Convert.ToInt32(reader.GetValue(2));
+            }
+            sql = DBUtils.sqlSelect(splitTable, "landuse, sublanduse, percent", "", "");
+            using (var reader = this.db.getReader(sql)) {
+                while (reader.Read()) {
+                    var luse = reader.GetString(0);
+                    if (!this.splitLanduses.ContainsKey(luse)) {
+                        this.splitLanduses[luse] = new Dictionary<string, int>();
+                    }
+                    this.splitLanduses[luse][reader.GetString(1)] = Convert.ToInt32(reader.GetValue(2));
+                }
             }
         }
 
@@ -702,8 +706,9 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
         //         Write information to MasterProgress table.
         //         
         //         done parameters may be -1 (leave as is) 0 (not done, default) or 1 (done)
+        //         use_gwflow similar: if -1 leave as is (or default to 0 (false)), else use parameter
         //         
-        public void writeProjectConfig(int doneDelin, int doneHRUs) {
+        public void writeProjectConfig(int doneDelin, int doneHRUs, int use_gwflow = -1) {
             this.db.connectToProjectDatabase();
             if (this.db.conn is null) {
                 return;
@@ -719,41 +724,58 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             var gisType = "arcgis";
             var gisVersion = this.version;
             // allow table not to exist for HUC
-            var reader = this.db.getReader(DBUtils.sqlSelect(table, "delineation_done, hrus_done", "", ""));
-            if (reader.HasRows) {
-                reader.Read();
-                if (doneDelin == -1) {
-                    doneDelinNum = Convert.ToInt32(reader.GetValue(0));
+            string sql = DBUtils.sqlSelect(table, "delineation_done, hrus_done", "", "");
+            bool has_gwflow = this.db.hasColumn(table, "use_gwflow");
+            if (has_gwflow) {
+                sql = DBUtils.sqlSelect(table, "delineation_done, hrus_done, use_gwflow", "", "");
+            }
+            using (var reader = this.db.getReader(sql)) {
+                if (reader.HasRows) {
+                    reader.Read();
+                    if (doneDelin == -1) {
+                        doneDelinNum = Convert.ToInt32(reader.GetValue(0));
+                    } else {
+                        doneDelinNum = doneDelin;
+                    }
+                    if (doneHRUs == -1) {
+                        doneHRUsNum = Convert.ToInt32(reader.GetValue(1));
+                    } else {
+                        doneHRUsNum = doneHRUs;
+                    }
+                    if (has_gwflow) {
+                        var use_gwflow0 = Convert.ToInt32(reader.GetValue(2));
+                        if (use_gwflow == -1) {
+                            use_gwflow = use_gwflow0;
+                        }
+                    } else {
+                        sql = $"ALTER TABLE {table} ADD use_gwflow BOOLEAN DEFAULT(0)";
+                        this.db.execNonQuery(sql);
+                        use_gwflow = 0;
+                    }
+                    sql = "UPDATE " + table + String.Format(" SET gis_type='{0}',gis_version='{1}',delineation_done={2},hrus_done={3},use_gwflow={4}", gisType, gisVersion, doneDelinNum, doneHRUsNum, use_gwflow);
+                    this.db.execNonQuery(sql);
                 } else {
-                    doneDelinNum = doneDelin;
-                }
-                if (doneHRUs == -1) {
-                    doneHRUsNum = Convert.ToInt32(reader.GetValue(1));
-                } else {
-                    doneHRUsNum = doneHRUs;
-                }
-                string sql = "UPDATE " + table + String.Format(" SET gis_type='{0}',gis_version='{1}',delineation_done={2},hrus_done={3}", gisType, gisVersion, doneDelinNum, doneHRUsNum);
-                this.db.execNonQuery(sql);
-            } else {
-                reader.Close();
-                reader.Dispose();
-                if (doneDelin == -1) {
-                    doneDelinNum = 0;
-                } else {
-                    doneDelinNum = doneDelin;
-                }
-                if (doneHRUs == -1) {
-                    doneHRUsNum = 0;
-                } else {
-                    doneHRUsNum = doneHRUs;
+                    reader.Close();
+                    reader.Dispose();
+                    if (doneDelin == -1) {
+                        doneDelinNum = 0;
+                    } else {
+                        doneDelinNum = doneDelin;
+                    }
+                    if (doneHRUs == -1) {
+                        doneHRUsNum = 0;
+                    } else {
+                        doneHRUsNum = doneHRUs;
+                    }
+                    if (use_gwflow == -1) { use_gwflow = 0; }
+                    this.db.execNonQuery(string.Format("DROP TABLE IF EXISTS {0}", table));
+                    this.db.execNonQuery(DBUtils._CREATEPROJECTCONFIG);
+                    this.db.execNonQuery(DBUtils._INSERTPROJECTCONFIG, new object[] { 1, projectName, projectDirectory, null, gisType, gisVersion, projectDb, referenceDb, null, null, null, null, null, null, null, doneDelinNum, doneHRUsNum, DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_LAYER_NAME, null, 0, 0, use_gwflow });
                 }
             }
-            this.db.execNonQuery(string.Format("DROP TABLE IF EXISTS {0}", table));
-            this.db.execNonQuery(DBUtils._CREATEPROJECTCONFIG);
-            this.db.execNonQuery(DBUtils._INSERTPROJECTCONFIG, new object[] { 1, projectName, projectDirectory, null, gisType, gisVersion, projectDb, referenceDb, null, null, null, null, null, null, null, doneDelinNum, doneHRUsNum, DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_LAYER_NAME, null, 0, 0 });
         }
 
-    // Return true if delineation done according to project config table.
+        // Return true if delineation done according to project config table.
         public bool isDelinDone() {
             this.db.connectToProjectDatabase();
             if (this.db.conn is null) {
