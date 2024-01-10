@@ -345,7 +345,7 @@ namespace ArcSWATPlus {
         }
 
         // Generate floodplain raster by buffering the channels.
-        public async void calcFloodplainBuffer() {
+        public async Task calcFloodplainBuffer() {
             double drainAreaKm;
             double areaToSqKm = 0;
             if (!System.IO.File.Exists(this._gv.channelFile)) {
@@ -416,7 +416,7 @@ namespace ArcSWATPlus {
         }
 
         // Generate floodplain raster using DEM inversion or branch length method.
-        public async void calcFloodplain(bool useInversion) {
+        public async Task calcFloodplain(bool useInversion) {
             bool isNew;
             string ridgep = null;
             string ridges = null;
@@ -453,7 +453,7 @@ namespace ArcSWATPlus {
                     this.mustRun = this.mustRun || isNew;
                 }
                 this.FP = new Floodplain(this._gv, this._progress, this.chunkCount);
-                this.FP.run(this.demRaster, this._gv.valleyDepthsFile, this.ridgeThresh, this.floodThresh, this.branchThresh, subbasins, distances, slopeDir, flowAcc, ridgep, ridges, this.noData, this.mustRun);
+                await this.FP.run(this.demRaster, this._gv.valleyDepthsFile, this.ridgeThresh, this.floodThresh, this.branchThresh, subbasins, distances, slopeDir, flowAcc, ridgep, ridges, this.noData, this.mustRun);
             }
         }
         
@@ -492,7 +492,7 @@ namespace ArcSWATPlus {
         }
 
         // Run landscape generation.
-        public async void generate() {
+        public async Task generate() {
             bool ok;
             var doHillslopes = false; //  this._dlg.hillslopesCheckBox.Checked;
             var doFloodplain = true; // this._dlg.floodplainCheckBox.Checked;
@@ -531,10 +531,10 @@ namespace ArcSWATPlus {
             }
             if (ok && doFloodplain) {
                 if (useBuffer) {
-                    this.calcFloodplainBuffer();
+                    await this.calcFloodplainBuffer();
                 } else {
                     this.floodThresh = this._dlg.slopePositionSpinBoxValue;
-                    this.calcFloodplain(useInversion);
+                    await this.calcFloodplain(useInversion);
                 }
             }
         }

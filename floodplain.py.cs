@@ -128,7 +128,7 @@ namespace ArcSWATPlus {
         //         The second group is used to calculate ridges by DEM inversion if subbasins is None, else the first is used to 
         //         calculate ridges by branch lengths.
         //         
-        public async void run(
+        public async Task run(
             Raster demRaster,
             string valleyDepthsFile,
             int ridgeThresh,
@@ -177,7 +177,7 @@ namespace ArcSWATPlus {
                 Utils.loginfo(string.Format("Ridge heights by branch length took {0} seconds", time2.Subtract(time1).TotalSeconds));
             }
             time1 = DateTime.Now;
-            this.writeFloodPlain(valleyDepthsFile, mustRun);
+            await this.writeFloodPlain(valleyDepthsFile, mustRun);
             time2 = DateTime.Now;
             Utils.loginfo(string.Format("Floodplain creation took {0} seconds", time2.Subtract(time1).TotalSeconds));
             this._progress("");
@@ -392,7 +392,7 @@ namespace ArcSWATPlus {
         }
         
         // Calculate slope positions from valleyDepths and ridgeHeights, and write floodplain raster .
-        public async void writeFloodPlain(string valleyDepthsFile, bool mustRun) {
+        public async Task writeFloodPlain(string valleyDepthsFile, bool mustRun) {
             int ft;
             ArcGIS.Desktop.Mapping.RasterLayer demLayer;
             var method = this.useInversion ? "inv" : "branch";

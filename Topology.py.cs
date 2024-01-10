@@ -3701,7 +3701,7 @@ namespace ArcSWATPlus {
         }
 
         // Write the gis_points table in the project database.
-        public virtual async void writePointsTable(RasterLayer demLayer, IEnumerable<int> mergees, bool useGridModel, bool existingWshed) {
+        public virtual async Task writePointsTable(RasterLayer demLayer, IEnumerable<int> mergees, bool useGridModel, bool existingWshed) {
 
             var table = "gis_points";
             var clearSQL = "DROP TABLE IF EXISTS " + table;
@@ -4365,10 +4365,10 @@ namespace ArcSWATPlus {
                         // hide channel layer
                         var channelArcLayer = (await Utils.getLayerByFilename(channelFile, ft, gv, subLayer, Utils._WATERSHED_GROUP_NAME)).Item1;
                         if (channelArcLayer is not null) {
-                            Utils.setLayerVisibility(channelArcLayer, false);
+                            await Utils.setLayerVisibility(channelArcLayer, false);
                         }
                         if (this.upstreamFromInlets.Count > 0) {
-                            this.replaceStreamLayer(gv);
+                            await this.replaceStreamLayer(gv);
                         }
                     }
                     return rivs1Layer;
@@ -4394,7 +4394,7 @@ namespace ArcSWATPlus {
         }
 
         // Copy stream layer, remove streams upstream from inlets, and replace stream layer.
-        public async void replaceStreamLayer(GlobalVars gv) {
+        public async Task replaceStreamLayer(GlobalVars gv) {
             var streamLayer = (await Utils.getLayerByFilename(gv.streamFile, FileTypes._STREAMREACHES, gv, null, null)).Item1;
             if (streamLayer is not null) {
                 var @base = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(gv.streamFile), null);
@@ -4417,7 +4417,7 @@ namespace ArcSWATPlus {
                     } while (reach != null);
                     var subLayer = streamLayer;
                     var actStreamArcLayer = (await Utils.getLayerByFilename(actStreamFile, FileTypes._STREAMREACHES, gv, subLayer, Utils._WATERSHED_GROUP_NAME, true)).Item1;
-                    Utils.setLayerVisibility(streamLayer, false);
+                    await Utils.setLayerVisibility(streamLayer, false);
                 }
             }
         }

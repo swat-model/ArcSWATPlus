@@ -584,6 +584,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             foreach (var sink in this.routingSinks) {
                 if (sink.Item2 != "X" && !this.routingSources.Contains(sink)) {
                     Utils.error(string.Format("Internal error: routing sink category {1} id {0} not found as a source", sink.Item1, sink.Item2), this.isBatch);
+                    return;
                 }
             }
             this.checkRoutedPointsSubbasinsAndLSUsDefined();
@@ -1176,7 +1177,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             try {
                 var sql = string.Format("SELECT COUNT(*) FROM pragma_table_info('{0}')", table);
                 using (var cmd = new SQLiteCommand(sql, localConn)) {
-                    return (int)cmd.ExecuteScalar();
+                    return Convert.ToInt32(cmd.ExecuteScalar());
                 }
             }
             catch (Exception) {
@@ -1305,8 +1306,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     }
                 }
                 return true;
-            } catch (Exception) {
-                Utils.exceptionError(string.Format("Could not create {2} and {3} tables from {0} table in soil database {1}", usersoilTable, database, DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_LAYER_NAME), this.isBatch);
+            } catch (Exception ex) {
+                Utils.exceptionError(string.Format("Could not create {2} and {3} tables from {0} table in soil database {1}: {4}", usersoilTable, database, DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_LAYER_NAME, ex.Message), this.isBatch);
                 return false;
             } finally {
                 //this.hashDbTable(this.conn, DBUtils._SOILS_SOL_NAME);
@@ -1323,11 +1324,13 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             int sid,
             int lid,
             string name,
-            SQLiteCommand cmd,
+            SQLiteCommand cmd0,
             SQLiteDataReader reader,
             string insert,
             string insertLayer) {
             reader.Read();
+            // needs new command since existing one used to make reader
+            SQLiteCommand cmd = this.conn.CreateCommand();  
             cmd.CommandText = insert;
             cmd.Parameters.Clear();
             cmd.Parameters.AddWithValue("@p1", sid);
@@ -2119,7 +2122,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     return false;
                 }
                 var tableBasins = DBUtils._BASINSDATA;
-                Utils.loginfo("Dropping BASINSDATA");
+                //Utils.loginfo("Dropping BASINSDATA");
                 dropSQL = "DROP TABLE IF EXISTS " + tableBasins;
                 try {
                     cmd.CommandText = dropSQL;
@@ -2220,9 +2223,9 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     cmd.Parameters.AddWithValue("@p3", data.minElevation);
                     cmd.Parameters.AddWithValue("@p4", data.maxElevation);
                     cmd.Parameters.AddWithValue("@p5", data.waterId);
-                    Utils.loginfo("Writing BASINSDATA item");
+                    //Utils.loginfo("Writing BASINSDATA item");
                     cmd.ExecuteNonQuery();
-                    Utils.loginfo("Finished writing BASINSDATA item");
+                    //Utils.loginfo("Finished writing BASINSDATA item");
                 }
                 catch (Exception) {
                     Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._BASINSDATA, this.dbFile), this.isBatch);
@@ -2333,7 +2336,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 try {
                     cmd.CommandText = DBUtils.sqlSelect(DBUtils._BASINSDATA, "*", "", "");
                     using (var reader = cmd.ExecuteReader()) {
-                        Utils.loginfo("Reading BASINSDATA");
+                        //Utils.loginfo("Reading BASINSDATA");
                         // first read basins to get domain of basins map fixed
                         while (reader.Read()) {
                             var basin = Convert.ToInt32(reader.GetValue(0));
@@ -3468,25 +3471,25 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             pending = new Dictionary<string, HashSet<int>>();
                             break;
                         }
-                    }
-                    var cmd2 = new SQLiteCommand(findSql, localConn);
-                    cmd2.Parameters.AddWithValue("@p1", tid);
-                    cmd2.Parameters.AddWithValue("@p2", tcat);
-                    using (var reader2 = cmd.ExecuteReader()) {
-                        if (!reader2.HasRows) {
-                            // unnecessary to report as done in checkRoutingTable
-                            //                     report = False
-                            //                     if tcat not in erroneous:
-                            //                         report = True
-                            //                         erroneous[tcat] = {tid}
-                            //                     elif tid not in erroneous[tcat]:
-                            //                         erroneous[tcat].add(tid)
-                            //                         report = True
-                            //                     if report:
-                            //                         errors.append('Cannot find id {1} category {2} as a source in the {0} table', table, tid, tcat))
-                            break;
-                        }
-                        while (reader2.Read()) {
+                        var cmd2 = new SQLiteCommand(findSql, localConn);
+                        cmd2.Parameters.Clear();
+                        cmd2.Parameters.AddWithValue("@p1", tid);
+                        cmd2.Parameters.AddWithValue("@p2", tcat);
+                        using (var reader2 = cmd2.ExecuteReader()) {
+                            if (!reader2.HasRows) {
+                                // unnecessary to report as done in checkRoutingTable
+                                //                     report = False
+                                //                     if tcat not in erroneous:
+                                //                         report = True
+                                //                         erroneous[tcat] = {tid}
+                                //                     elif tid not in erroneous[tcat]:
+                                //                         erroneous[tcat].add(tid)
+                                //                         report = True
+                                //                     if report:
+                                //                         errors.append('Cannot find id {1} category {2} as a source in the {0} table', table, tid, tcat))
+                                break;  // from while loop
+                            }
+                            reader2.Read();
                             sid = tid;
                             scat = tcat;
                             hydTyp = reader2.GetString(0); // "hyd_typ"
@@ -3494,13 +3497,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             tcat = reader2.GetString(2); // "sinkcat"
                             percent = Convert.ToDouble(reader2.GetValue(3)); // "percent"
                             hasZero = hasZero || percent == 0;
-                            //end of while loop
-                            // end of for loop
                             // check all percentages are approximately 100
                         }
-                    }
+                    } //end of while loop
                 }
-            }
+            } 
             foreach (var (scat, sourceDdata) in percentages) {
                 foreach (var (sid, data) in sourceDdata) {
                     foreach (var (hydTyp, percent) in data) {

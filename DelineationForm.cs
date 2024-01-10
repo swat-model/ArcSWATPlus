@@ -150,7 +150,7 @@ namespace ArcSWATPlus
         }
 
         // Set connections to controls; read project delineation data.
-        public void init() {
+        public async Task init() {
             //var settings = QSettings();
             //try {
             //    this.numProcesses.Value = Convert.ToInt32(settings.value("/QSWAT/NumProcesses")));
@@ -207,7 +207,7 @@ namespace ArcSWATPlus
             this.verticalCombo.SelectedIndex = this.verticalCombo.Items.IndexOf(Parameters._METRES);
             //this.verticalCombo.activated.connect(this.setVerticalUnits);
             //this.snapThreshold.setValidator(QIntValidator());
-            this.readProj();
+            await this.readProj();
             // initally disable numCells, area and areaUnitsBox (enabled only after loading DEM, when cell-area conversion possible)
             this.numCellsCh.Enabled = false;
             this.areaCh.Enabled = false;
@@ -229,8 +229,8 @@ namespace ArcSWATPlus
         }
 
         // Do delineation; check done and save topology data.  Return OK if delineation done and no errors, 2 if not delineated and nothing done, else 0.
-        public void run() {
-            this.init();
+        public async Task run() {
+            await this.init();
             //if (this._gv.useGridModel) {
             //    this.useGrid.Checked = true;
             //    this.GridBox.Checked = true;
@@ -1542,7 +1542,7 @@ namespace ArcSWATPlus
         //    }
         //    this._gv.outletFile = selFile;
         //    // make old outlet layer invisible
-        //    Utils.setLayerVisibility(selFromLayer, false);
+        //    await Utils.setLayerVisibility(selFromLayer, false);
         //    // remove any existing selected layer
         //    await Utils.removeLayerByLegend(Utils._SELECTEDLEGEND);
         //    // load new outletFile
@@ -1757,7 +1757,7 @@ namespace ArcSWATPlus
         //        }
         //    }
         //    // make old outlet layer invisible
-        //    Utils.setLayerVisibility(outletLayer, false);
+        //    await Utils.setLayerVisibility(outletLayer, false);
         //    // load snapped layer
         //    var outletSnapLayer = (await Utils.getLayerByFilename(this.snapFile, FileTypes._OUTLETS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1;
         //    if (outletSnapLayer is null) {
@@ -3574,7 +3574,7 @@ namespace ArcSWATPlus
         //        var wshedLayer = wshedTreeLayer.layer();
         //        Debug.Assert(wshedLayer is not null);
         //        this._iface.setActiveLayer(wshedLayer);
-        //        Utils.setLayerVisibility(wshedLayer, false);
+        //        await Utils.setLayerVisibility(wshedLayer, false);
         //    }
         //    (gridLayer, loaded) = Utils.getLayerByFilename(root.findLayers(), gridFile, FileTypes._GRID, this._gv, null, Utils._WATERSHED_GROUP_NAME);
         //    if (!gridLayer || !loaded) {
@@ -4058,60 +4058,60 @@ namespace ArcSWATPlus
         //    }
         //}
 
-        private void selectOutletsButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetOutlets();
+        private async void selectOutletsButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetOutlets();
         }
 
-        private void selectWshedButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetWshed();
+        private async void selectWshedButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetWshed();
         }
 
-        private void selectStreamsButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetStreams();
+        private async void selectStreamsButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetStreams();
         }
 
-        private void selectExistOutletsButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetOutlets();
+        private async void selectExistOutletsButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetOutlets();
         }
 
-        private void delinRunButton1_Click(object sender, EventArgs e) {
-            this._parent.runTauDEM1();
+        private async void delinRunButton1_Click(object sender, EventArgs e) {
+            await this._parent.runTauDEM1();
         }
 
-        private void delinRunButton2_Click(object sender, EventArgs e) {
-            this._parent.runTauDEM2();
+        private async void delinRunButton2_Click(object sender, EventArgs e) {
+            await this._parent.runTauDEM2();
         }
 
         private void tabWidget_SelectedIndexChanged(object sender, EventArgs e) {
             this._parent.changeExisting();
         }
 
-        private void existRunButton_Click(object sender, EventArgs e) {
-            this._parent.runExisting();
+        private async void existRunButton_Click(object sender, EventArgs e) {
+            await this._parent.runExisting();
         }
 
         private void useOutlets_CheckedChanged(object sender, EventArgs e) {
             this.changeUseOutlets();
         }
 
-        private void drawOutletsButton_Click(object sender, EventArgs e) {
-            this._parent.drawOutlets();
+        private async void drawOutletsButton_Click(object sender, EventArgs e) {
+            await this._parent.drawOutlets();
         }
 
-        private void selectOutletsInteractiveButton_Click(object sender, EventArgs e) {
-            this._parent.selectOutlets();
+        private async void selectOutletsInteractiveButton_Click(object sender, EventArgs e) {
+            await this._parent.selectOutlets();
         }
 
-        private void snapReviewButton_Click(object sender, EventArgs e) {
-            this._parent.snapReview();
+        private async void snapReviewButton_Click(object sender, EventArgs e) {
+            await this._parent.snapReview();
         }
 
-        private void selectSubButton_Click(object sender, EventArgs e) {
-            this._parent.selectMergeSubbasins();
+        private async void selectSubButton_Click(object sender, EventArgs e) {
+            await this._parent.selectMergeSubbasins();
         }
 
-        private void mergeButton_Click(object sender, EventArgs e) {
-            this._parent.mergeSubbasinsOgr();
+        private async void mergeButton_Click(object sender, EventArgs e) {
+            await this._parent.mergeSubbasinsOgr();
         }
 
         private void taudemHelpButton_Click(object sender, EventArgs e) {
@@ -4139,7 +4139,7 @@ namespace ArcSWATPlus
         }
 
         // Read delineation data from project database.
-        public async void readProj() {
+        public async Task readProj() {
             //string extraOutletFile;
             string outletFile;
             string streamFile;
@@ -4499,8 +4499,8 @@ namespace ArcSWATPlus
             proj.writeNumEntry(title, "delin/snapThreshold", snapThreshold);
         }
 
-        private void DelinForm_Load(object sender, EventArgs e) {
-            this.run();
+        private async void DelinForm_Load(object sender, EventArgs e) {
+            await this.run();
         }
 
 
@@ -4530,8 +4530,8 @@ namespace ArcSWATPlus
             this.changeUseGrid();
         }
 
-        private void selectSubbasinsButton_Click(object sender, EventArgs e) {
-            this._parent.btnSetSubbasins();
+        private async void selectSubbasinsButton_Click(object sender, EventArgs e) {
+            await this._parent.btnSetSubbasins();
         }
 
         private void drainGridButton_CheckedChanged(object sender, EventArgs e) {
@@ -4546,20 +4546,20 @@ namespace ArcSWATPlus
             this.setDrainage();
         }
 
-        private void landscapeButton_Click(object sender, EventArgs e) {
-            this._parent.runLandscape();
+        private async void landscapeButton_Click(object sender, EventArgs e) {
+            await this._parent.runLandscape();
         }
 
-        private void selectLakesButton_Click(object sender, EventArgs e) {
-            this._parent.addLakesMap();
+        private async void selectLakesButton_Click(object sender, EventArgs e) {
+            await this._parent.addLakesMap();
         }
 
-        private void removeLakeCells_Click(object sender, EventArgs e) {
-            this._parent.removeLakeCells();
+        private async void removeLakeCells_Click(object sender, EventArgs e) {
+            await this._parent.removeLakeCells();
         }
 
-        private void addLakeCells_Click(object sender, EventArgs e) {
-            this._parent.addLakeCells();
+        private async void addLakeCells_Click(object sender, EventArgs e) {
+            await this._parent.addLakeCells();
         }
 
         private void numCellsCh_TextChanged(object sender, EventArgs e) {

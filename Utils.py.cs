@@ -462,7 +462,8 @@ namespace ArcSWATPlus
             for (int i = 0; i < layers.Count; i++) {
                 Layer layer = layers[i];
                 var path = await Utils.layerFilename(layer);
-                if (Utils.samePath(fileName, path)) {
+                // layerFilename sometimes lacks extension
+                if (Utils.samePath(fileName, path) || Utils.samePath(Path.ChangeExtension(fileName, null), path)) {
                     await QueuedTask.Run(() => {
                         MapView.Active.Map.RemoveLayer(layer);
                     });
@@ -520,7 +521,7 @@ namespace ArcSWATPlus
 
         // Set map layer visible or not according to visibility.
 
-        public static async void setLayerVisibility(Layer layer, bool visibility) {
+        public static async Task setLayerVisibility(Layer layer, bool visibility) {
             await QueuedTask.Run(() => {
                 try {
                     layer.SetVisibility(visibility);
@@ -589,7 +590,7 @@ namespace ArcSWATPlus
             }
         }
 
-        public static async void clearAnimationGroup() {
+        public static async Task clearAnimationGroup() {
             // remove animation layers
             await QueuedTask.Run(() => {
                 foreach (var animation in Utils.getLayersInGroup(Utils._ANIMATION_GROUP_NAME)) {
@@ -2207,6 +2208,8 @@ public class ListFuns
                 return Utils._WATERSHEDLEGEND;
             } else if (ft == FileTypes._CHANNELREACHES) {
                 return Utils._CHANNELREACHESLEGEND;
+            } else if (ft == FileTypes._EXTRAPTSRCANDRES) {
+                return Utils._EXTRAPTSRCANDRESLEGEND;
             } else if (ft == FileTypes._HILLSHADE) {
                 return Utils._HILLSHADELEGEND;
             } else if (ft == FileTypes._GRID) {
@@ -2647,10 +2650,12 @@ public class ListFuns
                     var colours = ColorFactory.Instance.GenerateColorsFromColorRamp(ramp, total_colours);
                     foreach (int i in Enumerable.Range(0, total_colours)) {
                         classes[i].Color = colours[i];
-                        if (gv.db.landuseCodes.Count > 0) {
-                            var value = Convert.ToInt32(classes[i].Values[0]);
-                            classes[i].Label = gv.db.landuseCodes[value];
+                        var value = Convert.ToInt32(classes[i].Values[0]);
+                        string label;
+                        if (!gv.db.landuseCodes.TryGetValue(value, out label)) {
+                            label = value.ToString();  // may be outside area of watershed.  Otherwise error will be reported elsewhere
                         }
+                        classes[i].Label = label;
                     }
                     grps[0].Classes = classes;
                     colorizer.Groups = grps;
@@ -2660,7 +2665,7 @@ public class ListFuns
                         return;
                     }
                     layer.SetColorizer(colorizer);
-                    MapView.Active.Redraw(false);
+                    //MapView.Active.Redraw(false);
                 }
                 catch (Exception ex) {
                     Utils.loginfo("Cannot create landuse colorizer: " + ex.Message);
@@ -2692,10 +2697,12 @@ public class ListFuns
                     var colours = ColorFactory.Instance.GenerateColorsFromColorRamp(ramp, total_colours);
                     foreach (int i in Enumerable.Range(0, total_colours)) {
                         classes[i].Color = colours[i];
-                        if (gv.db.soilNames.Count > 0) {
-                            var value = Convert.ToInt32(classes[i].Values[0]);
-                            classes[i].Label = gv.db.soilNames[value];
+                        var value = Convert.ToInt32(classes[i].Values[0]);
+                        string label;
+                        if (!gv.db.soilNames.TryGetValue(value, out label)) {
+                            label = value.ToString();  // may be outside area of watershed.  Otherwise error will be reported elsewhere
                         }
+                        classes[i].Label = label;
                     }
                     grps[0].Classes = classes;
                     colorizer.Groups = grps;
@@ -2705,7 +2712,7 @@ public class ListFuns
                         return;
                     }
                     layer.SetColorizer(colorizer);
-                    MapView.Active.Redraw(false);
+                    //MapView.Active.Redraw(false);
                 }
                 catch (Exception ex) {
                     Utils.loginfo("Cannot create soil colorizer: " + ex.Message);
@@ -2776,7 +2783,7 @@ public class ListFuns
         }
 
         public async static void ApplySymbolToFeatureLayerAsync(FeatureLayer featureLayer, int ft, GlobalVars gv) {
-            if (ft == FileTypes._OUTLETS) {
+            if (ft == FileTypes._OUTLETS || ft == FileTypes._EXTRAPTSRCANDRES) {
                 await colourPoints(featureLayer, gv);
                 return;
             } else if (ft == FileTypes._WATERSHED || ft == FileTypes._EXISTINGWATERSHED) {
@@ -2792,6 +2799,7 @@ public class ListFuns
 
                 //Search for the symbolName style items within the style project item.
                 var items = gv.arcSWATPlusStyle.SearchSymbols(symbolType, symbolName);
+                if (items.Count == 0) { return; }
 
                 //Gets the CIMSymbol
                 CIMSymbol symbol = items.FirstOrDefault().Symbol;

@@ -35,10 +35,9 @@ namespace ArcSWATPlus
             this.areaButton.Checked = false;
             this.percentButton.Checked = true;
             this.threshold.Text = "5";
-            this.setup();
         }
 
-        public async void setup() {
+        public async Task setup() {
             this.areaIndx = await _gv.topo.getIndex(this._subbasinsLayer, Topology._AREA);
             double area = 0;
             var count = 0;

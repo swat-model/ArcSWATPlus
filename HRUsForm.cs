@@ -260,7 +260,7 @@ namespace ArcSWATPlus
         }        // Set dialog to read from maps or from previous run.
         public virtual void setRead() {
             // for safety always rerun reading files for HUC projects
-            Utils.loginfo("Checking BASINSDATA");
+            //Utils.loginfo("Checking BASINSDATA");
             if (this._db.hasData("BASINSDATA") && !this._gv.isHUC) {
                 this.readFromPrevious.Enabled = true;
                 this.readFromPrevious.Checked = true;
@@ -268,7 +268,7 @@ namespace ArcSWATPlus
                 this.readFromMaps.Checked = true;
                 this.readFromPrevious.Enabled = false;
             }
-            Utils.loginfo("Finished checking BASINSDATA");
+            //Utils.loginfo("Finished checking BASINSDATA");
             this.setReadChoice();
         }
 

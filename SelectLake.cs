@@ -24,14 +24,14 @@ namespace ArcSWATPlus
         }
 
 
-        private void saveButton_Click(object sender, EventArgs e) {
+        private async void saveButton_Click(object sender, EventArgs e) {
             Close();
-            _parent.selectLakes(true, this._adding);
+            await this._parent.selectLakes(true, this._adding);
         }
 
-        private void cancelButton_Click(object sender, EventArgs e) {
+        private async void cancelButton_Click(object sender, EventArgs e) {
             Close();
-            _parent.selectLakes(false, this._adding);
+            await this._parent.selectLakes(false, this._adding);
         }
     }
 }

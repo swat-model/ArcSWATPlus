@@ -40,6 +40,8 @@ using System.Xml.Linq;
 using ArcGIS.Desktop.Internal.Mapping.Labeling.Ribbon;
 using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using System.Security.Permissions;
+using System.IO.Compression;
+using ArcGIS.Core.Data.Analyst3D;
 
 namespace ArcSWATPlus
 {
@@ -1435,7 +1437,7 @@ namespace ArcSWATPlus
             } else {
                 this._dlg.progress("Writing landscape units shapes ...");
                 // TODO
-                //lsusFile = this.createLSUShapefileFromWshed();
+                lsusFile = this.createLSUShapefileFromWshed();
             }
             if (lsusFile is not null && !this._gv.useGridModel) {
                 // insert above dem (or hillshade if exists) in legend, so subbasin still visible
@@ -1448,7 +1450,7 @@ namespace ArcSWATPlus
                 }
                 await Utils.removeLayerByLegend(legend);
                 // TODO
-                //var fullLSUsLayer = (await Utils.getLayerByFilename(lsusFile, FileTypes._LSUS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
+                var fullLSUsLayer = (await Utils.getLayerByFilename(lsusFile, FileTypes._LSUS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
             }
             this._dlg.progress("");
             if (this.fullHRUsWanted) {
@@ -2235,11 +2237,12 @@ namespace ArcSWATPlus
                         return null;
                     }
                 }
-                // delete PolygonId field, plus DownId if using grid model
-                lsusLayer.DeleteField(polyIndx);
-                if (this._gv.useGridModel) {
-                    lsusLayer.DeleteField(downIndx);
-                }
+                //TODO
+                //// delete PolygonId field, plus DownId if using grid model
+                //lsusLayer.DeleteField(polyIndx);
+                //if (this._gv.useGridModel) {
+                //    lsusLayer.DeleteField(downIndx);
+                //}
             }
             return this._gv.fullLSUsFile;
         }
@@ -3849,7 +3852,7 @@ namespace ArcSWATPlus
                     await this._gv.topo.writeChannelsTable(this.mergedChannels, this.basins, this._gv);
                     var demLayer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._DEM)) as RasterLayer;
                     this._dlg.progress("Writing points, routing and hrus tables ...");
-                    this._gv.topo.writePointsTable(demLayer, this.mergees, this._gv.useGridModel, this._gv.existingWshed);
+                    await this._gv.topo.writePointsTable(demLayer, this.mergees, this._gv.useGridModel, this._gv.existingWshed);
                     if (!this._db.createRoutingTable()) {
                         Utils.error("Failed to create table gis_routing in project database", this._gv.isBatch);
                         return;
@@ -4048,7 +4051,7 @@ namespace ArcSWATPlus
             }
             if (setHRUS) {
                 Debug.Assert(fullHRUsLayer is not null);
-                this.addHRUSNums(fullHRUsLayer, subIndx, chIndx, catIndx, luseIndx, soilIndx, slopeIndx, hrusIndx, linkIndx);
+                await this.addHRUSNums(fullHRUsLayer, subIndx, chIndx, catIndx, luseIndx, soilIndx, slopeIndx, hrusIndx, linkIndx);
                 await this.writeActHRUs(fullHRUsLayer, subIndx, chIndx, catIndx, areaIndx, hrusIndx);
             }
         }
@@ -4337,7 +4340,7 @@ namespace ArcSWATPlus
         //         
         //         Do not merge HRUs according to channel merges, so that the merges can be changed without having
         //         to recompute the geometries.  ActHRUs wil be given merged geometries for merged channels.
-        public virtual async void addHRUSNums(
+        public virtual async Task addHRUSNums(
             FeatureLayer fullHRUsLayer,
             int subIndx,
             int chIndx,
@@ -4449,7 +4452,7 @@ namespace ArcSWATPlus
             await Utils.removeLayerByLegend(Utils._ACTHRUSLEGEND);
             var actHRUsLayer = (await Utils.getLayerByFilename(actHRUsFile, FileTypes._ACTHRUS, this._gv, fullHRUsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
             // remove visibility from FullHRUs layer
-            Utils.setLayerVisibility(fullHRUsLayer, false);
+            await Utils.setLayerVisibility(fullHRUsLayer, false);
             // copy actual HRUs file as template for visualisation, and save Json file
             await this.createHrusResultsFile(actHRUsFile, actHRUsLayer);
         }
@@ -4669,8 +4672,11 @@ namespace ArcSWATPlus
             var hrusFile = Utils.join(this._gv.resultsDir, Parameters._HRUS + ".shp");
             var hrusJson = Utils.join(this._gv.resultsDir, Parameters._HRUS + ".json");
             await Utils.removeLayer(hrusJson);
-            var parms = Geoprocessing.MakeValueArray(arcLayer, hrusJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-            var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
+            var parms = Geoprocessing.MakeValueArray(hrusFile, hrusJson);
+            var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+            var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
+            //var parms = Geoprocessing.MakeValueArray(arcLayer, hrusJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
+            //var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
             if (string.IsNullOrEmpty(result.ReturnValue)) {
                 Utils.error("Failed to create HRUs GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
             } else {
@@ -4824,7 +4830,7 @@ namespace ArcSWATPlus
                     }
                     var actLSUsLayer = (await Utils.getLayerByFilename(actLSUsFile, FileTypes._ACTLSUS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME)).Item1;
                     if (fullLSUsLayer is not null) {
-                        Utils.setLayerVisibility(fullLSUsLayer, false);
+                        await Utils.setLayerVisibility(fullLSUsLayer, false);
                     }
                 }
             }
@@ -4862,7 +4868,8 @@ namespace ArcSWATPlus
                         Utils.error($"Failed to remove subbasin with FID {fid} from subs1.shp", this._gv.isBatch);
                     }
                 }
-                OSGeo.OGR.Layer lsus2Layer = null; // defined here for scope reasons.  Assigned later.
+                subs1Layer.SetAttributeFilter(null);
+                //OSGeo.OGR.Layer lsus2Layer = null; // defined here for scope reasons.  Assigned later.
                 // Add fields from Watershed table to subs1File if less than RIVS1SUBS1MAX features; otherwise takes too long.
                 var addToSubs1 = subs1Layer.GetFeatureCount(1) <= Parameters._RIVS1SUBS1MAX;
                 // If we are adding fields to subs1 we need to
@@ -4885,9 +4892,12 @@ namespace ArcSWATPlus
                 var subsFile = Utils.join(this._gv.resultsDir, Parameters._SUBS + ".shp");
                 var subsJson = Utils.join(this._gv.resultsDir, Parameters._SUBS + ".json");
                 await Utils.removeLayer(subsJson);
-                var arcLayer = Utils.getLayerByLegend(Utils._SUBBASINSLEGEND);
-                var parms = Geoprocessing.MakeValueArray(arcLayer, subsJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-                var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
+                var parms = Geoprocessing.MakeValueArray(subsFile, subsJson);
+                var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+                var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
+                //var arcLayer = Utils.getLayerByLegend(Utils._SUBBASINSLEGEND);
+                //var parms = Geoprocessing.MakeValueArray(arcLayer, subsJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
+                //var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
                 if (string.IsNullOrEmpty(result.ReturnValue)) {
                     Utils.error("Failed to create subbasins GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
                 } else {
@@ -4901,9 +4911,12 @@ namespace ArcSWATPlus
                 var lsusFile = Utils.join(this._gv.resultsDir, Parameters._LSUS + ".shp");
                 var lsusJson = Utils.join(this._gv.resultsDir, Parameters._LSUS + ".json");
                 await Utils.removeLayer(lsusJson);
-                arcLayer = Utils.getLayerByLegend(Utils._ACTLSUSLEGEND);
-                parms = Geoprocessing.MakeValueArray(arcLayer, lsusJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-                result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
+                parms = Geoprocessing.MakeValueArray(lsusFile, lsusJson);
+                //environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+                result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
+                //arcLayer = Utils.getLayerByLegend(Utils._ACTLSUSLEGEND);
+                //parms = Geoprocessing.MakeValueArray(arcLayer, lsusJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
+                //result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
                 if (string.IsNullOrEmpty(result.ReturnValue)) {
                     Utils.error("Failed to create LSUs GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
                 } else {
@@ -4945,6 +4958,7 @@ namespace ArcSWATPlus
                     subs1Layer.CreateField(new FieldDefn("Lat", FieldType.OFTReal), 1);
                     subs1Layer.CreateField(new FieldDefn("Lon", FieldType.OFTReal), 1);
                     subs1Layer.CreateField(new FieldDefn("Elev", FieldType.OFTReal), 1);
+                    subs1Layer.CreateField(new FieldDefn("ElevMin", FieldType.OFTReal), 1);
                     subs1Layer.CreateField(new FieldDefn("ElevMax", FieldType.OFTReal), 1);
                     subs1Layer.CreateField(new FieldDefn("WaterId", FieldType.OFTInteger), 1);
                     var defn = subs1Layer.GetLayerDefn();
@@ -4961,7 +4975,7 @@ namespace ArcSWATPlus
                     elevMaxsubIdx = defn.GetFieldIndex("ElevMax");
                     waterIdIdx = defn.GetFieldIndex("WaterId");
                     using (var lsus2Ds = Ogr.Open(lsus2File, 1)) {
-                        lsus2Layer = lsus2Ds.GetLayerByIndex(0);
+                        var lsus2Layer = lsus2Ds.GetLayerByIndex(0);
                         // add fields from gis_lsus table to lsus2
                         lsus2Layer.CreateField(new FieldDefn("Category", FieldType.OFTInteger), 1);
                         lsus2Layer.CreateField(new FieldDefn("Slope", FieldType.OFTReal), 1);
@@ -5145,23 +5159,26 @@ namespace ArcSWATPlus
                             this._db.execNonQuery(DBUtils._LSUSINSERTSQL, new object[] { lsuId, landscape, SWATChannel, areaHa, meanSlopePercent, tribDistance, tribSlopePercent, tribWidth, tribDepth, lat, lon, meanElev });
                             this._db.addKey(lsutable, lsuId);
                             if (addToSubs1) {
-                                lsus2Layer.SetAttributeFilter(string.Format("{0} = {1}", Topology._LSUID, lsuId));
-                                lsus2Layer.ResetReading();
-                                var f = lsus2Layer.GetNextFeature();
-                                if (f is null) {
-                                    Utils.error(string.Format("Failed to find LSU with LSUId {0} in {1}", lsuId, lsus2File), this._gv.isBatch);
-                                }
-                                f.SetField(catlsuIdx, landscape);
-                                f.SetField(slopelsuIdx, meanSlopePercent);
-                                f.SetField(len1lsuIdx, tribDistance);
-                                f.SetField(csllsuIdx, tribSlopePercent);
-                                f.SetField(wid1lsuIdx, tribWidth);
-                                f.SetField(dep1lsuIdx, tribDepth);
-                                f.SetField(latlsuIdx, lat);
-                                f.SetField(lonlsuIdx, lon);
-                                f.SetField(elevlsuIdx, meanElev);
-                                if (lsus2Layer.SetFeature(f) != Ogr.OGRERR_NONE) {
-                                    Utils.error($"Failed to update LSU with LSUId {lsuId} in " + lsus2File, this._gv.isBatch);
+                                using (var lsus2Ds = Ogr.Open(lsus2File, 1)) {
+                                    var lsus2Layer = lsus2Ds.GetLayerByIndex(0);
+                                    lsus2Layer.SetAttributeFilter(string.Format("{0} = {1}", Topology._LSUID, lsuId));
+                                    lsus2Layer.ResetReading();
+                                    var f = lsus2Layer.GetNextFeature();
+                                    if (f is null) {
+                                        Utils.error(string.Format("Failed to find LSU with LSUId {0} in {1}", lsuId, lsus2File), this._gv.isBatch);
+                                    }
+                                    f.SetField(catlsuIdx, landscape);
+                                    f.SetField(slopelsuIdx, meanSlopePercent);
+                                    f.SetField(len1lsuIdx, tribDistance);
+                                    f.SetField(csllsuIdx, tribSlopePercent);
+                                    f.SetField(wid1lsuIdx, tribWidth);
+                                    f.SetField(dep1lsuIdx, tribDepth);
+                                    f.SetField(latlsuIdx, lat);
+                                    f.SetField(lonlsuIdx, lon);
+                                    f.SetField(elevlsuIdx, meanElev);
+                                    if (lsus2Layer.SetFeature(f) != Ogr.OGRERR_NONE) {
+                                        Utils.error($"Failed to update LSU with LSUId {lsuId} in " + lsus2File, this._gv.isBatch);
+                                    }
                                 }
                             }
                         }
@@ -5171,19 +5188,22 @@ namespace ArcSWATPlus
                 //this._db.hashDbTable(conn, subtable);
                 if (addToSubs1) {
                     var toDelete = new List<long>();
-                    lsus2Layer.ResetReading();
-                    do {
-                        feature = lsus2Layer.GetNextFeature();
-                        if (feature is null) { break; }
-                        var lsuId = feature.GetFieldAsInteger(lsuIdx);
-                        if (allWaterLSUs.Contains(lsuId)) {
-                            ListFuns.insertIntoSortedLongList(feature.GetFID(), toDelete, true);
-                        }
-                    } while (feature is not null);
-                    for (int i = toDelete.Count - 1; i >= 0; i--) {
-                        var fid = toDelete[i];
-                        if (lsus2Layer.DeleteFeature(fid) != Ogr.OGRERR_NONE) {
-                            Utils.error($"Failed to delete all water LSU with FID {fid} from " + lsus2File, this._gv.isBatch);
+                    using (var lsus2Ds = Ogr.Open(lsus2File, 1)) {
+                        var lsus2Layer = lsus2Ds.GetLayerByIndex(0);
+                        lsus2Layer.ResetReading();
+                        do {
+                            feature = lsus2Layer.GetNextFeature();
+                            if (feature is null) { break; }
+                            var lsuId = feature.GetFieldAsInteger(lsuIdx);
+                            if (allWaterLSUs.Contains(lsuId)) {
+                                ListFuns.insertIntoSortedLongList(feature.GetFID(), toDelete, true);
+                            }
+                        } while (feature is not null);
+                        for (int i = toDelete.Count - 1; i >= 0; i--) {
+                            var fid = toDelete[i];
+                            if (lsus2Layer.DeleteFeature(fid) != Ogr.OGRERR_NONE) {
+                                Utils.error($"Failed to delete all water LSU with FID {fid} from " + lsus2File, this._gv.isBatch);
+                            }
                         }
                     }
                 }
@@ -5195,18 +5215,18 @@ namespace ArcSWATPlus
                 var subs1Layer = (await Utils.getLayerByFilename(subs1File, ft, this._gv, subbasinsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer; ;
                 //subs1Layer.setLabelsEnabled(true);
                 // no need to expand legend since any subbasins upstream from inlets have been removed
-                subs1Layer.SetExpanded(false);
+                await QueuedTask.Run(() => { subs1Layer.SetExpanded(false); });
                 if (subbasinsLayer is not null) {
-                    Utils.setLayerVisibility(subbasinsLayer, false);
+                    await Utils.setLayerVisibility(subbasinsLayer, false);
                 }
             }
-            this.createAquifers();
+            await this.createAquifers();
             this._dlg.progress("");
             return true;
         }
 
-        // Creat aquifers and deep aquifers shapefiles, and write gis_aquifers and gis_deep_aquifers tables.
-        public async void createAquifers() {
+        // Create aquifers and deep aquifers shapefiles, and write gis_aquifers and gis_deep_aquifers tables.
+        public async Task createAquifers() {
             int SWATBasin;
             OSGeo.OGR.Layer aqLayer;
             OSGeo.OGR.Layer subsLayer;
@@ -5243,7 +5263,8 @@ namespace ArcSWATPlus
 
             int findOutlet(int basin, Dictionary<int, int> downBasins) {
                 int downBasin;
-                if (!downBasins.TryGetValue(basin, out downBasin)) {
+                if (!downBasins.TryGetValue(basin, out downBasin)) { downBasin = -1; }
+                if (downBasin <0) { 
                     return basin;
                 } else {
                     return findOutlet(downBasin, downBasins);
@@ -5444,6 +5465,7 @@ namespace ArcSWATPlus
                     }
                 }
             }
+
             // start of createAquifers
             this._dlg.progress("Writing aquifers and deep aquifers tables ...");
             DataSource subsDs;
@@ -5525,6 +5547,7 @@ namespace ArcSWATPlus
                                         }
                                     }
                                 } while (feature is not null);
+                                actLSUsLayer.SetAttributeFilter(null);
                                 var defn = aqLayer.GetLayerDefn();
                                 var floodAq = new OSGeo.OGR.Feature(defn);
                                 floodAq.SetGeometry(floodAqGeom);
@@ -5541,19 +5564,23 @@ namespace ArcSWATPlus
                             }
                         }
                         aqDs.SyncToDisk();
-                    }
-                    await Utils.removeLayer(aqJson);
-                    var parms = Geoprocessing.MakeValueArray(aqFile, aqJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-                    var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
-                    if (string.IsNullOrEmpty(result.ReturnValue)) {
-                        Utils.error("Failed to create aquifer GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
-                    } else {
-                        Utils.loginfo("Created aquifer GEOJson file: " + aqJson + $@" {result.ReturnValue}");
+                        aqDs.Dispose();
                     }
                 }
                 catch (Exception ex) {
                     Utils.information(string.Format("Failed to generate aquifers shapefile: aquifer result visualisation will not be possible: {0}", ex.Message), this._gv.isBatch);
                 }
+            }
+            await Utils.removeLayer(aqJson);
+            var parms = Geoprocessing.MakeValueArray(aqFile, aqJson);
+            var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+            var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
+            //var parms = Geoprocessing.MakeValueArray(aqFile, aqJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
+            //var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
+            if (string.IsNullOrEmpty(result.ReturnValue)) {
+                Utils.error("Failed to create aquifer GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
+            } else {
+                Utils.loginfo("Created aquifer GEOJson file: " + aqJson + $@" {result.ReturnValue}");
             }
             // make map of subbasin to outlet subbasin in each watershed:
             var outletSubbasins = new Dictionary<int, int>();
@@ -5561,7 +5588,7 @@ namespace ArcSWATPlus
             var outletLakes = new Dictionary<int, int>();
             // to make deepAquiferId when watershed outlet is in lake and there is no outlet SWATBasin
             var baseDeepAquiferId = Enumerable.Max(this._gv.topo.SWATBasinToSubbasin.Keys);
-            var outlets = new HashSet<object>();
+            var outlets = new HashSet<int>();
             foreach (var basin in this._gv.topo.downSubbasins.Keys) {
                 if (!this._gv.topo.subbasinToSWATBasin.TryGetValue(basin, out SWATBasin)) { SWATBasin = 0; }
                 if (SWATBasin > 0) {
@@ -5604,12 +5631,14 @@ namespace ArcSWATPlus
                     addNewField(tempLayer, tempDeepAqFile, Topology._AQUIFER, Topology._SUBBASIN, x => outletSubbasins[x]);
                     Topology.removeFields(tempLayer, new List<string> { Topology._AQUIFER }, tempDeepAqFile, this._gv.isBatch);
                     // dissolve on Aquifer field
-                    var parms = Geoprocessing.MakeValueArray(tempDeepAqFile, deepAqFile, Topology._AQUIFER);
-                    var result = await Geoprocessing.ExecuteToolAsync("analysis.PairwiseDissolve", parms);
+                    parms = Geoprocessing.MakeValueArray(tempDeepAqFile, deepAqFile, Topology._AQUIFER);
+                    result = await Geoprocessing.ExecuteToolAsync("analysis.PairwiseDissolve", parms);
                     if (string.IsNullOrEmpty(result.ReturnValue)) {
                         Utils.error("Failed to dissolve deep aquifer shapefile: " + $@"{result.ErrorMessages}", this._gv.isBatch);
                     } else {
                         Utils.loginfo("Created deep aquifer shapefile: " + deepAqFile + $@" {result.ReturnValue}");
+                        // this seems to create a layer automatically.  Remove it
+                        await Utils.removeLayer(deepAqFile);
                     }
                 }
                 Utils.removeFiles(tempDeepAqFile);
@@ -5870,7 +5899,7 @@ namespace ArcSWATPlus
                     feature.SetField(ptsourceIndex, 0);
                     feature.SetField(ptIdIndex, pointId);
                     feature.SetGeometry(Topology.geometryFromPoint(point));
-                    layer.SetFeature(feature);
+                    layer.CreateFeature(feature);
                 }
                 foreach (var (channel, (pointId, point)) in ptSources) {
                     // check channel not merged with one upstream
@@ -5890,7 +5919,7 @@ namespace ArcSWATPlus
                         feature.SetField(ptsourceIndex, 1);
                         feature.SetField(ptIdIndex, pointId);
                         feature.SetGeometry(Topology.geometryFromPoint(point));
-                        layer.SetFeature(feature);
+                        layer.CreateFeature(feature);
                     }
                 }
             }
@@ -7112,10 +7141,9 @@ namespace ArcSWATPlus
                     }
                     await this.CreateHRUs.writeWaterBodiesTable();
                     await this.CreateHRUs.printBasins(true, fullHRUsLayer);
-                    // TODO
-                    //if (!await this.CreateHRUs.mergeLSUs()) {
-                    //    Utils.error(string.Format("Failed to create actual LSUs shapefile {0}", this._gv.actLSUsFile), this._gv.isBatch);
-                    //}
+                    if (!await this.CreateHRUs.mergeLSUs()) {
+                        Utils.error(string.Format("Failed to create actual LSUs shapefile {0}", this._gv.actLSUsFile), this._gv.isBatch);
+                    }
                     if (await this.CreateHRUs.writeSubbasinsAndLandscapeTables()) {
                         // can now provide soil layer legend
                         var soilLayer = (await Utils.getLayerByFilename(this._gv.soilFile, FileTypes._SOILS, null, null, null)).Item1 as RasterLayer;
@@ -7140,8 +7168,8 @@ namespace ArcSWATPlus
                     this._gv.db.checkRoutingTable();
                 }
             }
-            catch (Exception) {
-                Utils.exceptionError("Failed to create HRUs", this._gv.isBatch);
+            catch (Exception ex) {
+                Utils.exceptionError("Failed to create HRUs: " + ex.Message, this._gv.isBatch);
             }
             finally {
                 this._dlg.saveProj();
@@ -7160,7 +7188,7 @@ namespace ArcSWATPlus
                     this._parent.postCreateHRUs(1);
                 }
             }
-        }
+}
 
         public void cancel() {
             this._dlg.Close();

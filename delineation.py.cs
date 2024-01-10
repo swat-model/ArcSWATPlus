@@ -1051,7 +1051,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 Utils.copyPrj(this._gv.demFile, this._gv.channelFile);
                 Utils.copyPrj(this._gv.demFile, this._gv.channelBasinFile);
                 await Utils.removeLayer(this._gv.wshedFile);
-                this.createWatershedShapefile(this._gv.channelBasinFile, this._gv.wshedFile, FileTypes._WATERSHED);
+                await this.createWatershedShapefile(this._gv.channelBasinFile, this._gv.wshedFile, FileTypes._WATERSHED);
                 Utils.copyPrj(this._gv.demFile, this._gv.wshedFile);
                 // make demLayer (or hillshadelayer if exists) active so channelsLayer loads above it and below outlets
                 // (or use Full HRUs layer if there is one)
@@ -1799,7 +1799,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Open and load inlets/outlets shapefile.
-        public async void btnSetOutlets() {
+        public async Task btnSetOutlets() {
             TextBox box;
             if (this._gv.existingWshed) {
                 Debug.Assert(this._dlg.delinTabWidget.SelectedIndex == 1);
@@ -1824,7 +1824,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Open and load existing subbasins shapefile.
-        public async void btnSetSubbasins() {
+        public async Task btnSetSubbasins() {
             var ft = this._gv.useGridModel ? FileTypes._GRID : FileTypes._EXISTINGSUBBASINS;
             (string subbasinsFile, ArcGIS.Desktop.Mapping.Layer subbasinsLayer) = await Utils.openAndLoadFile(ft, this._dlg.delinSelectSubbasins, this._gv.shapesDir, this._gv, null, Utils._WATERSHED_GROUP_NAME);
             if (!string.IsNullOrEmpty(subbasinsFile) && subbasinsLayer is not null && subbasinsLayer.GetType() == typeof(FeatureLayer)) {
@@ -1848,7 +1848,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Open and load existing watershed shapefile.
-        public async void btnSetWshed() {
+        public async Task btnSetWshed() {
             var ft = FileTypes._EXISTINGWATERSHED;
             (string wshedFile, ArcGIS.Desktop.Mapping.Layer wshedLayer) = await Utils.openAndLoadFile(ft, this._dlg.delinSelectWshed, this._gv.shapesDir, this._gv, null, Utils._WATERSHED_GROUP_NAME);
             if (!string.IsNullOrEmpty(wshedFile) && wshedLayer is not null && wshedLayer.GetType() == typeof(FeatureLayer)) {
@@ -1861,7 +1861,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Open and load existing streams shapefile or drainage table.
-        public async void btnSetStreams() {
+        public async Task btnSetStreams() {
             string strng = "";
             int ft;
             var legend = this._gv.useGridModel ? Utils._GRIDLEGEND : Utils._SUBBASINSLEGEND;
@@ -1895,12 +1895,12 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Run Taudem to create stream reach network.
-        public virtual void runTauDEM1() {
-            this.runTauDEM(null, false);
+        public virtual async Task runTauDEM1() {
+            await this.runTauDEM(null, false);
         }
 
         // Run TauDEM to create watershed shapefile.
-        public async void runTauDEM2() {
+        public async Task runTauDEM2() {
             // first remove any existing shapesDir inlets/outlets file as will
             // probably be inconsistent with new subbasins
             // UNLESS the file is called arcextra.shp, when it was generated from an ArcSWAT project
@@ -1911,7 +1911,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 this._gv.extraOutletFile = "";
             }
             if (!this._dlg.useOutletsChecked) {
-                this.runTauDEM(null, true);
+                await this.runTauDEM(null, true);
             } else {
                 var outletFile = this._dlg.delinSelectOutlets.Text;
                 if (outletFile == "" || !System.IO.File.Exists(outletFile)) {
@@ -1920,7 +1920,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 }
                 // remove any snapped inlets/outlets file that is visible: causes DSNODEIDs to be set to zero
                 await Utils.removeLayerByLegend(Utils._SNAPPEDLEGEND);
-                this.runTauDEM(outletFile, true);
+                await this.runTauDEM(outletFile, true);
             }
         }
 
@@ -1936,7 +1936,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Run TauDEM.
-        public async void runTauDEM(string outletFile, bool makeWshed) {
+        public async Task runTauDEM(string outletFile, bool makeWshed) {
             ArcGIS.Desktop.Mapping.RasterLayer demLayer;
             ArcGIS.Desktop.Mapping.FeatureLayer chanLayer;
             ArcGIS.Desktop.Mapping.Layer subLayer;
@@ -2044,7 +2044,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             using (new CursorWait()) {
                 this._dlg.getTaudemOutput.Clear();
                 // delet old flood files if any
-                this.deleteFloodFiles();
+                await this.deleteFloodFiles();
                 var felFile = @base + "fel" + suffix;
                 await Utils.removeLayer(felFile);
                 this.progress("PitFill ...");
@@ -2373,16 +2373,16 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 }
                 this._gv.outletFile = this._dlg.useOutletsChecked ? outletFile : "";
                 var subbasinsFile = shapesBase + "subbasins.shp";
-                this.createWatershedShapefile(wStreamFile, subbasinsFile, FileTypes._SUBBASINS);
+                await this.createWatershedShapefile(wStreamFile, subbasinsFile, FileTypes._SUBBASINS);
                 this._gv.subbasinsFile = subbasinsFile;
                 if (!this._gv.useGridModel) {
                     var wshedFile = shapesBase + "wshed.shp";
-                    this.createWatershedShapefile(wChannelFile, wshedFile, FileTypes._WATERSHED);
+                    await this.createWatershedShapefile(wChannelFile, wshedFile, FileTypes._WATERSHED);
                     this._gv.wshedFile = wshedFile;
                 }
                 string chanFile = "";
                 if (this._gv.useGridModel) {
-                    this.createGridShapefile(pFile, ad8File, wStreamFile);
+                    await this.createGridShapefile(pFile, ad8File, wStreamFile);
                     //var gridStreamLayer = Utils.getLayerByLegend(Utils._GRIDSTREAMSLEGEND);
                     //if (gridStreamLayer is null) {
                     //    Utils.error("Cannot find grid streams layer", this._gv.isBatch);
@@ -2411,7 +2411,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Do delineation from existing streams, channels, subbasins and watershed.
-        public async void runExisting() {
+        public async Task runExisting() {
             int yGridSize;
             int xGridSize;
             double ySize;
@@ -2488,7 +2488,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     Utils.error(string.Format("Cannot load watershed shapefile {0}", wshedFile), this._gv.isBatch);
                     return;
                 } else {
-                    Utils.setLayerVisibility(wshedLayer, false);
+                    await Utils.setLayerVisibility(wshedLayer, false);
                 }
             }
             FeatureLayer outletLayer = null;
@@ -2816,7 +2816,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         // Allow user to create inlets/outlets in current shapefile 
         //         or a new one.
         //      
-        public async void drawOutlets() {
+        public async Task drawOutlets() {
             DialogResult result;
             //SelectPointViewModel vm = new SelectPointViewModel(null, false);
             //this.mapTool = new PointTool();
@@ -2852,12 +2852,12 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 return;
             }
             var outletForm = new OutletForm();
-            outletForm.setup(this.drawOutletLayer, this);
+            await outletForm.setup(this.drawOutletLayer, this);
             outletForm.Show();
         }
 
         // return function from OutletForm
-        public async void addOutlets(bool ok) {
+        public async Task addOutlets(bool ok) {
             if (ok) {
                 if (this.drawCurrent) {
                     // add features to current outlet layer
@@ -2971,7 +2971,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         //}
 
         // Allow user to select points in inlets/outlets layer.
-        public async void selectOutlets() {
+        public async Task selectOutlets() {
             this.selFromLayer = null;
             List<ArcGIS.Desktop.Mapping.Layer> layers = (List<ArcGIS.Desktop.Mapping.Layer>)MapView.Active.GetSelectedLayers().ToList();
             ArcGIS.Desktop.Mapping.Layer layer = layers.Count == 1 ? layers[0] : null;
@@ -3009,7 +3009,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             selectPoint.Show();
         }
 
-        public async void selectPoints(bool saveSelected) {
+        public async Task selectPoints(bool saveSelected) {
             if (!saveSelected) {
                 await MapView.Active.ClearSketchAsync();
                 await QueuedTask.Run(() => {
@@ -3066,7 +3066,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             }
             this._gv.outletFile = selFile;
             // make old outlet layer invisible
-            Utils.setLayerVisibility(selFromLayer, false);
+            await Utils.setLayerVisibility(selFromLayer, false);
             // remove any existing selected layer
             await Utils.removeLayerByLegend(Utils._SELECTEDLEGEND);
             // load new outletFile
@@ -3085,7 +3085,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Allow user to select lakes shapefile.
-        public async void addLakesMap() {
+        public async Task addLakesMap() {
             ArcGIS.Desktop.Mapping.Layer subLayer;
             // place above channels layer
             var channelsLayer = Utils.getLayerByLegend(Utils._CHANNELSLEGEND);
@@ -3122,7 +3122,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Allow user to remove cells from lake.
-        public async void removeLakeCells() {
+        public async Task removeLakeCells() {
             var ft = FileTypes._GRID;
             this.gridLayer = await Utils.getLayerByFilenameOrLegend(this._gv.subbasinsFile, ft, FileTypes.legend(ft), this._gv.isBatch) as FeatureLayer;
             if (this.gridLayer is null) {
@@ -3167,7 +3167,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Allow user to Add cells to lake.
-        public async void addLakeCells() {
+        public async Task addLakeCells() {
             var ft = FileTypes._GRID;
             this.gridLayer = await Utils.getLayerByFilenameOrLegend(this._gv.subbasinsFile, ft, FileTypes.legend(ft), this._gv.isBatch) as FeatureLayer;
             if (this.gridLayer is null) {
@@ -3218,7 +3218,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // if selecting, set lakeId of selected cells if adding, else nullify the lakeId of selected cells
-        public async void selectLakes(bool selecting, bool adding) {
+        public async Task selectLakes(bool selecting, bool adding) {
             IReadOnlyList<long> fids = null;
             var lakeIdIndex = await this._gv.topo.getIndex(this.gridLayer, Topology._LAKEID);
             int lakeId;
@@ -3387,7 +3387,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         //===========================================================================
 
         // Load snapped inlets/outlets points.
-        public async void snapReview() {
+        public async Task snapReview() {
             var outletLayer = await Utils.getLayerByFilenameOrLegend(this._gv.outletFile, FileTypes._OUTLETS, "", this._gv.isBatch) as FeatureLayer;
             if (outletLayer is null) {
                 Utils.error("Cannot find inlets/outlets layer", this._gv.isBatch);
@@ -3416,7 +3416,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 }
             }
             // make old outlet layer invisible
-            Utils.setLayerVisibility(outletLayer, false);
+            await Utils.setLayerVisibility(outletLayer, false);
             // load snapped layer
             var outletSnapLayer = (await Utils.getLayerByFilename(this.snapFile, FileTypes._OUTLETS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1;
             if (outletSnapLayer is null) {
@@ -3426,7 +3426,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Allow user to select subbasins to be merged.
-        public async void selectMergeSubbasins() {
+        public async Task selectMergeSubbasins() {
             var ft = this._gv.existingWshed ? FileTypes._EXISTINGSUBBASINS : FileTypes._SUBBASINS;
             var subbasinsLayer = await Utils.getLayerByFilenameOrLegend(this._gv.subbasinsFile, ft, "", this._gv.isBatch) as FeatureLayer;
             if (subbasinsLayer is null) {
@@ -3447,11 +3447,12 @@ assumed that its crossing the lake boundary is an inaccuracy.
             });
             ArcGIS.Desktop.Framework.FrameworkApplication.CurrentTool = "ArcGIS.Desktop.Internal.Mapping.Ribbon.SelectTool";
             var selSubs = new SelectSubbasin(subbasinsLayer, this, this._gv);
+            await selSubs.setup();
             selSubs.Show();
         }
 
         // Merged selected subbasin with its parent.  Not used with grid models.
-        public async void mergeSubbasinsOgr() {
+        public async Task mergeSubbasinsOgr() {
             ReachData dataD;
             ReachData dataA;
             double dropD = 0.0;
@@ -4019,7 +4020,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         //         The latter is intended for existing watershed use, and for the landscape units file when floodplains are not used
         //         (so that landscape units coincide with stream basins), and is not normally loaded.
         //         
-        public async void createWatershedShapefile(string wFile, string subbasinsFile, int ft) {
+        public async Task createWatershedShapefile(string wFile, string subbasinsFile, int ft) {
             ArcGIS.Desktop.Mapping.Layer subLayer;
             FeatureLayer subbasinsLayer;
             if (Utils.isUpToDate(wFile, subbasinsFile)) {
@@ -4174,7 +4175,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Create grid shapefile for watershed.
-        public async void createGridShapefile(string pFile, string ad8File, string wFile) {
+        public async Task createGridShapefile(string pFile, string ad8File, string wFile) {
             this.progress("Creating grid ...");
             this._gv.gridSize = this._dlg.gridSizeValue;
             var time2 = DateTime.Now;
@@ -4186,7 +4187,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 if (this.addDownstreamData(storeGrid, pFile, this._gv.gridSize, accTransform)) {
                     var time4 = DateTime.Now;
                     Utils.loginfo(string.Format("Adding downstream data took {0} seconds", time4.Subtract(time3).TotalSeconds));
-                    this.writeGridShapefile(storeGrid, pFile, this._gv.gridSize, accTransform);
+                    await this.writeGridShapefile(storeGrid, pFile, this._gv.gridSize, accTransform);
                     var time5 = DateTime.Now;
                     Utils.loginfo(string.Format("Writing grid shapefile took {0} seconds", time5.Subtract(time4).TotalSeconds));
                     var numOutlets = await this.writeGridStreamsShapefile(storeGrid, pFile, minDrainArea, maxDrainArea, accTransform);
@@ -4647,7 +4648,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // noinspection PyCallByClass
         // Write grid data to grid shapefile.  Also writes centroids dictionary.
-        public virtual async void writeGridShapefile(Dictionary<int, Dictionary<int, GridData>> storeGrid, string flowFile, int gridSize, double[] accTransform) {
+        public virtual async Task writeGridShapefile(Dictionary<int, Dictionary<int, GridData>> storeGrid, string flowFile, int gridSize, double[] accTransform) {
             OSGeo.OGR.Layer gridLayer;
             this.progress("Writing grid ...");
             var gridFile = Utils.join(this._gv.shapesDir, "grid.shp");
@@ -5090,7 +5091,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
             // Run the landscape dialog and create files as requested.
-            public async void runLandscape() {
+            public async Task runLandscape() {
                 if (this._gv.existingWshed) {
                 // will need a d8 flow direction and a channels raster
                 var suffix = System.IO.Path.GetExtension(this._gv.demFile);
@@ -5116,7 +5117,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     }
                     var channelraster = @base + "srcChannel" + suffix;
                     var demLayer = (await Utils.getLayerByFilename(this._gv.demFile, FileTypes._DEM, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as RasterLayer;
-                    this.streamToRaster(demLayer, this._gv.channelFile, channelraster);
+                    await this.streamToRaster(demLayer, this._gv.channelFile, channelraster);
                     this._gv.srcChannelFile = channelraster;
                 }
                 await this.makeDistancesToOutlets();
@@ -5130,7 +5131,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             }
 
         // Delete any files (and their layers if any) matching *flood*.* in Flood directory.
-        public async void deleteFloodFiles() {
+        public async Task deleteFloodFiles() {
             Matcher matcher = new Matcher();
             matcher.AddInclude("*flood*.*");
             foreach (var f in matcher.GetResultsInFullPath(this._gv.floodDir)) {
@@ -5150,7 +5151,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Use rasterize to generate a raster for the streams or channels, with a fixed value of 1 along the streams, zero elsewhere.
-        public async void streamToRaster(RasterLayer demLayer, string streamFile, string rasterFile) {
+        public async Task streamToRaster(RasterLayer demLayer, string streamFile, string rasterFile) {
             await Utils.removeLayerAndFiles(rasterFile);
             Debug.Assert(!System.IO.File.Exists(rasterFile));
             var parms = Geoprocessing.MakeValueArray(streamFile, Topology._POLYGONID, rasterFile, this._gv.demFile);

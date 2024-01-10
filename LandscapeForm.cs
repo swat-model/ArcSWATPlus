@@ -81,8 +81,8 @@ namespace ArcSWATPlus
             this._parent.parameterChange();
         }
 
-        private void createButton_Click(object sender, EventArgs e) {
-            this._parent.generate();
+        private async void createButton_Click(object sender, EventArgs e) {
+            await this._parent.generate();
         }
 
         private void doneButton_Click(object sender, EventArgs e) {

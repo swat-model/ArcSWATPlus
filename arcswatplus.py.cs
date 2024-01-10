@@ -707,7 +707,7 @@ namespace ArcSWATPlus
         //         
         public static async Task setLegendGroups() {
             var map = MapView.Active.Map;
-            await QueuedTask.Run(() => {
+            await QueuedTask.Run(async () => {
                 var groups = new List<string> {
                     Utils._SLOPE_GROUP_NAME,
                     Utils._SOIL_GROUP_NAME,
@@ -724,7 +724,7 @@ namespace ArcSWATPlus
                     }
                 }
                 // clear anything left accidentally in animation group
-                Utils.clearAnimationGroup();
+                await Utils.clearAnimationGroup();
                 // don't do this - hides landuse, soil and slope
                 //// move world hillshade layer to base of watershed group
                 //GroupLayer wshedGroup = Utils.getGroupLayerByName(Utils._WATERSHED_GROUP_NAME);
