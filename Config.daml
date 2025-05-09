@@ -3,9 +3,9 @@
         defaultNamespace="ArcSWATPlus"
         xmlns="http://schemas.esri.com/DADF/Registry"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="http://schemas.esri.com/DADF/Registry file:///C:/Program Files/ArcGIS/Pro/bin/ArcGIS.Desktop.Framework.xsd">
+        xsi:schemaLocation="http://schemas.esri.com/DADF/Registry file:///C:/Program%20Files/ArcGIS/Pro/bin/ArcGIS.Desktop.Framework.xsd">
 
-  <AddInInfo id="{30101c56-0002-4c2c-bc1f-f83d04fefb23}" version="1.0" desktopVersion="3.1.41833">
+  <AddInInfo id="{30101c56-0002-4c2c-bc1f-f83d04fefb23}" version="1.0.1" desktopVersion="3.4.55405">
     <Name>ArcSWATPlus</Name>   
     <Description>Develop models for SWAT+</Description>
     <Image>Install/Images/swatplus32.png</Image>
@@ -29,7 +29,7 @@
       <groups>
         <!-- comment this out if you have no controls on the Addin tab to avoid
               an empty group-->
-        <group id="ArcSWATPlus_Group1" caption="Group 1" appearsOnAddInTab="false"  keytip="X1">
+        <group id="ArcSWATPlus_Group1" caption="ArcSWAT+" appearsOnAddInTab="false"  keytip="X1">
           <!-- host controls within groups -->
 			<button refID="ArcSWATPlus_StartButton" size="large" />
         </group>

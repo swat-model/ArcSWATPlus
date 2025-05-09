@@ -1,14 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <RuntimeIdentifier>win10-x64</RuntimeIdentifier>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <NoWarn>CA1416</NoWarn>
     <ApplicationIcon>Images\swatplus16.ico</ApplicationIcon>
+    <Platforms>AnyCPU;x64;x86</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="about.py.cs" />
@@ -21,7 +23,9 @@
     <EmbeddedResource Remove="SelectResSubbasin.resx" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Config.daml" />
+    <Content Include="Config.daml">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
     <Content Include="Images\AddInDesktop16.png" />
     <Content Include="Images\AddInDesktop32.png" />
     <Content Include="DarkImages\AddInDesktop16.png" />
@@ -40,88 +44,57 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <None Remove="arcswatplus.py.cs.bak" />
     <None Remove="Images\SWAT-Logo.png" />
     <None Remove="Images\swatplus16.ico" />
     <None Remove="Images\swatplus16.png" />
     <None Remove="Images\swatplus32.png" />
+    <None Remove="topology.py.cs.bak" />
+    <None Remove="topology.py.cs.bak2" />
+    <None Remove="Utils.py.cs.bak" />
+    <None Remove="visualise.py.cs.bak" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="30.0.1" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.4.0" />
+    <PackageReference Include="Magick.NET.Core" Version="14.4.0" />
     <PackageReference Include="MaxRev.Gdal.Core" Version="3.7.0.217" />
     <PackageReference Include="MaxRev.Gdal.WindowsRuntime.Minimal" Version="3.7.0.100" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="8.0.0" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.9.0" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.118" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.1" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="ArcGIS.Desktop.Framework">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ArcGIS.Desktop.Framework.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="ArcGIS.Core">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ArcGIS.Core.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ArcGIS.Desktop.Core">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\Core\ArcGIS.Desktop.Core.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ArcGIS.Desktop.Mapping">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\Mapping\ArcGIS.Desktop.Mapping.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\ArcGIS.Core.dll</HintPath>
     </Reference>
     <Reference Include="ArcGIS.Desktop.Catalog">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\Catalog\ArcGIS.Desktop.Catalog.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\Catalog\ArcGIS.Desktop.Catalog.dll</HintPath>
+    </Reference>
+    <Reference Include="ArcGIS.Desktop.Core">
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\Core\ArcGIS.Desktop.Core.dll</HintPath>
     </Reference>
     <Reference Include="ArcGIS.Desktop.Editing">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\Editing\ArcGIS.Desktop.Editing.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\Editing\ArcGIS.Desktop.Editing.dll</HintPath>
     </Reference>
     <Reference Include="ArcGIS.Desktop.Extensions">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\DesktopExtensions\ArcGIS.Desktop.Extensions.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\DesktopExtensions\ArcGIS.Desktop.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="ArcGIS.Desktop.Framework">
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\ArcGIS.Desktop.Framework.dll</HintPath>
     </Reference>
     <Reference Include="ArcGIS.Desktop.GeoProcessing">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\GeoProcessing\ArcGIS.Desktop.GeoProcessing.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\Geoprocessing\ArcGIS.Desktop.GeoProcessing.dll</HintPath>
     </Reference>
     <Reference Include="ArcGIS.Desktop.Layouts">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\Extensions\Layout\ArcGIS.Desktop.Layouts.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\Layout\ArcGIS.Desktop.Layouts.dll</HintPath>
     </Reference>
-    <Reference Include="ArcGIS.Desktop.Shared.Wpf">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ArcGIS.Desktop.Shared.Wpf.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+    <Reference Include="ArcGIS.Desktop.Mapping">
+      <HintPath>..\..\..\..\..\Program Files\ArcGIS\Pro\bin\Extensions\Mapping\ArcGIS.Desktop.Mapping.dll</HintPath>
     </Reference>
-    <Reference Include="ArcGIS.Desktop.Ribbon.Wpf">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ArcGIS.Desktop.Ribbon.Wpf.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ArcGIS.Desktop.DataGrid.Contrib.Wpf">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ArcGIS.Desktop.DataGrid.Contrib.Wpf.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ArcGIS.Desktop.Resources">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ArcGIS.Desktop.Resources.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ESRI.ArcGIS.ItemIndex">
-      <HintPath>C:\Program Files\ArcGIS\Pro\bin\ESRI.ArcGIS.ItemIndex.dll</HintPath>
-      <CopyLocal>False</CopyLocal>
-      <Private>False</Private>
+    <Reference Include="System.Data.SQLite">
+      <HintPath>..\..\..\.nuget\packages\stub.system.data.sqlite.core.netstandard\1.0.118\lib\netstandard2.1\System.Data.SQLite.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -166,6 +139,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="runRasterToPolygon.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="runSWATGraph.bat">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

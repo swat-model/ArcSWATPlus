@@ -59,14 +59,14 @@ namespace ArcSWATPlus
             await this._parent.addOutlets(false);
         }
 
-        public OutletForm() {
+        public OutletForm(FeatureLayer layer, Delineation parent) {
             InitializeComponent();
+            this._parent = parent;
+            this.currentLayer = layer;
         }
 
-        public async Task setup(FeatureLayer layer, Delineation parent) {
-            this._parent = parent; 
+        public async Task setup() {
             this.lastIndex = 0;
-            this.currentLayer = layer;
             //this.filename = filename;
             //this.ds = OSGeo.OGR.Ogr.Open(filename, 1);
             //this.layer = ds.GetLayerByIndex(0);
@@ -102,11 +102,11 @@ namespace ArcSWATPlus
             });
 
             this.currentTool = FrameworkApplication.CurrentTool;
-            await FrameworkApplication.SetCurrentToolAsync("ArcSWAT3_PointTool");
-            //FrameworkApplication.CurrentTool = "ArcSWAT3_PointTool";
-            //ICommand cmd = FrameworkApplication.GetPlugInWrapper("ArcSWAT3_PointTool") as ICommand;
-            //if ((cmd != null) && cmd.CanExecute(null))
-            //    cmd.Execute(null);
+            //await FrameworkApplication.SetCurrentToolAsync("ArcSWATPlus_PointTool");
+            FrameworkApplication.CurrentTool = "ArcSWAT3_PointTool";
+            ICommand cmd = FrameworkApplication.GetPlugInWrapper("ArcSWAT3_PointTool") as ICommand;
+            if ((cmd != null) && cmd.CanExecute(null))
+                cmd.Execute(null);
         }
 
         private void OutletForm_Load(object sender, EventArgs e) {
@@ -116,7 +116,7 @@ namespace ArcSWATPlus
                     return;
                 var message = String.Empty;
                 var geom = args.Sketch as MapPoint;
-                Utils.information(String.Format("Point is ({0}, {1})", geom.X, geom.Y), false);
+                Utils.information(String.Format("Point is ({0}, {1})", geom.X, geom.Y), this._parent._gv.isBatch);
                 this.lastIndex++;
                 //OSGeo.OGR.Feature pt1 = new OSGeo.OGR.Feature(def);
                 //pt1.SetField(this.idIndex, this.lastIndex);
@@ -128,6 +128,9 @@ namespace ArcSWATPlus
                 //pt1.SetGeometry(ogrPoint);
                 //var num = layer.CreateFeature(pt1);
                 //if (num < 0) { message = string.Format("Failed to create point at ({0}, {1})", ogrPoint.GetX(0), ogrPoint.GetY(0)); }
+                if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                    await ArcSWATPlus.mainMap.OpenViewAsync();
+                }
                 await QueuedTask.Run(() => {
                     EditOperation editOperation = new EditOperation();
                     editOperation.Callback(context => {
@@ -136,7 +139,12 @@ namespace ArcSWATPlus
                             rowBuffer[this.resIndex] = this.reservoirButton.Checked ? 1 : this.pondButton.Checked ? 2 : 0;
                             rowBuffer[this.inletIndex] = (this.inletButton.Checked || this.ptsourceButton.Checked) ? 1 : 0;
                             rowBuffer[this.ptsourceIndex] = this.ptsourceButton.Checked ? 1 : 0;
-                            rowBuffer[def.GetShapeField()] = new MapPointBuilderEx(geom.X, geom.Y).ToGeometry();
+                            //var transformFromLatLong = ProjectionTransformation.Create(this._parent._gv.topo.crsLatLong, this._parent._gv.crsProject, this._parent._gv.topo.demExtent);
+                            var pt = MapView.Active.ClientToMap(new System.Windows.Point(geom.X, geom.Y));
+                            //var geomNoZ = MapPointBuilderEx.CreateMapPoint(geom.X, geom.Y);
+                            //MapPoint f_geom = GeometryEngine.Instance.Project(geomNoZ, this._parent._gv.crsProject) as MapPoint;
+                            MapPoint f_geom_pt = GeometryEngine.Instance.Project(pt, this._parent._gv.crsProject) as MapPoint;
+                            rowBuffer[def.GetShapeField()] = f_geom_pt;
                             using (ArcGIS.Core.Data.Feature feature = this.fc.CreateRow(rowBuffer)) {
                                 //To indicate that the attribute table has to be updated
                                 context.Invalidate(feature);

@@ -186,6 +186,7 @@ namespace ArcSWATPlus
         public virtual void close() {
             if (this.conn is not null) {
                 this.conn.Close();
+                this.conn.Dispose();
             }
             this._dlg.Close();
         }

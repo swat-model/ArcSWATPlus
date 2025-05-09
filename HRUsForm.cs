@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using ArcGIS.Desktop.Mapping;
 using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using System.Windows;
+using ArcGIS.Desktop.Framework.Threading.Tasks;
 
 namespace ArcSWATPlus
 {
@@ -70,7 +71,6 @@ namespace ArcSWATPlus
             //this.channelMergeVal.textChanged.connect(this.readChannelThreshold);
             //this.channelMergeSlider.valueChanged.connect(this.changeChannelThreshold);
             //this.reservoirThreshold.valueChanged.connect(this.setRead);
-            this.setRead();
             //this.floodplainCombo.activated.connect(this.setToReadFromMaps);
             //this.readFromMaps.toggled.connect(this.setReadChoice);
             //this.readFromPrevious.toggled.connect(this.setReadChoice);
@@ -99,6 +99,7 @@ namespace ArcSWATPlus
             this.floodplainCombo.Items.Add("Select floodplain map (optional)");
             this.floodplainCombo.SelectedIndex = 0;
             this.initFloodplain();
+            this.setRead(); // must be done after changes to floodplainCombo or read from maps is restored
             //this.slopeBand.returnPressed.connect(this.insertSlope);
             //this.clearButton.clicked.connect(this.clearSlopes);
             //this.readButton.clicked.connect(this.readFiles);
@@ -420,6 +421,7 @@ namespace ArcSWATPlus
             if (landuseFile is not null  && landuseLayer is not null) {
                 this._parent.landuseFile = landuseFile;
                 this._parent.landuseLayer = landuseLayer as RasterLayer;
+                await QueuedTask.Run(() => landuseLayer.SetVisibility(false));
             }
         }
 
@@ -430,6 +432,7 @@ namespace ArcSWATPlus
             if (soilFile is not null && soilLayer is not null) {
                 this._parent.soilFile = soilFile;
                 this._parent.soilLayer = soilLayer as RasterLayer;
+                await QueuedTask.Run(() => soilLayer.SetVisibility(false));
             }
         }
 
@@ -993,17 +996,17 @@ namespace ArcSWATPlus
         // Write entries for landuse, soil, and landscape choices to project file.
         public virtual void saveEntries1(Proj proj) {
             var title = proj.Name;
-            proj.writeEntry(title, "landuse/file", proj.writePath(this._parent.landuseFile));
-            proj.writeEntry(title, "soil/file", proj.writePath(this._parent.soilFile));
-            proj.writeEntry(title, "landuse/table", this._parent.landuseTable);
-            proj.writeEntry(title, "landuse/plant", this._db.plantTable);
-            proj.writeEntry(title, "landuse/urban", this._db.urbanTable);
-            proj.writeNumEntry(title, "landuse/water", this._db.waterLanduse);
-            proj.writeEntry(title, "soil/table", this._parent.soilTable);
+            proj.writeEntry(title, "landuse/file", this._parent.landuseFile);
+            proj.writeEntry(title, "soil/file", this._parent.soilFile);
+            proj.writeEntry("", "landuse/table", this._parent.landuseTable);
+            proj.writeEntry("", "landuse/plant", this._db.plantTable);
+            proj.writeEntry("", "landuse/urban", this._db.urbanTable);
+            proj.writeNumEntry("", "landuse/water", this._db.waterLanduse);
+            proj.writeEntry("", "soil/table", this._parent.soilTable);
             proj.writeEntryBool(title, "soil/useSTATSGO", this._db.useSTATSGO);
             proj.writeEntryBool(title, "soil/useSSURGO", this._db.useSSURGO);
-            proj.writeEntry(title, "soil/database", proj.writePath(this._db.plantSoilDatabase));
-            proj.writeEntry(title, "soil/databaseTable", this._db.usersoilTable);
+            proj.writeEntry(title, "soil/database", this._db.plantSoilDatabase);
+            proj.writeEntry("", "soil/databaseTable", this._db.usersoilTable);
             proj.writeEntryBool(title, "lsu/useLandscapes", this._gv.useLandscapes);
             if (this._gv.useLandscapes) {
                 proj.writeNumEntry(title, "lsu/thresholdResFlood", (int)this.reservoirThreshold.Value);
@@ -1011,7 +1014,7 @@ namespace ArcSWATPlus
                 proj.writeNumEntry(title, "lsu/thresholdResNoFlood", (int)this.reservoirThreshold.Value);
             }
             proj.writeEntryBool(title, "lsu/useLeftRight", this._gv.useLeftRight);
-            proj.writeEntry(title, "lsu/floodplainFile", proj.writePath(this._gv.floodFile));
+            proj.writeEntry(title, "lsu/floodplainFile", this._gv.floodFile);
             proj.writeEntryBool(title, "lsu/channelMergeByPercent", this.channelPercentButton.Checked);
             proj.writeNumEntry(title, "lsu/channelMergeVal", this.channelMergeSlider.Value);
         }
@@ -1020,7 +1023,7 @@ namespace ArcSWATPlus
         public virtual void saveProj() {
             var proj = this._gv.proj;
             this.saveEntries1(proj);
-            //this.saveEntries2(proj);
+            this.saveEntries2(proj);
         }
 
         // Write entries for hru choices to project file.
@@ -1028,8 +1031,8 @@ namespace ArcSWATPlus
             var title = proj.Name;
             proj.writeNumEntry(title, "hru/elevBandsThreshold", this._gv.elevBandsThreshold);
             proj.writeNumEntry(title, "hru/numElevBands", this._gv.numElevBands);
-            proj.writeEntry(title, "hru/slopeBands", Utils.slopesToString(this._db.slopeLimits));
-            proj.writeEntry(title, "hru/slopeBandsFile", proj.writePath(this._gv.slopeBandsFile));
+            proj.writeEntry("", "hru/slopeBands", Utils.slopesToString(this._db.slopeLimits));
+            proj.writeEntry(title, "hru/slopeBandsFile", this._gv.slopeBandsFile);
             proj.writeEntryBool(title, "hru/isMultiple", this._createHRUs.isMultiple);
             proj.writeEntryBool(title, "hru/isDominantHRU", this._createHRUs.isDominantHRU);
             proj.writeEntryBool(title, "hru/isArea", this._createHRUs.isArea);

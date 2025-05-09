@@ -29,7 +29,13 @@ namespace ArcSWATPlus
 
         public string SWATPlusDir;
 
-        public static string _SWATPLUSDEFAULTDIR = @"C:\SWAT\SWATPlus";
+        public static string _HOMEDIR = 
+            (Environment.OSVersion.Platform == PlatformID.Unix ||
+            Environment.OSVersion.Platform == PlatformID.MacOSX)
+                ? Environment.GetEnvironmentVariable("HOME")
+                : Environment.ExpandEnvironmentVariables("%HOMEDRIVE%%HOMEPATH%");
+
+        public static string _SWATPLUSDEFAULTDIR = _HOMEDIR + @"\SWATPlus";
 
         public static string _SWATEDITOR = "SWATPlusEditor.exe";
 
@@ -39,7 +45,7 @@ namespace ArcSWATPlus
 
         public static string _MPIEXECDEFAULTDIR = @"C:\Program Files\Microsoft MPI\Bin";
 
-        public static string _TAUDEM539DIR = "TauDEM539Bin";
+        public static string _TAUDEM539DIR = "TauDEM539BinForArc";
 
         public static string _TAUDEMDIR = "TauDEM5Bin";
 
@@ -195,6 +201,8 @@ namespace ArcSWATPlus
 
         public static double _NEARNESSTHRESHOLD = 0.51;
 
+        public static double _DEFAULTSLOPE = 0.005;
+
         public static double _CHANNELWIDTHMULTIPLIER = 1.29;
 
         public static double _CHANNELWIDTHEXPONENT = 0.6;
@@ -215,6 +223,7 @@ namespace ArcSWATPlus
             "WATR",
             "WETN",
             "WETF",
+            "WETW",
             "RIWF",
             "UPWF",
             "RIWN",
@@ -222,6 +231,8 @@ namespace ArcSWATPlus
         };
 
         public static double _WATERMAXSLOPE = 0.001;
+
+        public static double _MAXPENWIDTH = 4.0; // for QGIS this is 2
 
         public Parameters(GlobalVars gv) {
             this.SWATPlusDir = Parameters._SWATPLUSDEFAULTDIR;

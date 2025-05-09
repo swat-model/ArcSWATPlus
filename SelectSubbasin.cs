@@ -70,6 +70,9 @@ namespace ArcSWATPlus
         private async void cancelButton_Click(object sender, EventArgs e) {
             FrameworkApplication.CurrentTool = this.currentTool;
             Close();
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             await MapView.Active.ClearSketchAsync();
             await QueuedTask.Run(() => {
                 this._subbasinsLayer.ClearSelection();

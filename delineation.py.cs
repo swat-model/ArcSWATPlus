@@ -27,13 +27,15 @@ using System.Data.Entity.Infrastructure;
 using ArcGIS.Desktop.Internal.Editing;
 using ArcGIS.Core.Internal.CIM;
 using ArcGIS.Core.Data.Raster;
-using ActiproSoftware.Windows;
 using ArcGIS.Desktop.Core;
 using ArcGIS.Core.Data;
 using static System.Net.WebRequestMethods;
 using Microsoft.Extensions.FileSystemGlobbing;
 using OSGeo.GDAL;
 using System.Windows.Navigation;
+using ArcGIS.Desktop.Internal.Catalog;
+using System.Net;
+using ArcGIS.Desktop.Editing;
 
 namespace ArcSWATPlus {
 
@@ -128,8 +130,6 @@ namespace ArcSWATPlus {
 
         public ArcSWATPlus _parent;
 
-        public OutletForm _odlg;
-
         public string clipperFile;
 
         public bool delineationFinishedOK;
@@ -183,8 +183,6 @@ namespace ArcSWATPlus {
             this.snapFile = "";
             //# when not all points are snapped this is set True so snapping can be rerun
             this.snapErrors = false;
-            this._odlg = new OutletForm();
-            //this._odlg.move(this._gv.outletsPos);
             //# vector layer for drawing inlet/outlet points
             this.drawOutletLayer = null;
             //# Width of DEM as number of cells
@@ -439,12 +437,12 @@ namespace ArcSWATPlus {
             DataSource channelsDs = null;
             DataSource streamsDs = null;
             DataSource subbasinsDs = null;
-            DataSource chBasinsDs = null;
             OSGeo.OGR.Layer lakesLayer = null;
             OSGeo.OGR.Layer channelsLayer = null;
             OSGeo.OGR.Layer streamsLayer = null;
             OSGeo.OGR.Layer subbasinsLayer = null;
-            OSGeo.OGR.Layer chBasinsLayer = null;
+            var subbasinsFile = "";
+            var chBasinsFile = "";
             bool reportErrors = true;
             Utils.loginfo(string.Format("{0} outlets before adding lakes", this._gv.topo.outlets.Count));
             if (this.lakesDone || this._gv.lakeFile == "") {
@@ -470,52 +468,52 @@ namespace ArcSWATPlus {
                     Utils.error("DEM layer not found.", this._gv.isBatch);
                     return;
                 }
-                lakesDs = Ogr.Open(this._gv.lakeFile, 0);
-                channelsDs = this._gv.useGridModel ? null : Ogr.Open(channelsFile, 1);
+                // add spatial index to lake (advised for using erase later)
+                var parms = Geoprocessing.MakeValueArray(this._gv.lakeFile);
+                var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+                await Geoprocessing.ExecuteToolAsync("AddSpatialIndex_management", parms, environment, null, null, GPExecuteToolFlags.None);
+                lakesDs = Ogr.Open(this._gv.lakeFile, 1);
                 lakesLayer = lakesDs.GetLayerByIndex(0);
-                channelsLayer = this._gv.useGridModel ? null : channelsDs.GetLayerByIndex(0);
-                if (this._gv.isHUC) {
-                    subbasinsDs = Ogr.Open(this._gv.subbasinsFile, 0);
-                    subbasinsLayer = subbasinsDs.GetLayerByIndex(0);
-                    if (!await this.addHUCLakes(lakesLayer, channelsLayer, subbasinsLayer, demLayer)) {
-                        Utils.error("Failed to Add lakes", this._gv.isBatch);
+                //if (this._gv.isHUC) {
+                //    subbasinsDs = Ogr.Open(this._gv.subbasinsFile, 0);
+                //    subbasinsLayer = subbasinsDs.GetLayerByIndex(0);
+                //    if (!await this.addHUCLakes(lakesLayer, channelsLayer, subbasinsLayer, demLayer)) {
+                //        Utils.error("Failed to Add lakes", this._gv.isBatch);
+                //        return;
+                //    }
+                //} else {
+                reportErrors = !this._dlg.lakeMessages;
+                if (!this._gv.useGridModel && !this.lakePointsAdded && !this._gv.existingWshed) {
+                    this.progress("Splitting lake channels ...");
+                    if (!await this.splitChannelsByLakes(lakesLayer, demLayer, reportErrors)) {
+                        Utils.error("Failed to split lake channels", this._gv.isBatch);
                         return;
                     }
-                } else {
-                    reportErrors = !this._dlg.lakeMessages;
-                    if (!this._gv.useGridModel && !this.lakePointsAdded && !this._gv.existingWshed) {
-                        this.progress("Splitting lake channels ...");
-                        Debug.Assert(channelsLayer is not null);
-                        if (!await this.splitChannelsByLakes(lakesLayer, channelsLayer, demLayer, reportErrors)) {
-                            Utils.error("Failed to split lake channels", this._gv.isBatch);
-                            return;
-                        }
-                        // and channelsLayer needs refreshing as has been rewritten
-                        var channelsArcLayer = (FeatureLayer)(await Utils.getLayerByFilename(this._gv.channelFile, FileTypes._CHANNELS, null, null, null)).Item1;
-                        if (channelsArcLayer is null) {
-                            Utils.error("Channels layer not found.", this._gv.isBatch);
-                            return;
-                        }
+                    // and channels layer needs refreshing as has been rewritten
+                    var channelsArcLayer = (FeatureLayer)(await Utils.getLayerByFilename(this._gv.channelFile, FileTypes._CHANNELS, null, null, null)).Item1;
+                    if (channelsArcLayer is null) {
+                        Utils.error("Channels layer not found.", this._gv.isBatch);
+                        return;
                     }
-                    if (this._gv.useGridModel || !this._gv.existingWshed) {
-                        subbasinsDs = Ogr.Open(this._gv.subbasinsFile, 0);
-                        streamsDs = Ogr.Open(this._gv.streamFile, 0);
-                        subbasinsLayer = subbasinsDs.GetLayerByIndex(0);
-                        streamsLayer = streamsDs.GetLayerByIndex(0);
-                        if (!this._gv.useGridModel && !this._gv.existingWshed) {
-                            chBasinsDs = Ogr.Open(this._gv.wshedFile, 0);
-                            chBasinsLayer = chBasinsDs.GetLayerByIndex(0);
-                        }
-                        if (this._gv.useGridModel && !this.gridLakesAdded) {
-                            this.progress("Making grid lakes ...");
-                            Debug.Assert(subbasinsLayer is not null);
-                            this.makeGridLakes(lakesLayer, subbasinsLayer);
-                            this.progress("");
-                            if (lakesLayer is null) {
-                                Utils.error("Failed to make grid lakes", this._gv.isBatch);
-                                return;
-                            }
-                        }
+                }
+                if (this._gv.useGridModel || !this._gv.existingWshed) {
+                    subbasinsFile = this._gv.subbasinsFile;
+                    subbasinsDs = Ogr.Open(subbasinsFile, 1);
+                    subbasinsLayer = subbasinsDs.GetLayerByIndex(0);
+                    streamsDs = Ogr.Open(this._gv.streamFile, 0);
+                    streamsLayer = streamsDs.GetLayerByIndex(0);
+                    if (!this._gv.useGridModel && !this._gv.existingWshed) {
+                        chBasinsFile = this._gv.wshedFile;
+                    }
+                }
+                if (this._gv.useGridModel && !this.gridLakesAdded) {
+                    this.progress("Making grid lakes ...");
+                    //Debug.Assert(subbasinsLayer is not null);
+                    this.makeGridLakes(lakesLayer, subbasinsLayer);
+                    this.progress("");
+                    if (lakesLayer is null) {
+                        Utils.error("Failed to make grid lakes", this._gv.isBatch);
+                        return;
                     }
                 }
                 // avoid running again
@@ -525,6 +523,8 @@ namespace ArcSWATPlus {
                 this.progress("Adding lakes ...");
                 using (new CursorWait()) {
                     this._gv.topo.lakesData.Clear();
+                    channelsDs = this._gv.useGridModel ? null : Ogr.Open(channelsFile, 1);
+                    channelsLayer = this._gv.useGridModel ? null : channelsDs.GetLayerByIndex(0);
                     if (this._gv.useGridModel) {
                         await this._gv.topo.addGridReservoirsPondsAndWetlands(subbasinsLayer, streamsLayer, demLayer, this._gv);
                         this._gv.topo.addGridPlayas(lakesLayer, demLayer, this._gv);
@@ -535,8 +535,8 @@ namespace ArcSWATPlus {
                         Utils.copyShapefile(this._gv.subbasinsFile, "subsNoLakes", this._gv.shapesDir);
                         this._gv.subsNoLakesFile = Utils.join(this._gv.shapesDir, "subsNoLakes.shp");
                         var snapThreshold = Convert.ToInt32(this._dlg.delinSnapThreshold.Text);
-                        await this._gv.topo.addLakes(lakesLayer, subbasinsLayer, chBasinsLayer, streamsLayer, channelsLayer, demLayer, snapThreshold, this._gv, reportErrors: reportErrors);
-                        this._gv.chBasinNoLakeFile = await this.createBasinFile(this._gv.wshedFile, demLayer, "wChannelNoLake");
+                        await this._gv.topo.addLakes(lakesLayer, subbasinsFile, chBasinsFile, streamsLayer, channelsLayer, demLayer, snapThreshold, this._gv, reportErrors: reportErrors);
+                        this._gv.chBasinNoLakeFile = await this.createBasinFile(this._gv.projGdb + @"\chBasins", demLayer, "wChannelNoLake");
                     }
                     this._gv.topo.saveLakesData(this._gv.db);
                     this.progress("");
@@ -545,11 +545,16 @@ namespace ArcSWATPlus {
             }
             finally {
                 // clean up
-                lakesDs = null;
-                channelsDs = null;
-                streamsDs = null;
-                subbasinsDs = null;
-                chBasinsDs = null;
+                lakesDs.Dispose();
+                if (channelsDs is not null) {
+                    channelsDs.Dispose();
+                }
+                if (subbasinsDs is not null) {
+                    subbasinsDs.Dispose();
+                }
+                if (this._gv.useGridModel || !this._gv.existingWshed) {
+                    streamsDs.Dispose();
+                }
             }
         }
 
@@ -557,8 +562,7 @@ namespace ArcSWATPlus {
         //         Then rerun channel basins calculation to split into areas draining to channels and areas draining to lakes.
         //         
         //         Not used with grid models or existing watersheds.
-        public async Task<bool> splitChannelsByLakes(OSGeo.OGR.Layer lakesLayer, OSGeo.OGR.Layer channelsLayer, RasterLayer demLayer, bool reportErrors) {
-            int res1;
+        public async Task<bool> splitChannelsByLakes(OSGeo.OGR.Layer lakesLayer, RasterLayer demLayer, bool reportErrors) {
             double[] source;
             double[] outlet;
             ReachData reachData;
@@ -576,12 +580,28 @@ namespace ArcSWATPlus {
             int dsNodeIndex = 0;
             FeatureDefn defn;
 
+            double[] nearest(OSGeo.OGR.Geometry pts, double[] pt) {
+                // assuming pts is multipoint, find nearest to pt
+                double minMeasure = double.PositiveInfinity;
+                double[] result = null;
+                foreach (int i in Enumerable.Range(0, pts.GetGeometryCount())) {
+                    var pti = Topology.geometryToPointAsDouble(pts.GetGeometryRef(i));
+                    double measure = Topology.distanceMeasure(pti, pt);
+                    if (measure < minMeasure) {
+                        minMeasure = measure;
+                        result = pti;
+                    }
+                }
+                return result;
+            }
+
             int makeNewPoint(
-                List<double[]> points,
+                double[] crossingPoint,
                 double[] source,
                 double[] outlet,
                 List<OSGeo.OGR.Feature> newPoints,
                 int currentPointId,
+                bool isInlet,
                 int res,
                 int chLink,
                 int lakeId,
@@ -593,27 +613,13 @@ but is too short to allow the creation of a crossing point.  You can try rerunni
 either smaller to lengthen the stream or larger to remove it.  Or if the lake is very small you may need to remove it or enlarge it.", chLink, lakeId), this._gv.isBatch);
                     return currentPointId;
                 }
-                double minMeasure = double.PositiveInfinity;
-                double[] crossingPoint = null;
-                // select endpoint as source or outlet
-                double[] endPoint = res == 0 ? source : outlet;
-                foreach (var pt in points) {
-                    double measure = Topology.distanceMeasure(endPoint, pt);
-                    if (measure < minMeasure) {
-                        crossingPoint = pt;
-                        minMeasure = measure;
-                    }
-                }
-                if (crossingPoint is null) {
-                    Utils.error(string.Format("Cannot find crossing point for channel with LINKNO {0} and lake {1}", chLink, lakeId), this._gv.isBatch);
-                    return currentPointId;
-                }
                 OSGeo.OGR.Feature point = new OSGeo.OGR.Feature(defn);
                 currentPointId += 1;
                 point.SetField(idIndex, currentPointId);
-                point.SetField(resIndex, res);
+                point.SetField(resIndex, isInlet ? 0 : res);
                 point.SetField(inletIndex, 0);
                 point.SetField(srcIndex, 0);
+                point.SetField(ptIdIndex, currentPointId);
                 point.SetField(addIndex, 1);
                 // check point not too close to (in same dem pixel as) source or outlet
                 // else this point will be ignored by TauDEM
@@ -621,9 +627,7 @@ either smaller to lengthen the stream or larger to remove it.  Or if the lake is
                 double[] crossingPointMoved2 = Topology.separatePoints(outlet, crossingPointMoved1, transform);
                 point.SetGeometry(Topology.geometryFromPoint(crossingPointMoved2));
                 newPoints.Add(point);
-                // remove from points so if called twice same point cannot be selected
-                points.Remove(crossingPoint);
-                if (res == 0) {
+                if (isInlet) {
                     this._gv.topo.lakeInlets[lakeId].Add(currentPointId);
                 } else {
                     this._gv.topo.lakeOutlets[lakeId].Add(currentPointId);
@@ -646,338 +650,427 @@ either smaller to lengthen the stream or larger to remove it.  Or if the lake is
             if (lakeIdIndex < 0) {
                 return false;
             }
-            if (!this._dlg.useOutletsChecked) {
-                // create an inlets/outlets file
-                var outletsFile = Utils.join(this._gv.shapesDir, "madeoutlets.shp");
-                if (!await Delineation.createOutletFile(outletsFile, this._gv.demFile, false, this._gv)) {
-                    return false;
-                }
-                using (var outletsDs = Ogr.Open(outletsFile, 1)) {
-                    var outletsLayer = outletsDs.GetLayerByIndex(0);
-                    defn = outletsLayer.GetLayerDefn();
-                    idIndex = defn.GetFieldIndex(Topology._ID);
-                    inletIndex = defn.GetFieldIndex(Topology._INLET);
-                    resIndex = defn.GetFieldIndex(Topology._RES);
-                    var ptsourceIndex = defn.GetFieldIndex(Topology._PTSOURCE);
-                    ptIdIndex = defn.GetFieldIndex(Topology._POINTID);
-                    dsLinkIndex = this._gv.topo.getIndex(channelsLayer, Topology._DSLINKNO, ignoreMissing: false);
-                    // basin numbers should have been added to channels file by now
-                    var basinIndex = this._gv.topo.getIndex(channelsLayer, Topology._BASINNO, ignoreMissing: false);
-                    var dsNodeIdAdded = false;
-                    dsNodeIndex = this._gv.topo.getIndex(channelsLayer, Topology._DSNODEID, ignoreMissing: true);
-                    if (dsNodeIndex < 0) {
-                        channelsLayer.CreateField(new FieldDefn(Topology._DSNODEID, OSGeo.OGR.FieldType.OFTInteger), 1);
-                        dsNodeIndex = this._gv.topo.getIndex(channelsLayer, Topology._DSNODEID);
-                        dsNodeIdAdded = true;
+            var channelThreshold = this._dlg.numCellsChText;
+            using (var channelsDs = Ogr.Open(this._gv.channelFile, 1)) {
+                OSGeo.OGR.Layer channelsLayer = channelsDs.GetLayerByIndex(0);
+                if (!this._dlg.useOutletsChecked) {
+                    // create an inlets/outlets file
+                    var outletsFile = Utils.join(this._gv.shapesDir, "madeoutlets.shp");
+                    if (!await Delineation.createOutletFile(outletsFile, this._gv.demFile, false, this._gv)) {
+                        return false;
                     }
-                    channelsLayer.ResetReading();
-                    OSGeo.OGR.Feature channel;
-                    do {
-                        channel = channelsLayer.GetNextFeature();
-                        if (channel is null) { break; }
-                        var subbasin = channel.GetFieldAsInteger(basinIndex);
-                        if (subbasin < 0 || channel.GetFieldAsInteger(dsLinkIndex) >= 0) {
-                            // outside watershed or zero length channel or not an outlet
-                            if (dsNodeIdAdded) {
-                                // need to set new field
-                                channel.SetField(dsNodeIndex, -1);
-                                channelsLayer.SetFeature(channel);
-                            }
-                            continue;
+                    using (var outletsDs = Ogr.Open(outletsFile, 1)) {
+                        var outletsLayer = outletsDs.GetLayerByIndex(0);
+                        defn = outletsLayer.GetLayerDefn();
+                        idIndex = defn.GetFieldIndex(Topology._ID);
+                        inletIndex = defn.GetFieldIndex(Topology._INLET);
+                        resIndex = defn.GetFieldIndex(Topology._RES);
+                        var ptsourceIndex = defn.GetFieldIndex(Topology._PTSOURCE);
+                        ptIdIndex = defn.GetFieldIndex(Topology._POINTID);
+                        dsLinkIndex = this._gv.topo.getIndex(channelsLayer, Topology._DSLINKNO, ignoreMissing: false);
+                        // basin numbers should have been added to channels file by now
+                        var basinIndex = this._gv.topo.getIndex(channelsLayer, Topology._BASINNO, ignoreMissing: false);
+                        var dsNodeIdAdded = false;
+                        dsNodeIndex = this._gv.topo.getIndex(channelsLayer, Topology._DSNODEID, ignoreMissing: true);
+                        if (dsNodeIndex < 0) {
+                            channelsLayer.CreateField(new FieldDefn(Topology._DSNODEID, OSGeo.OGR.FieldType.OFTInteger), 1);
+                            dsNodeIndex = this._gv.topo.getIndex(channelsLayer, Topology._DSNODEID);
+                            dsNodeIdAdded = true;
                         }
-                        // self._gv.topo.outlets should already be populated
-                        var (outletId, outletPt, _) = this._gv.topo.outlets[subbasin];
-                        channel.SetField(dsNodeIndex, outletId);
-                        var outletF = new OSGeo.OGR.Feature(defn);
-                        outletF.SetField(idIndex, outletId);
-                        outletF.SetField(inletIndex, 0);
-                        outletF.SetField(resIndex, 0);
-                        outletF.SetField(ptsourceIndex, 0);
-                        outletF.SetField(ptIdIndex, outletId);
-                        outletF.SetGeometry(Topology.geometryFromPoint(outletPt));
-                        outletsLayer.SetFeature(outletF);
-                    } while (channel is not null);
-                    var snapFile = Utils.join(this._gv.shapesDir, "madeoutlets_snap.shp");
-                    // since we used channel end points for outlets snap file will be identical to outlets file
-                    await Utils.removeLayer(snapFile);
-                    Utils.copyShapefile(outletsFile, "madeoutlets_snap", this._gv.shapesDir);
-                    this._gv.outletFile = outletsFile;
-                    this._gv.snapFile = snapFile;
-                }
-            }
-            if (this._gv.snapFile == "" || !System.IO.File.Exists(this._gv.snapFile)) {
-                Utils.error(string.Format("Cannot find snapped inlets/outlets file {0}", this._gv.snapFile), this._gv.isBatch);
-                return false;
-            }
-            using (var snapDs = Ogr.Open(this._gv.snapFile, 1)) {
-                var snapLayer = snapDs.GetLayerByIndex(0);
-                defn = snapLayer.GetLayerDefn();
-                idIndex = defn.GetFieldIndex(Topology._ID);
-                resIndex = defn.GetFieldIndex(Topology._RES);
-                inletIndex = defn.GetFieldIndex(Topology._INLET);
-                srcIndex = defn.GetFieldIndex(Topology._PTSOURCE);
-                ptIdIndex = defn.GetFieldIndex(Topology._POINTID);
-                // Add ADDED field to define additional points
-                addIndex = defn.GetFieldIndex(Topology._ADDED);
-                if (addIndex < 0) {
-                    snapLayer.CreateField(new FieldDefn(Topology._ADDED, OSGeo.OGR.FieldType.OFTInteger), 1);
-                    addIndex = this._gv.topo.getIndex(snapLayer, Topology._ADDED); ;
-                }
-                var ds = OSGeo.GDAL.Gdal.Open(this._gv.demFile, OSGeo.GDAL.Access.GA_ReadOnly);
-                double[] transform = new double[6];
-                ds.GetGeoTransform(transform);
-                ds = null;
-                this._gv.topo.lakeInlets = new Dictionary<int, HashSet<int>>();
-                this._gv.topo.lakeOutlets = new Dictionary<int, HashSet<int>>();
-                var currentPointId = 0;
-                // calculate current maximum id in snap file
-                snapLayer.ResetReading();
-                OSGeo.OGR.Feature point;
-                do {
-                    point = snapLayer.GetNextFeature();
-                    if (point is null) { break; }
-                    currentPointId = Math.Max(currentPointId, point.GetFieldAsInteger(ptIdIndex));
-                } while (point is not null);
-                // First pass: replace any multipart lake geometries with a single part.  
-                // Also eliminate any islands to prevent accidental crossings of channels with islands
-                // This assumes that dissolving has been done to get as much as possible of lake into
-                // one part, so remaining pieces are insignificant, and islands are also insignificant
-                var channelLinkIndex = this._gv.topo.getIndex(channelsLayer, Topology._LINKNO);
-                var areaFactor = this._gv.horizontalFactor * this._gv.horizontalFactor;
-                var geoMap = new Dictionary<long, OSGeo.OGR.Geometry>();
-                var lakesToRemove = new List<long>();
-                lakesLayer.ResetReading();
-                OSGeo.OGR.Feature lake;
-                do {
-                    lake = lakesLayer.GetNextFeature();
-                    if (lake is null) { break; }
-                    if (lakeResIndex >= 0 && lake.GetFieldAsInteger(lakeResIndex) == (int)WaterRole._PLAYA) {
-                        continue;
-                    }
-                    lakeId = lake.GetFieldAsInteger(lakeIdIndex);
-                    geom = lake.GetGeometryRef();
-                    if (geom.GetGeometryType() == wkbGeometryType.wkbMultiPolygon) {
-                        // find the part with largest area to use as the lake
-                        var maxArea = 0.0;
-                        var secondArea = 0.0;
-                        OSGeo.OGR.Geometry maxPart = null;
-                        OSGeo.OGR.Geometry secondPart = null;
-                        int count = geom.GetGeometryCount();
-                        Utils.loginfo(string.Format("Lake {0} has {1} parts", lakeId, count));
-                        var partNum = 0;
-                        for (int i = 0; i < count; i++) {
-                            // keep islands
-                            // nextPart = QgsGeometry.fromPolygonXY([poly[0]]) # removes any islands within the polygon, by using outer (first) ring only
-                            var nextPart = geom.GetGeometryRef(i);
-                            var nextArea = nextPart.Area() * areaFactor;
-                            var nextLen = nextPart.GetPointCount();
-                            partNum += 1;
-                            Utils.loginfo(string.Format("Part {0} has {1} perimeter vertices and area {2}", partNum, nextLen, Convert.ToInt32(nextArea)));
-                            if (nextArea > maxArea) {
-                                if (maxArea > secondArea) {
-                                    secondPart = maxPart;
-                                    secondArea = maxArea;
+                        channelsLayer.ResetReading();
+                        OSGeo.OGR.Feature channel;
+                        do {
+                            channel = channelsLayer.GetNextFeature();
+                            if (channel is null) { break; }
+                            var subbasin = channel.GetFieldAsInteger(basinIndex);
+                            if (subbasin < 0 || channel.GetFieldAsInteger(dsLinkIndex) >= 0) {
+                                // outside watershed or zero length channel or not an outlet
+                                if (dsNodeIdAdded) {
+                                    // need to set new field
+                                    channel.SetField(dsNodeIndex, -1);
+                                    channelsLayer.SetFeature(channel);
                                 }
-                                maxPart = nextPart;
-                                maxArea = nextArea;
-                            }
-                        }
-                        if (maxPart is null) {
-                            Utils.error(string.Format("Lake {0} seems to be empty", lakeId), this._gv.isBatch);
-                            return false;
-                        }
-                        if (secondPart is not null) {
-                            var percent = Convert.ToInt32(secondArea * 100.0 / maxArea);
-                            Utils.loginfo(string.Format("Second part area is {0}% of first", percent));
-                            if (percent >= 5) {
-                                Utils.information(string.Format("Warning: part with {0} percent of main part of lake {1} is being ignored.", percent, lakeId), this._gv.isBatch, reportErrors: reportErrors);
-                            }
-                        }
-                        geoMap[lake.GetFID()] = maxPart;
-                    } else {
-                        // keep islands
-                        // geoMap[lake.GetFID()] = QgsGeometry.fromPolygonXY([geom.asPolygon()[0]]) # keep only outer (first) ring to remove islands
-                        geoMap[lake.GetFID()] = geom;
-                        if (geom.GetGeometryType() != wkbGeometryType.wkbPolygon) {
-                            Utils.error(string.Format("Lake {0} does not seem to be a polygon shapefile", lakeId), this._gv.isBatch);
-                            return false;
-                        }
-                    }
-                } while (lake is not null);
-                var channelThreshold = this._dlg.numCellsChText;
-                var newPoints = new List<OSGeo.OGR.Feature>();
-                lakesLayer.ResetReading();
-                do {
-                    lake = lakesLayer.GetNextFeature();
-                    if (lakeResIndex >= 0 && lake.GetFieldAsInteger(lakeResIndex) == (int)WaterRole._PLAYA) {
-                        continue;
-                    }
-                    lakeId = lake.GetFieldAsInteger(lakeIdIndex);
-                    if (lakeResIndex < 0) {
-                        res = (int)WaterRole._RESERVOIR;
-                    } else {
-                        res = lake.GetFieldAsInteger(lakeResIndex);
-                    }
-                    geom = geoMap[lake.GetFID()];
-                    this._gv.topo.lakeInlets[lakeId] = new HashSet<int>();
-                    this._gv.topo.lakeOutlets[lakeId] = new HashSet<int>();
-                    var box = new OSGeo.OGR.Envelope();
-                    geom.GetEnvelope(box);
-                    // TODO sort out how polygon geomtries are made up
-                    //    // geometry was made single in first pass
-                    //    // keep islands
-                    //    // perim = QgsGeometry.fromPolylineXY(geom.asPolygon()[0])
-                    //    var perims0 = (from poly in geom.asPolygon()
-                    //                   select QgsGeometry.fromPolylineXY(poly)).ToList();
-                    //    // we assume first perimeter in perims will be the outer perimeter
-                    //    // subsequent ones will be islands, and we need to include any large enough to create a stream
-                    //    var perims = new List<void> {
-                    //    perims0.pop(0)
-                    //};
-                    //    var perimPoly0 = QgsGeometry.fromQPolygonF(perims[0].asQPolygonF());
-                    //    var perimNumCells0 = perimPoly0.area() * areaFactor / this._gv.cellArea;
-                    //    Utils.loginfo(string.Format("Outer perimeter of lake {0} contains {1} DEM cells", lakeId, round(perimNumCells0)));
-                    //    foreach (var perim in perims0) {
-                    //        var perimPoly = QgsGeometry.fromQPolygonF(perim.asQPolygonF());
-                    //        var perimNumCells = perimPoly.area() * areaFactor / this._gv.cellArea;
-                    //        if (perimNumCells > float(channelThreshold)) {
-                    //            // can make a channel
-                    //            perims.Add(perim);
-                    //            Utils.loginfo(string.Format("Island of lake {0} contains {1} DEM cells", lakeId, round(perimNumCells)));
-                    //        }
-                    //    }
-                    // channels which enter and leave the lake, with their crossing points
-                    // if just one of these and no other outlet will make inflowing and outflowing pair,
-                    // else assumed not to interact with lake
-                    var crossingChannels = new List<(OSGeo.OGR.Feature, List<double[]>)>();
-                    channelsLayer.ResetReading();
-                    OSGeo.OGR.Feature channel;
-                    do {
-                        channel = channelsLayer.GetNextFeature();
-                        if (channel is null) { break; }
-                        chLink = channel.GetFieldAsInteger(channelLinkIndex);
-                        var line = channel.GetGeometryRef();
-                        var lineBox = new OSGeo.OGR.Envelope();
-                        line.GetEnvelope(lineBox);
-                        if (Topology.disjointBoxes(box, lineBox)) {
-                            continue;
-                        }
-                        // TODO ignore possible islands for now and assume the simplets case of a single polygon
-                        foreach (var perim in new List<OSGeo.OGR.Geometry> { geom }) {
-                            var intersect = line.Intersection(perim);
-                            if (intersect is null) {
-                                // no intersection
                                 continue;
                             }
-                            var intersectType = intersect.GetGeometryType();
-                            if (intersectType == wkbGeometryType.wkbMultiPoint) {
-                                var points = Topology.geometryPointsToList(intersect);
-                                // check if source and outlet are inside or outside lake
-                                reachData = await this._gv.topo.getOgrReachData(channel, null);
-                                outlet = new double[3] { reachData.lowerX, reachData.lowerY, 0 };
-                                source = new double[3] { reachData.upperX, reachData.upperY, 0 };
-                                if (Topology.polyContains(outlet, geom, box)) {
-                                    if (Topology.polyContains(source, geom, box)) {
-                                        Utils.information(string.Format(@"Channel with LINKNO {0}  crosses the  boundary of lake {1}
+                            // self._gv.topo.outlets should already be populated
+                            var (outletId, outletPt, _) = this._gv.topo.outlets[subbasin];
+                            channel.SetField(dsNodeIndex, outletId);
+                            var outletF = new OSGeo.OGR.Feature(defn);
+                            outletF.SetField(idIndex, outletId);
+                            outletF.SetField(inletIndex, 0);
+                            outletF.SetField(resIndex, 0);
+                            outletF.SetField(ptsourceIndex, 0);
+                            outletF.SetField(ptIdIndex, outletId);
+                            outletF.SetGeometry(Topology.geometryFromPoint(outletPt));
+                            outletsLayer.SetFeature(outletF);
+                        } while (channel is not null);
+                        var snapFile = Utils.join(this._gv.shapesDir, "madeoutlets_snap.shp");
+                        // since we used channel end points for outlets snap file will be identical to outlets file
+                        await Utils.removeLayer(snapFile);
+                        Utils.copyShapefile(outletsFile, "madeoutlets_snap", this._gv.shapesDir);
+                        this._gv.outletFile = outletsFile;
+                        this._gv.snapFile = snapFile;
+                    }
+                }
+                if (this._gv.snapFile == "" || !System.IO.File.Exists(this._gv.snapFile)) {
+                    Utils.error(string.Format("Cannot find snapped inlets/outlets file {0}", this._gv.snapFile), this._gv.isBatch);
+                    return false;
+                }
+                var lakesToRemove = new List<long>();
+                using (var snapDs = Ogr.Open(this._gv.snapFile, 1)) {
+                    var snapLayer = snapDs.GetLayerByIndex(0);
+                    defn = snapLayer.GetLayerDefn();
+                    idIndex = defn.GetFieldIndex(Topology._ID);
+                    resIndex = defn.GetFieldIndex(Topology._RES);
+                    inletIndex = defn.GetFieldIndex(Topology._INLET);
+                    srcIndex = defn.GetFieldIndex(Topology._PTSOURCE);
+                    ptIdIndex = defn.GetFieldIndex(Topology._POINTID);
+                    // Add ADDED field to define additional points
+                    addIndex = defn.GetFieldIndex(Topology._ADDED);
+                    if (addIndex < 0) {
+                        snapLayer.CreateField(new FieldDefn(Topology._ADDED, OSGeo.OGR.FieldType.OFTInteger), 1);
+                        addIndex = this._gv.topo.getIndex(snapLayer, Topology._ADDED);
+                    }
+                    var ds = OSGeo.GDAL.Gdal.Open(this._gv.demFile, OSGeo.GDAL.Access.GA_ReadOnly);
+                    double[] transform = new double[6];
+                    ds.GetGeoTransform(transform);
+                    ds = null;
+                    this._gv.topo.lakeInlets = new Dictionary<int, HashSet<int>>();
+                    this._gv.topo.lakeOutlets = new Dictionary<int, HashSet<int>>();
+                    var currentPointId = 0;
+                    // calculate current maximum id in snap file
+                    snapLayer.ResetReading();
+                    OSGeo.OGR.Feature point;
+                    do {
+                        point = snapLayer.GetNextFeature();
+                        if (point is null) { break; }
+                        currentPointId = Math.Max(currentPointId, point.GetFieldAsInteger(ptIdIndex));
+                    } while (point is not null);
+                    // First pass: replace any multipart lake geometries with a single part.  
+                    // Also eliminate any islands to prevent accidental crossings of channels with islands
+                    // This assumes that dissolving has been done to get as much as possible of lake into
+                    // one part, so remaining pieces are insignificant, and islands are also insignificant
+                    var channelLinkIndex = this._gv.topo.getIndex(channelsLayer, Topology._LINKNO);
+                    var areaFactor = this._gv.horizontalFactor * this._gv.horizontalFactor;
+                    var geoMap = new Dictionary<long, OSGeo.OGR.Geometry>();
+                    lakesLayer.ResetReading();
+                    OSGeo.OGR.Feature lake;
+                    do {
+                        lake = lakesLayer.GetNextFeature();
+                        if (lake is null) { break; }
+                        if (lakeResIndex >= 0 && lake.GetFieldAsInteger(lakeResIndex) == (int)WaterRole._PLAYA) {
+                            continue;
+                        }
+                        lakeId = lake.GetFieldAsInteger(lakeIdIndex);
+                        geom = lake.GetGeometryRef();
+                        if (geom.GetGeometryType() == wkbGeometryType.wkbMultiPolygon) {
+                            // find the part with largest area to use as the lake
+                            var maxArea = 0.0;
+                            var secondArea = 0.0;
+                            OSGeo.OGR.Geometry maxPart = null;
+                            OSGeo.OGR.Geometry secondPart = null;
+                            int count = geom.GetGeometryCount();
+                            Utils.loginfo(string.Format("Lake {0} has {1} parts", lakeId, count));
+                            var partNum = 0;
+                            for (int i = 0; i < count; i++) {
+                                // keep islands
+                                // nextPart = QgsGeometry.fromPolygonXY([poly[0]]) # removes any islands within the polygon, by using outer (first) ring only
+                                var nextPart = geom.GetGeometryRef(i);
+                                var nextArea = nextPart.Area() * areaFactor;
+                                var nextLen = nextPart.GetPointCount();
+                                partNum += 1;
+                                Utils.loginfo(string.Format("Part {0} has {1} perimeter vertices and area {2}", partNum, nextLen, Convert.ToInt32(nextArea)));
+                                if (nextArea > maxArea) {
+                                    if (maxArea > secondArea) {
+                                        secondPart = maxPart;
+                                        secondArea = maxArea;
+                                    }
+                                    maxPart = nextPart;
+                                    maxArea = nextArea;
+                                }
+                            }
+                            if (maxPart is null) {
+                                Utils.error(string.Format("Lake {0} seems to be empty", lakeId), this._gv.isBatch);
+                                return false;
+                            }
+                            if (secondPart is not null) {
+                                var percent = Convert.ToInt32(secondArea * 100.0 / maxArea);
+                                Utils.loginfo(string.Format("Second part area is {0}% of first", percent));
+                                if (percent >= 5) {
+                                    Utils.information(string.Format("Warning: part with {0} percent of main part of lake {1} is being ignored.", percent, lakeId), this._gv.isBatch, reportErrors: reportErrors);
+                                }
+                            }
+                            geoMap[lake.GetFID()] = maxPart;
+                        } else {
+                            // keep islands
+                            // geoMap[lake.GetFID()] = QgsGeometry.fromPolygonXY([geom.asPolygon()[0]]) # keep only outer (first) ring to remove islands
+                            geoMap[lake.GetFID()] = geom;
+                            if (geom.GetGeometryType() != wkbGeometryType.wkbPolygon) {
+                                Utils.error(string.Format("Lake {0} does not seem to be a polygon shapefile", lakeId), this._gv.isBatch);
+                                return false;
+                            }
+                        }
+                    } while (lake is not null);
+                    var newPoints = new List<OSGeo.OGR.Feature>();
+                    lakesLayer.ResetReading();
+                    do {
+                        lake = lakesLayer.GetNextFeature();
+                        if (lake is null) { break; }
+                        if (lakeResIndex >= 0 && lake.GetFieldAsInteger(lakeResIndex) == (int)WaterRole._PLAYA) {
+                            continue;
+                        }
+                        lakeId = lake.GetFieldAsInteger(lakeIdIndex);
+                        if (lakeResIndex < 0) {
+                            res = (int)WaterRole._RESERVOIR;
+                        } else {
+                            res = lake.GetFieldAsInteger(lakeResIndex);
+                        }
+                        geom = geoMap[lake.GetFID()];
+                        this._gv.topo.lakeInlets[lakeId] = new HashSet<int>();
+                        this._gv.topo.lakeOutlets[lakeId] = new HashSet<int>();
+                        var lakeBox = new OSGeo.OGR.Envelope();
+                        geom.GetEnvelope(lakeBox);
+                        // TODO sort out how polygon geomtries are made up
+                        //    // geometry was made single in first pass
+                        //    // keep islands
+                        //    // perim = QgsGeometry.fromPolylineXY(geom.asPolygon()[0])
+                        //    var perims0 = (from poly in geom.asPolygon()
+                        //                   select QgsGeometry.fromPolylineXY(poly)).ToList();
+                        //    // we assume first perimeter in perims will be the outer perimeter
+                        //    // subsequent ones will be islands, and we need to include any large enough to create a stream
+                        //    var perims = new List<void> {
+                        //    perims0.pop(0)
+                        //};
+                        //    var perimPoly0 = QgsGeometry.fromQPolygonF(perims[0].asQPolygonF());
+                        //    var perimNumCells0 = perimPoly0.area() * areaFactor / this._gv.cellArea;
+                        //    Utils.loginfo(string.Format("Outer perimeter of lake {0} contains {1} DEM cells", lakeId, round(perimNumCells0)));
+                        //    foreach (var perim in perims0) {
+                        //        var perimPoly = QgsGeometry.fromQPolygonF(perim.asQPolygonF());
+                        //        var perimNumCells = perimPoly.area() * areaFactor / this._gv.cellArea;
+                        //        if (perimNumCells > float(channelThreshold)) {
+                        //            // can make a channel
+                        //            perims.Add(perim);
+                        //            Utils.loginfo(string.Format("Island of lake {0} contains {1} DEM cells", lakeId, round(perimNumCells)));
+                        //        }
+                        //    }
+                        // channels which enter and leave the lake, with their crossing points
+                        // if just one of these and no other outlet will make inflowing and outflowing pair,
+                        // else assumed not to interact with lake
+                        var crossingChannels = new List<(OSGeo.OGR.Feature, double[], double[])>();
+                        channelsLayer.ResetReading();
+                        OSGeo.OGR.Feature channel;
+                        do {
+                            channel = channelsLayer.GetNextFeature();
+                            if (channel is null) { break; }
+                            chLink = channel.GetFieldAsInteger(channelLinkIndex);
+                            var line = channel.GetGeometryRef();
+                            var lineBox = new OSGeo.OGR.Envelope();
+                            line.GetEnvelope(lineBox);
+                            if (Topology.disjointBoxes(lakeBox, lineBox)) {
+                                continue;
+                            }
+                            // TODO ignore possible islands for now and assume the simplest case of a single polygon
+                            foreach (var perim in new List<OSGeo.OGR.Geometry> { geom }) {
+                                var perimLine = Ogr.ForceToMultiLineString(perim);
+                                var perimLine1 = Ogr.ForceToLineString(perim);
+                                //if (!line.Crosses(perimLine)) {
+                                //    if (!line.Crosses(perimLine1)) {
+                                //        continue;
+                                //    }
+                                //}
+                                int numPoints = line.GetPointCount();
+                                double[] start = new double[3];
+                                double[] finish = new double[3];
+                                line.GetPoint(0, start);
+                                line.GetPoint(numPoints - 1, finish);
+                                source = this._gv.topo.outletAtStart ? finish : start;
+                                outlet = this._gv.topo.outletAtStart ? start : finish;
+                                //var startPoint = Topology.pointToGeometry(start);
+                                //var finishPoint = Topology.pointToGeometry(finish);
+                                var sourceInLake = this._gv.topo.outletAtStart ? Topology.polyContains(finish, geom, lakeBox) : Topology.polyContains(start, geom, lakeBox);
+                                var outletInLake = this._gv.topo.outletAtStart ? Topology.polyContains(start, geom, lakeBox) : Topology.polyContains(finish, geom, lakeBox);
+                                // find crossing point nearest start
+                                double[] next1 = new double[3];
+                                double[] next2 = new double[3];
+                                Array.Copy(start, next1, 3);
+                                var startCrossIndex = -1;
+                                var finishCrossIndex = -1;
+                                var startCrossPoint = new double[3];
+                                var finishCrossPoint = new double[3];
+                                for (int i = 1; i < numPoints; i++) {
+                                    line.GetPoint(i, next2);
+                                    var segment = OSGeo.OGR.Geometry.CreateFromWkt(string.Format("LINESTRING({0} {1}, {2} {3})", next1[0], next1[1], next2[0], next2[1]));
+                                    if (segment.Crosses(perimLine1)) {
+                                        startCrossIndex = i - 1;  // use point nearer start as defining the crossing segment
+                                        var intersect = segment.Intersection(perimLine1);
+                                        var typ = intersect.GetGeometryType();
+                                        if (typ == wkbGeometryType.wkbPoint) {
+                                            intersect.GetPoint(0, startCrossPoint);
+                                        } else if (typ == wkbGeometryType.wkbMultiPoint) {
+                                            startCrossPoint = nearest(intersect, next1);
+                                        } else {
+                                            Utils.error(string.Format("Internal error: intersection of lake {0} with channel link {1} has type {2}", lakeId, chLink, typ.ToString()), this._gv.isBatch);
+                                        }
+                                        break;
+                                    }
+                                    Array.Copy(next2, next1, 3);
+                                }
+                                if (startCrossIndex < 0) {
+                                    continue; // no point in searching from finish if no point found starting from start
+                                }
+                                // find crossing point nearest finish
+                                Array.Copy(finish, next1, 3);
+                                for (int i = numPoints - 1; i >= 1; i--) {
+                                    line.GetPoint(i - 1, next2);
+                                    var segment = OSGeo.OGR.Geometry.CreateFromWkt(string.Format("LINESTRING({0} {1}, {2} {3})", next2[0], next2[1], next1[0], next1[1]));
+                                    if (segment.Crosses(perimLine1)) {
+                                        finishCrossIndex = i - 1;
+                                        var intersect = segment.Intersection(perimLine1);
+                                        var typ = intersect.GetGeometryType();
+                                        if (typ == wkbGeometryType.wkbPoint) {
+                                            intersect.GetPoint(0, finishCrossPoint);
+                                        } else if (typ == wkbGeometryType.wkbMultiPoint) {
+                                            finishCrossPoint = nearest(intersect, next2);
+                                        } else {
+                                            Utils.error(string.Format("Internal error: intersection of lake {0} with channel link {1} has type {2}", lakeId, chLink, typ.ToString()), this._gv.isBatch);
+                                        }
+                                        break;
+                                    }
+                                    Array.Copy(next2, next1, 3);
+                                }
+                                // Note that if only one crossing point startCrossingPoint and finishCrossing point will be the same
+                                // so inletToLake and outletFromLake below are as yet only possible: depend on whether source and outlet of channel are inside or outside lake
+                                var inletToLake = this._gv.topo.outletAtStart ? (finishCrossIndex >= 0 ? finishCrossPoint : null) : (startCrossIndex >= 0 ? startCrossPoint : null);
+                                var outletFromLake = this._gv.topo.outletAtStart ? (startCrossIndex >= 0 ? startCrossPoint : null) : (finishCrossIndex >= 0 ? finishCrossPoint : null);
+
+
+
+                                //if (inspecting) {
+                                //    //var intersect0 = line.Intersection(perim);
+                                //    //var numInterPoints = intersect0.GetPointCount();
+                                //    //Utils.loginfo(string.Format("Lake {0} intersects with line {1}", lakeId, chLink));
+                                //    //for (int i = 0; i < numInterPoints; i++) {
+                                //    //    double[] pt = new double[3];
+                                //    //    intersect0.GetPoint(i, pt);
+                                //    //    Utils.loginfo(string.Format("({0}, {1})", Convert.ToInt32(pt[0]), Convert.ToInt32(pt[1])));
+                                //    //}
+                                //    ;
+                                //}
+                                //var intersect = line.Intersection(perimLine);
+                                //var intersect1 = line.Intersection(perimLine1);
+                                //if (intersect is null || intersect.GetPointCount() == 0) {
+                                //    // no intersection
+                                //    continue;
+                                //}
+                                //var intersectPoints = Ogr.ForceToMultiPoint(intersect);
+                                //var intersectPoints1 = Ogr.ForceToMultiPoint(intersect1);
+                                //var points = Topology.geometryPointsToList(intersect);
+                                //var points1 = Topology.geometryPointsToList(intersect1);
+                                //if (points.Count > 1) {
+                                //    // check if source and outlet are inside or outside lake
+                                //    reachData = await this._gv.topo.getOgrReachData(channel, null);
+                                //    outlet = new double[3] { reachData.lowerX, reachData.lowerY, 0 };
+                                //    source = new double[3] { reachData.upperX, reachData.upperY, 0 };
+                                //    if (Topology.polyContains(outlet, geom, lakeBox)) {
+                                //        if (Topology.polyContains(source, geom, lakeBox)) {
+
+                                // Note that if startCrossIndex and finishCrossIndex are different they must both be non-negative and we have at least 2 crossing points
+                                if (startCrossIndex != finishCrossIndex) {
+                                    if (outletInLake) {
+                                        if (sourceInLake) {
+                                            Utils.information(string.Format(@"Channel with LINKNO {0}  crosses the  boundary of lake {1}
 more than once.  Since it starts and terminates in the lake it
 will be assumed that its crossing the lake boundary is an 
 inaccuaracy of delineation and that it is internal to the lake.
 ", chLink, lakeId), this._gv.isBatch, reportErrors: reportErrors);
-                                    } else {
-                                        Utils.information(string.Format(@"Channel with LINKNO {0} crosses the  boundary of lake {1}
+                                        } else {
+                                            Utils.information(string.Format(@"Channel with LINKNO {0} crosses the  boundary of lake {1}
 more than once.  Since it starts outside and terminates inside 
 the lake it will be assumed that its extra crossings of the lake 
 boundary are an inaccuaracy of delineation and that it enters 
 the lake at its first crossing point.
 ", chLink, lakeId), this._gv.isBatch, reportErrors: reportErrors);
-                                    }
-                                    currentPointId = makeNewPoint(points, source, outlet, newPoints, currentPointId, 0, chLink, lakeId, defn, transform);
-                                } else if (Topology.polyContains(source, geom, box)) {
-                                    Utils.information(string.Format(@"Channel with LINKNO {0} crosses the  boundary of lake {1}
+                                        }
+                                        currentPointId = makeNewPoint(inletToLake, source, outlet, newPoints, currentPointId, true, res, chLink, lakeId, defn, transform);
+                                    } else if (sourceInLake) {
+                                        Utils.information(string.Format(@"Channel with LINKNO {0} crosses the  boundary of lake {1}
 more than once.  Since it starts in the lake and terminates 
 outside it will be assumed that its multiple crossings 
 of the lake boundary are an inaccuaracy of delineation and 
 that it flows out the lake at its last crossing point.
 ", chLink, lakeId), this._gv.isBatch, reportErrors: reportErrors);
-                                    currentPointId = makeNewPoint(points, source, outlet, newPoints, currentPointId, res, chLink, lakeId, defn, transform);
+                                        currentPointId = makeNewPoint(outletFromLake, source, outlet, newPoints, currentPointId, false, res, chLink, lakeId, defn, transform);
+                                    } else {
+                                        crossingChannels.Add((channel, inletToLake, outletFromLake));
+                                    }
                                 } else {
-                                    crossingChannels.Add((channel, points));
+                                    // unique crossing point: inletToLake and outletFromLake are identical
+                                    // if outletInLake then it is an inlet
+                                    currentPointId = makeNewPoint(inletToLake, source, outlet, newPoints, currentPointId, outletInLake, res, chLink, lakeId, defn, transform); ;
                                 }
-                            } else if (intersectType == wkbGeometryType.wkbPoint) {
-                                // enters or leaves lake: Add split point
-                                reachData = await this._gv.topo.getOgrReachData(channel, null);
-                                outlet = new double[3] { reachData.lowerX, reachData.lowerY, 0 };
-                                source = new double[3] { reachData.upperX, reachData.upperY, 0 };
-                                // select between source and outlet according to whether channel outlet is in lake
-                                if (Topology.polyContains(outlet, geom, box)) {
-                                    res1 = 0;
-                                } else {
-                                    res1 = res;
-                                }
-                                currentPointId = makeNewPoint(new List<double[]> {
-                                    Topology.geometryToPointAsDouble(intersect)
-                                }, source, outlet, newPoints, currentPointId, res1, chLink, lakeId, defn, transform); ;
                             }
-                        }
-                    } while (channel is not null);
-                    // check for channels which cross lake if no other outlets
-                    var numOutlets = this._gv.topo.lakeOutlets[lakeId].Count;
-                    if (numOutlets == 0 && crossingChannels.Count > 0) {
-                        // arbtirarily select first such stream to generate the outlet
-                        // users told to mark stream with a reservoir or pond point if this gives undesirable choice
-                        var (channelF, points) = crossingChannels[0];
-                        crossingChannels.RemoveAt(0);
-                        reachData = await this._gv.topo.getOgrReachData(channelF, null);
-                        outlet = new double[3] { reachData.lowerX, reachData.lowerY, 0 };
-                        source = new double[3] { reachData.upperX, reachData.upperY, 0 };
-                        chLink = channel.GetFieldAsInteger(channelLinkIndex);
-                        currentPointId = makeNewPoint(points, source, outlet, newPoints, currentPointId, res, chLink, lakeId, defn, transform);
-                        currentPointId = makeNewPoint(points, source, outlet, newPoints, currentPointId, 0, chLink, lakeId, defn, transform);
-                        // check the two points created (the outlet and inlet for the lake) are not in the same pixel.
-                        // If they are, move the outlet downstream, else gridnet will not find both of them.
-                        var count = newPoints.Count;
-                        var lakeOutlet = Topology.geometryToPointAsDouble(newPoints[count - 2].GetGeometryRef());
-                        var lakeInlet = Topology.geometryToPointAsDouble(newPoints[count - 1].GetGeometryRef());
-                        if (Topology.withinPixels(0, lakeInlet, lakeOutlet, transform)) {
-                            // shift outlet downstream until no longer in the same pixel as inlet
-                            var newOutlet = this._gv.topo.shiftDownstream(lakeOutlet, channel, lakeInlet, transform);
-                            if (newOutlet is null) {
-                                Utils.error(string.Format("Failed to find outlet far enough from inlet for lake {0}", lakeId), this._gv.isBatch, reportErrors: reportErrors);
+                        } while (channel is not null);
+                        // check for channels which cross lake if no other outlets
+                        var numOutlets = this._gv.topo.lakeOutlets[lakeId].Count;
+                        if (numOutlets == 0 && crossingChannels.Count > 0) {
+                            // arbtirarily select first such stream to generate the outlet
+                            // users told to mark stream with a reservoir or pond point if this gives undesirable choice
+                            var (channelF, inPoint, outPoint) = crossingChannels[0];
+                            crossingChannels.RemoveAt(0);
+                            reachData = await this._gv.topo.getOgrReachData(channelF, null);
+                            outlet = new double[3] { reachData.lowerX, reachData.lowerY, 0 };
+                            source = new double[3] { reachData.upperX, reachData.upperY, 0 };
+                            chLink = channel.GetFieldAsInteger(channelLinkIndex);
+                            currentPointId = makeNewPoint(inPoint, source, outlet, newPoints, currentPointId, true, res, chLink, lakeId, defn, transform);
+                            currentPointId = makeNewPoint(outPoint, source, outlet, newPoints, currentPointId, false, res, chLink, lakeId, defn, transform);
+                            // check the two points created (the outlet and inlet for the lake) are not in the same pixel.
+                            // If they are, move the outlet downstream, else gridnet will not find both of them.
+                            var count = newPoints.Count;
+                            if (Topology.withinPixels(0, inPoint, outPoint, transform)) {
+                                // shift outlet downstream until no longer in the same pixel as inlet
+                                var newOutlet = this._gv.topo.shiftDownstream(outPoint, channel, inPoint, transform);
+                                if (newOutlet is null) {
+                                    Utils.error(string.Format("Failed to find outlet far enough from inlet for lake {0}", lakeId), this._gv.isBatch, reportErrors: reportErrors);
+                                } else {
+                                    newPoints[count - 2].SetGeometry(Topology.geometryFromPoint(newOutlet));
+                                    numOutlets += 1;
+                                    Utils.loginfo(string.Format("Outlet of lake {0} shifted from ({1}, {2}) to ({3}, {4})", lakeId, outPoint[0], outPoint[1], newOutlet[0], newOutlet[1]));
+                                }
                             } else {
-                                newPoints[count - 2].SetGeometry(Topology.geometryFromPoint(newOutlet));
                                 numOutlets += 1;
-                                Utils.loginfo(string.Format("Outlet of lake {0} shifted from ({1}, {2}) to ({3}, {4})", lakeId, lakeOutlet[0], lakeOutlet[1], newOutlet[0], newOutlet[1]));
                             }
-                        } else {
-                            numOutlets += 1;
                         }
-                    }
-                    foreach (var (channelF, points) in crossingChannels) {
-                        var chLink0 = channelF.GetFieldAsInteger(channelLinkIndex);
-                        Utils.information(string.Format(@"Channel with LINKNO {0} enters and then leaves lake {1}.  
+                        foreach (var (channelF, inPoint, outPoint) in crossingChannels) {
+                            var chLink0 = channelF.GetFieldAsInteger(channelLinkIndex);
+                            Utils.information(string.Format(@"Channel with LINKNO {0} enters and then leaves lake {1}.  
 Since it starts and terminates outside the lake it will be 
 assumed that its crossing the lake boundary is an inaccuracy. 
 ", chLink0, lakeId), this._gv.isBatch, reportErrors: reportErrors);
-                    }
-                    if (numOutlets == 0) {
-                        // last chance to include lake - check if it has a watershed outlet inside it
-                        foreach (var (subbasin, (pointId, pt, _)) in this._gv.topo.outlets) {
-                            if (this._gv.topo.isWatershedOutlet(pointId, channelsLayer, dsLinkIndex, dsNodeIndex) && Topology.polyContains(pt, geom, box)) {
-                                // outletsInLake needed for making deep aquifers later
-                                this._gv.topo.outletsInLake[subbasin] = lakeId;
-                                numOutlets += 1;
+                        }
+                        if (numOutlets == 0) {
+                            // last chance to include lake - check if it has a watershed outlet inside it
+                            foreach (var (subbasin, (pointId, pt, _)) in this._gv.topo.outlets) {
+                                if (this._gv.topo.isWatershedOutlet(pointId, channelsLayer, dsLinkIndex, dsNodeIndex) && Topology.polyContains(pt, geom, lakeBox)) {
+                                    // outletsInLake needed for making deep aquifers later
+                                    this._gv.topo.outletsInLake[subbasin] = lakeId;
+                                    numOutlets += 1;
+                                }
                             }
                         }
-                    }
-                    Utils.loginfo(string.Format("Lake {0} has {1} outlets", lakeId, numOutlets));
-                    if (numOutlets == 0) {
-                        var arcLakesLayer = Utils.getLayerByLegend(Utils._LAKESLEGEND) as FeatureLayer;
-                        ArcGIS.Core.Data.QueryFilter qf = new ArcGIS.Core.Data.QueryFilter {
-                            ObjectIDs = new List<long>() { lake.GetFID() }
-                        };
-                        arcLakesLayer.Select(qf);
-                        MapView.Active.ZoomToSelected();
-                        var text = string.Format(@"
+                        Utils.loginfo(string.Format("Lake {0} has {1} outlets", lakeId, numOutlets));
+                        if (numOutlets == 0) {
+                            var arcLakesLayer = Utils.getLayerByLegend(Utils._LAKESLEGEND) as FeatureLayer;
+                            ArcGIS.Core.Data.QueryFilter qf = new ArcGIS.Core.Data.QueryFilter {
+                                ObjectIDs = new List<long>() { lake.GetFID() }
+                            };
+                            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                                await ArcSWATPlus.mainMap.OpenViewAsync();
+                            }
+                            await QueuedTask.Run(() => {
+                                arcLakesLayer.Select(qf);
+                                MapView.Active.ZoomToSelected();
+                            });
+                            var text = string.Format(@"
     Failed to find any outlet points for lake {0}.
     It appears not to be on any channels.  Do you want to remove it?
     If you choose no you can try rerunning delineation with a smaller 
@@ -985,21 +1078,22 @@ assumed that its crossing the lake boundary is an inaccuracy.
     try editing the lake boundary if it is already close to a channel, 
     or you could change it to a playa lake by setting its RES field to 4.
     ", lakeId);
-                        this._dlg.WindowState = FormWindowState.Minimized;
-                        var result = ArcGIS.Desktop.Framework.Dialogs.MessageBox.Show(Utils.trans(text), "Remove lake?", MessageBoxButton.YesNo);
-                        this._dlg.WindowState = FormWindowState.Normal;
-                        if (result == MessageBoxResult.Yes) {
-                            lakesToRemove.Add(lake.GetFID());
+                            this._dlg.WindowState = FormWindowState.Minimized;
+                            var result = ArcGIS.Desktop.Framework.Dialogs.MessageBox.Show(Utils.trans(text), "Remove lake?", MessageBoxButton.YesNo);
+                            this._dlg.WindowState = FormWindowState.Normal;
+                            if (result == MessageBoxResult.Yes) {
+                                lakesToRemove.Add(lake.GetFID());
+                            }
+                            await QueuedTask.Run(() => arcLakesLayer.ClearSelection());
+                            continue;
                         }
-                        await QueuedTask.Run(() => arcLakesLayer.ClearSelection());
-                        continue;
-                    }
-                } while (lake is not null);
-                foreach (var newPoint in newPoints) {
-                    var result = snapLayer.SetFeature(newPoint);
-                    if (result != Ogr.OGRERR_NONE) {
-                        Utils.error(string.Format("Failed to Add lake inlets and outlets to {0}", this._gv.snapFile), this._gv.isBatch);
-                        return false;
+                    } while (lake is not null);
+                    foreach (var newPoint in newPoints) {
+                        var result = snapLayer.CreateFeature(newPoint);
+                        if (result != Ogr.OGRERR_NONE) {
+                            Utils.error(string.Format("Failed to Add lake inlets and outlets to {0}", this._gv.snapFile), this._gv.isBatch);
+                            return false;
+                        }
                     }
                 }
                 foreach (var lakeid in lakesToRemove) {
@@ -1009,82 +1103,96 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         return false;
                     }
                 }
-                var numProcesses = this._dlg.numberOfProcesses;
-                var mustRun = true;
-                var suffix = System.IO.Path.GetExtension(this._gv.demFile);
-                var @base = System.IO.Path.ChangeExtension(this._gv.demFile, null);
-                // AreaD8 has an outlets shapefile input, but no need to rerun as adding lake inlets and outlets will not change the watershed area
-                this.progress("GridNet ...");
-                var gordFile = @base + "gord" + suffix;
-                var plenFile = @base + "plen" + suffix;
-                var tlenFile = @base + "tlen" + suffix;
-                var ok = await this._gv.taudem.runGridNet(this._gv.pFile, plenFile, tlenFile, gordFile, this._gv.snapFile, numProcesses, this._dlg.getTaudemOutput, mustRun: mustRun);
-                if (!ok) {
-                    this.cleanUp(3);
-                    return false;
-                }
-                var srcChannelFile = @base + "srcChannel" + suffix;
-                await Utils.removeLayer(srcChannelFile);
-                ok = await this._gv.taudem.runThreshold(this._gv.ad8File, srcChannelFile, channelThreshold, numProcesses, this._dlg.getTaudemOutput, mustRun: mustRun);
-                if (!ok) {
-                    this.cleanUp(3);
-                    return false;
-                }
-                this._gv.srcChannelFile = srcChannelFile;
-                await Utils.removeLayer(this._gv.channelFile);
-                await Utils.removeLayer(this._gv.channelBasinFile);
-                // having this as a layer results in DSNODEIDs being set to zero
-                await Utils.removeLayer(this._gv.snapFile);
-                var ordChannelFile = @base + "ordChannel" + suffix;
-                var treeChannelFile = @base + "treeChannel.dat";
-                var coordChannelFile = @base + "coordChannel.dat";
-                // if channel shapefile already exists and is a directory, set path to .shp
-                this._gv.channelFile = Utils.dirToShapefile(this._gv.channelFile);
-                ok = await this._gv.taudem.runStreamNet(this._gv.felFile, this._gv.pFile, this._gv.ad8File, this._gv.srcChannelFile, this._gv.snapFile, ordChannelFile, treeChannelFile, coordChannelFile, this._gv.channelFile, this._gv.channelBasinFile, false, numProcesses, this._dlg.getTaudemOutput, mustRun: mustRun);
-                if (!ok) {
-                    this.cleanUp(3);
-                    return false;
-                }
-                // if channel shapefile is a directory, set path to .shp, since not done earlier if channel did not exist then
-                this._gv.channelFile = Utils.dirToShapefile(this._gv.channelFile);
-                // seems channel shapefile's prj file can be changed, so restore it
-                Utils.copyPrj(this._gv.demFile, this._gv.channelFile);
-                Utils.copyPrj(this._gv.demFile, this._gv.channelBasinFile);
-                await Utils.removeLayer(this._gv.wshedFile);
-                await this.createWatershedShapefile(this._gv.channelBasinFile, this._gv.wshedFile, FileTypes._WATERSHED);
-                Utils.copyPrj(this._gv.demFile, this._gv.wshedFile);
-                // make demLayer (or hillshadelayer if exists) active so channelsLayer loads above it and below outlets
-                // (or use Full HRUs layer if there is one)
-                var fullHRUsLayer = Utils.getLayerByLegend(Utils._FULLHRUSLEGEND);
-                ArcGIS.Desktop.Mapping.Layer subLayer;
-                if (fullHRUsLayer is not null) {
-                    subLayer = fullHRUsLayer;
-                } else {
-                    var hillshadeLayer = Utils.getLayerByLegend(Utils._HILLSHADELEGEND);
-                    if (hillshadeLayer is not null) {
-                        subLayer = hillshadeLayer;
-                    } else {
-                        subLayer = demLayer;
-                    }
-                }
-                bool loaded;
-                (var channelsArcLayer, loaded) = await Utils.getLayerByFilename(this._gv.channelFile, FileTypes._CHANNELS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME);
-                if (channelsArcLayer is null || !(loaded || this._gv.existingWshed)) {
-                    this.cleanUp(-1);
-                    return false;
-                }
-                if (this._gv.basinFile == "") {
-                    // some subbasins were merged
-                    this._gv.basinFile = await this.createBasinFile(this._gv.subbasinsFile, demLayer, "wStream");
-                }
+            }
+            var numProcesses = this._dlg.numberOfProcesses;
+            var mustRun = true;
+            var suffix = System.IO.Path.GetExtension(this._gv.demFile);
+            var @base = System.IO.Path.ChangeExtension(this._gv.demFile, null);
+            // AreaD8 has an outlets shapefile input, but no need to rerun as adding lake inlets and outlets will not change the watershed area
+            this.progress("GridNet ...");
+            var gordFile = @base + "gord" + suffix;
+            var plenFile = @base + "plen" + suffix;
+            var tlenFile = @base + "tlen" + suffix;
+            var ok = await this._gv.taudem.runGridNet(this._gv.pFile, plenFile, tlenFile, gordFile, this._gv.snapFile, numProcesses, this._dlg.getTaudemOutput, mustRun: mustRun);
+            if (!ok) {
+                this.cleanUp(3);
+                return false;
+            }
+            var srcChannelFile = @base + "srcChannel" + suffix;
+            this.progress("Threshold ...");
+            await Utils.removeLayer(srcChannelFile);
+            ok = await this._gv.taudem.runThreshold(this._gv.ad8File, srcChannelFile, channelThreshold, numProcesses, this._dlg.getTaudemOutput, mustRun: mustRun);
+            if (!ok) {
+                this.cleanUp(3);
+                return false;
+            }
+            this._gv.srcChannelFile = srcChannelFile;
+            this.progress("StreamNet ...");
+            await Utils.removeLayer(this._gv.channelFile);
+            await Utils.removeLayer(this._gv.channelBasinFile);
+            // having this as a layer results in DSNODEIDs being set to zero
+            await Utils.removeLayer(this._gv.snapFile);
+            var ordChannelFile = @base + "ordChannel" + suffix;
+            var treeChannelFile = @base + "treeChannel.dat";
+            var coordChannelFile = @base + "coordChannel.dat";
+            // if channel shapefile already exists and is a directory, set path to .shp
+            this._gv.channelFile = Utils.dirToShapefile(this._gv.channelFile);
+            ok = await this._gv.taudem.runStreamNet(this._gv.felFile, this._gv.pFile, this._gv.ad8File, this._gv.srcChannelFile, this._gv.snapFile, ordChannelFile, treeChannelFile, coordChannelFile, this._gv.channelFile, this._gv.channelBasinFile, false, numProcesses, this._dlg.getTaudemOutput, mustRun: mustRun);
+            if (!ok) {
+                this.cleanUp(3);
+                return false;
+            }
+            // if channel shapefile is a directory, set path to .shp, since not done earlier if channel did not exist then
+            this._gv.channelFile = Utils.dirToShapefile(this._gv.channelFile);
+            // seems channel shapefile's prj file can be changed, so restore it
+            Utils.copyPrj(this._gv.demFile, this._gv.channelFile);
+            Utils.copyPrj(this._gv.demFile, this._gv.channelBasinFile);
+            await Utils.removeLayer(this._gv.wshedFile);
+            await this.createWatershedShapefile(this._gv.channelBasinFile, this._gv.wshedFile, FileTypes._WATERSHED);
+            Utils.copyPrj(this._gv.demFile, this._gv.wshedFile);
+
+            using (var channelsDs = Ogr.Open(this._gv.channelFile, 1)) {
+                var channelsLayer = channelsDs.GetLayerByIndex(0);
                 this._gv.topo.addBasinsToChannelFile(channelsLayer, this._gv.channelFile, this._gv.basinFile);
                 // recalculate tables dependent on channels
-                if (!this._gv.topo.saveOutletsAndSources(channelsLayer, snapLayer, false)) {
-                    return false;
+                // reopen snap file
+                using (var snapDs = Ogr.Open(this._gv.snapFile, 1)) {
+                    var snapLayer = snapDs.GetLayerByIndex(0);
+                    if (!this._gv.topo.saveOutletsAndSources(channelsLayer, snapLayer, false)) {
+                        return false;
+                    }
                 }
-                this.lakePointsAdded = true;
-                return true;
+                channelsDs.Dispose();
             }
+
+            // make demLayer (or hillshadelayer if exists) active so channelsArcLayer loads above it and below outlets
+            // (or use Full HRUs layer if there is one)
+            var fullHRUsLayer = Utils.getLayerByLegend(Utils._FULLHRUSLEGEND);
+            ArcGIS.Desktop.Mapping.Layer subLayer;
+            if (fullHRUsLayer is not null) {
+                subLayer = fullHRUsLayer;
+            } else {
+                var hillshadeLayer = Utils.getLayerByLegend(Utils._HILLSHADELEGEND);
+                if (hillshadeLayer is not null) {
+                    subLayer = hillshadeLayer;
+                } else {
+                    subLayer = demLayer;
+                }
+            }
+            if (this._gv.basinFile == "") {
+                // some subbasins were merged
+                this._gv.basinFile = await this.createBasinFile(this._gv.subbasinsFile, demLayer, "wStream");
+            }
+            var pair = await Utils.getLayerByFilename(this._gv.channelFile, FileTypes._CHANNELS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME);
+            var channelsArcLayer = pair.Item1 as ArcGIS.Desktop.Mapping.FeatureLayer;
+            bool loaded = pair.Item2; ;
+            if (channelsArcLayer is null || !(loaded || this._gv.existingWshed)) {
+                this.cleanUp(-1);
+                return false;
+            }
+            this.lakePointsAdded = true;
+            return true;
+
         }
 
         // Add lakes in HUC models.
@@ -1129,7 +1237,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         }
                         // subtract from basin 2 geomery since may already have been reduced by earlier lake
                         var geom2 = basin2.GetGeometryRef();
-                        geom2 = geom2.Difference(lakeGeom);
+                        geom2 = geom2.Difference(lakeGeom).MakeValid(null);
                         if (geom2 is null) { // basin inside lake
                             includeBasin = false;
                             break;
@@ -1475,15 +1583,17 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Put LakeId values into lakeIdCombo.
-        public virtual void populateLakeIdCombo(FeatureLayer lakesLayer) {
+        public async Task populateLakeIdCombo(FeatureLayer lakesLayer) {
             var lakeIds = new List<int>();
-            using (var rc = lakesLayer.Search()) {
-                while (rc.MoveNext()) {
-                    var lake = rc.Current;
-                    var lakeId = (int)lake[Topology._LAKEID];
-                    ListFuns.insertIntoSortedIntList(lakeId, lakeIds, true);
+            await QueuedTask.Run(() => {
+                using (var rc = lakesLayer.Search()) {
+                    while (rc.MoveNext()) {
+                        var lake = rc.Current;
+                        var lakeId = (int)lake[Topology._LAKEID];
+                        ListFuns.insertIntoSortedIntList(lakeId, lakeIds, true);
+                    }
                 }
-            }
+            });
             this._dlg.delinLakeIdCombo.Items.Clear();
             foreach (var lakeId in lakeIds) {
                 this._dlg.delinLakeIdCombo.Items.Add(lakeId);
@@ -1547,7 +1657,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     try {
                         var currentLakeId = cell.GetFieldAsInteger(gridLakeIdIndex);
                         if (!done.Contains(currentLakeId)) {
-                            cell.SetField(gridLakeIdIndex, null);
+                            cell.SetFieldNull(gridLakeIdIndex);
                             ok = gridLayer.SetFeature(cell);
                             if (ok != Ogr.OGRERR_NONE) {
                                 Utils.error(string.Format("Cannot edit attributes of grid {0}", gridLayer.GetName()), this._gv.isBatch);
@@ -1671,11 +1781,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
             //Utils.printLayers(root, 1)
             if (!string.IsNullOrEmpty(demFile) && demMapLayer is not null) {
                 this._gv.demFile = demFile;
+                if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                    await ArcSWATPlus.mainMap.OpenViewAsync();
+                }
                 await QueuedTask.Run(() => {
                     MapView.Active.ZoomTo(demMapLayer);
                     // set extent to DEM as otherwise defaults to full globe
                     var demExtent = demMapLayer.QueryExtent();
-                    var map = MapView.Active.Map;
+                    var map = ArcSWATPlus.mainMap;
                     map.SetCustomFullExtent(demExtent);
                     dynamic nodata = demMapLayer.GetRaster().GetNoDataValue();
                     var typ = nodata.GetType();
@@ -2227,6 +2340,36 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         this.cleanUp(-1);
                         return;
                     }
+                    if (outletLayer.ShapeType != ArcGIS.Core.CIM.esriGeometryType.esriGeometryPoint) {
+                        Utils.error(string.Format("Inlets/Outlets file {0} is not a point shapefile", this._dlg.delinSelectOutlets.Text), this._gv.isBatch);
+                        this.cleanUp(-1);
+                        return;
+                    }
+                    HashSet<string> missingFields = new HashSet<string>();
+                    if (await this._gv.topo.getIndex(outletLayer, Topology._ID, ignoreMissing: true) < 0) {
+                        missingFields.Add(Topology._ID);
+                    }
+                    if (await this._gv.topo.getIndex(outletLayer, Topology._INLET, ignoreMissing: true) < 0) {
+                        missingFields.Add(Topology._INLET);
+                    }
+                    if (await this._gv.topo.getIndex(outletLayer, Topology._RES, ignoreMissing: true) < 0) {
+                        missingFields.Add(Topology._RES);
+                    }
+                    if (await this._gv.topo.getIndex(outletLayer, Topology._PTSOURCE, ignoreMissing: true) < 0) {
+                        missingFields.Add(Topology._PTSOURCE);
+                    }
+                    if (missingFields.Count > 0) {
+                        string fields = "";
+                        foreach (string field in missingFields) {
+                            fields += field + ", ";
+                        }
+                        fields = fields.Remove(fields.Length - 2);
+                        fields += ".";
+                        Utils.error(string.Format("There are fields missing from the inlets/outlets file {0}: {1}",
+                            this._dlg.delinSelectOutlets.Text, fields), this._gv.isBatch);
+                        this.cleanUp(-1);
+                        return;
+                    }
                     this.progress("SnapOutletsToStreams ...");
                     chanLayer = this._gv.useGridModel ? streamLayer : channelLayer;
                     ok = await this.createSnapOutletFile(outletLayer, streamLayer, chanLayer, outletFile, snapFile);
@@ -2316,14 +2459,15 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         return;
                     }
                     streamLayer = streamLayer0 as FeatureLayer;
-                    if (!this._gv.useGridModel) {
-                        (var channelLayer0, loaded) = await Utils.getLayerByFilename(channelFile, FileTypes._CHANNELS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME);
-                        if (channelLayer0 is null || !loaded) {
-                            this.cleanUp(-1);
-                            return;
-                        }
-                        channelLayer = channelLayer0 as FeatureLayer;
-                    }
+                    // load this later after adding BasinNo field
+                    //if (!this._gv.useGridModel) {
+                    //    (var channelLayer0, loaded) = await Utils.getLayerByFilename(channelFile, FileTypes._CHANNELS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME);
+                    //    if (channelLayer0 is null || !loaded) {
+                    //        this.cleanUp(-1);
+                    //        return;
+                    //    }
+                    //    channelLayer = channelLayer0 as FeatureLayer;
+                    //}
                     // check if stream network has only one feature
                     bool hasOneStream = await QueuedTask.Run<bool>(() => {
                         using (var fc = ((FeatureLayer)streamLayer).GetFeatureClass()) {
@@ -2343,24 +2487,26 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 }
                 this._gv.srcChannelFile = this._gv.useGridModel ? "" : srcChannelFile;
                 if (this._dlg.checkBurnChecked) {
-                    // need to make slope file from original dem
-                    var felNoburn = @base + "felnoburn" + suffix;
-                    await Utils.removeLayer(felNoburn);
-                    this.progress("PitFill ...");
-                    ok = await this._gv.taudem.runPitFill(demFile, depmask, felNoburn, numProcesses, this._dlg.getTaudemOutput);
-                    if (!ok) {
-                        this.cleanUp(3);
-                        return;
-                    }
+                    // need to make slope file from original dem, not even pitfilled
+                    //var felNoburn = @base + "felnoburn" + suffix;
+                    //await Utils.removeLayer(felNoburn);
+                    //this.progress("PitFill ...");
+                    //ok = await this._gv.taudem.runPitFill(demFile, depmask, felNoburn, numProcesses, this._dlg.getTaudemOutput);
+                    //if (!ok) {
+                    //    this.cleanUp(3);
+                    //    return;
+                    //}
                     var slopeFile = @base + "slope" + suffix;
                     var angleFile = @base + "angle" + suffix;
                     await Utils.removeLayer(slopeFile);
                     await Utils.removeLayer(angleFile);
                     this.progress("DinfFlowDir ...");
-                    ok = await this._gv.taudem.runDinfFlowDir(felNoburn, slopeFile, angleFile, numProcesses, this._dlg.getTaudemOutput);
-                    if (!ok) {
-                        this.cleanUp(3);
-                        return;
+                    if (!Utils.isUpToDate(this._gv.demFile, slopeFile)) {
+                        ok = await this._gv.taudem.runDinfFlowDir(this._gv.demFile, slopeFile, angleFile, numProcesses, this._dlg.getTaudemOutput);
+                        if (!ok) {
+                            this.cleanUp(3);
+                            return;
+                        }
                     }
                     this._gv.slopeFile = slopeFile;
                 } else {
@@ -2391,11 +2537,21 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     //}
                     chanFile = this._gv.streamFile;
                 } else if (!this._gv.useGridModel) {
-                    using (var channelDs = Ogr.Open(channelFile, 1)) {
-                        var channelOgrLayer = channelDs.GetLayerByIndex(0);
-                        this._gv.topo.addBasinsToChannelFile(channelOgrLayer, channelFile, this._gv.basinFile);
+                    using (var channelsDs = Ogr.Open(this._gv.channelFile, 1)) {
+                        var channelsOgrLayer = channelsDs.GetLayerByIndex(0);
+                        this._gv.topo.addBasinsToChannelFile(channelsOgrLayer, this._gv.channelFile, this._gv.basinFile);
+                        //await this._gv.topo.addBasinsToChannelFile(channelLayer, this._gv.basinFile);
                     }
                     chanFile = channelFile;
+                }
+                // now load channels Layer
+                if (!this._gv.useGridModel) {
+                    (var channelLayer0, loaded) = await Utils.getLayerByFilename(channelFile, FileTypes._CHANNELS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME);
+                    if (channelLayer0 is null) {
+                        this.cleanUp(-1);
+                        return;
+                    }
+                    channelLayer = channelLayer0 as FeatureLayer;
                 }
                 var possSnapFile = this._dlg.useOutletsChecked ? this._gv.snapFile : "";
                 if (!await this._gv.topo.setUp0(demLayer, chanFile, possSnapFile, null, this._gv)) {
@@ -2481,7 +2637,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 Utils.error(string.Format("Cannot load subbasins shapefile {0}", subbasinsFile), this._gv.isBatch);
                 return;
             }
-            FeatureLayer wshedLayer;
+            FeatureLayer wshedLayer = null;
             if (!this._gv.useGridModel) {
                 wshedLayer = (await Utils.getLayerByFilename(wshedFile, FileTypes._EXISTINGWATERSHED, this._gv, subbasinsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
                 if (wshedLayer is null) {
@@ -2540,16 +2696,16 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     if (this._dlg.showTaudemChecked) {
                         this._dlg.delinTabWidget.SelectedIndex = 3;
                     }
-                    var depmask = Utils.join(System.IO.Path.GetDirectoryName(this._gv.demFile), "depmask.tif");
-                    if (!System.IO.File.Exists(depmask)) {
-                        depmask = null;
-                    }
-                    var ok = await this._gv.taudem.runPitFill(demFile, depmask, felFile, numProcesses, this._dlg.getTaudemOutput);
-                    if (!ok) {
-                        this.cleanUp(3);
-                        return;
-                    }
-                    ok = await this._gv.taudem.runDinfFlowDir(felFile, slpFile, angFile, numProcesses, this._dlg.getTaudemOutput);
+                    //var depmask = Utils.join(System.IO.Path.GetDirectoryName(this._gv.demFile), "depmask.tif");
+                    //if (!System.IO.File.Exists(depmask)) {
+                    //    depmask = null;
+                    //}
+                    //var ok = await this._gv.taudem.runPitFill(demFile, depmask, felFile, numProcesses, this._dlg.getTaudemOutput);
+                    //if (!ok) {
+                    //    this.cleanUp(3);
+                    //    return;
+                    //}
+                    var ok = await this._gv.taudem.runDinfFlowDir(demFile, slpFile, angFile, numProcesses, this._dlg.getTaudemOutput);
                     if (!ok) {
                         this.cleanUp(3);
                         return;
@@ -2599,8 +2755,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
                             });
                             xSize = XYSizes.Item1;
                             ySize = XYSizes.Item2;
-                            xGridSize = Convert.ToInt32((xmax - xmin) / xSize + 0.5);
-                            yGridSize = Convert.ToInt32((ymax - ymin) / ySize + 0.5);
+                            xGridSize = Convert.ToInt32((xmax - xmin) / xSize);
+                            yGridSize = Convert.ToInt32((ymax - ymin) / ySize);
                             if (xGridSize == yGridSize) {
                                 this._gv.gridSize = xGridSize;
                                 Utils.loginfo(string.Format("Grid size set to {0}", this._gv.gridSize));
@@ -2801,7 +2957,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             var decMin = Math.Abs(decDeg - deg) * 60;
             var minn = Convert.ToInt32(decMin);
             var sec = Convert.ToInt32((decMin - minn) * 60);
-            return string.Format("{0}{1} ({2}{1} {3}\' {4}\")", string.Format("%.F2", decDeg), @"\u00B0", deg, minn, sec);
+            return string.Format("{0}{1} ({2}{1} {3}\' {4}\")", string.Format(".F2", decDeg), @"\u00B0", deg, minn, sec);
         }
 
         // Set area of cell and update channel and stream area thresholds.
@@ -2851,8 +3007,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 Utils.error(string.Format("Unable to load shapefile {0}", this.drawOutletFile), this._gv.isBatch);
                 return;
             }
-            var outletForm = new OutletForm();
-            await outletForm.setup(this.drawOutletLayer, this);
+            var outletForm = new OutletForm(this.drawOutletLayer, this);
+            await outletForm.setup();
             outletForm.Show();
         }
 
@@ -2878,12 +3034,13 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     Utils.copyPointFeatures(this.drawOutletFile, this._gv.outletFile);
                     // restore outlets layer
                     var outletLayer = (await Utils.getLayerByFilename(this._gv.outletFile, FileTypes._OUTLETS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
-                    await MapView.Active.RedrawAsync(true);
+                    //await MapView.Active.RedrawAsync(true);
                 } else {
                     // replaces current outlet layer
                     await Utils.removeLayer(this._gv.outletFile);
                     this._gv.outletFile = this.drawOutletFile;
                 }
+                this._dlg.delinSelectOutlets.Text = this._gv.outletFile;
             } else {
                 // discard drawoutlets layer and file
                 await Utils.removeLayerAndFiles(this.drawOutletFile);
@@ -2972,6 +3129,9 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // Allow user to select points in inlets/outlets layer.
         public async Task selectOutlets() {
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             this.selFromLayer = null;
             List<ArcGIS.Desktop.Mapping.Layer> layers = (List<ArcGIS.Desktop.Mapping.Layer>)MapView.Active.GetSelectedLayers().ToList();
             ArcGIS.Desktop.Mapping.Layer layer = layers.Count == 1 ? layers[0] : null;
@@ -2995,8 +3155,10 @@ assumed that its crossing the lake boundary is an inaccuracy.
             }
             // make only the inlets/outlets layer selectable (else clicking selects all features)
             await QueuedTask.Run(() => {
-                foreach (var layer in MapView.Active.Map.GetLayersAsFlattenedList().Where(l => l is FeatureLayer).ToList()) {
-                    ((FeatureLayer)layer).SetSelectable(false);
+                foreach (var layer in ArcSWATPlus.mainMap.GetLayersAsFlattenedList().ToList()) {
+                    if (layer is FeatureLayer) {
+                        ((FeatureLayer)layer).SetSelectable(false);
+                    }
                 }
                 var cimFeatureDefinition = this.selFromLayer.GetDefinition() as ArcGIS.Core.CIM.CIMBasicFeatureLayer;
                 // this does not work.  Following line just stops selection, and colour change is ignored
@@ -3010,12 +3172,15 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         public async Task selectPoints(bool saveSelected) {
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             if (!saveSelected) {
-                await MapView.Active.ClearSketchAsync();
-                await QueuedTask.Run(() => {
-                    this.selFromLayer.ClearSelection();
-                });
-                return;
+            await MapView.Active.ClearSketchAsync();
+            await QueuedTask.Run(() => {
+                this.selFromLayer.ClearSelection();
+            });
+            return;
             }
             IReadOnlyList<long> selected = null;
             await QueuedTask.Run(async () => {
@@ -3109,7 +3274,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 this.lakePointsAdded = false;
                 if (this._gv.useGridModel) {
                     this.gridLakesAdded = false;
-                    using (var lakeDs = Ogr.Open(lakeFile, 0))
+                    using (var lakeDs = Ogr.Open(lakeFile, 1)) // write access as may need to add lake id
                     using (var gridDs = Ogr.Open(this._gv.subbasinsFile, 1)) {
                         var lakesOgrLayer = lakeDs.GetLayerByIndex(0);
                         var gridOgrLayer = gridDs.GetLayerByIndex(0);
@@ -3151,9 +3316,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
             //this._gv.iface.setActiveLayer(gridLayer);
             //this._gv.iface.actionSelect().trigger();
             // make only the lakes layer selectable (else clicking selects all features)
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             await QueuedTask.Run(() => {
-                foreach (var layer in MapView.Active.Map.GetLayersAsFlattenedList().Where(l => l is FeatureLayer).ToList()) {
-                    ((FeatureLayer)layer).SetSelectable(false);
+                foreach (var layer in ArcSWATPlus.mainMap.GetLayersAsFlattenedList().ToList()) {
+                    if (layer is FeatureLayer) {
+                        ((FeatureLayer)layer).SetSelectable(false);
+                    }
                 }
                 var cimFeatureDefinition = lakesLayer.GetDefinition() as ArcGIS.Core.CIM.CIMBasicFeatureLayer;
                 // this does not work.  Following line just stops selection, and colour change is ignored
@@ -3201,9 +3371,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 return;
             }
             // make only the lakes layer selectable (else clicking selects all features)
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             await QueuedTask.Run(() => {
-                foreach (var layer in MapView.Active.Map.GetLayersAsFlattenedList().Where(l => l is FeatureLayer).ToList()) {
-                    ((FeatureLayer)layer).SetSelectable(false);
+                foreach (var layer in ArcSWATPlus.mainMap.GetLayersAsFlattenedList().ToList()) {
+                    if (layer is FeatureLayer) {
+                        ((FeatureLayer)layer).SetSelectable(false);
+                    }
                 }
                 var cimFeatureDefinition = lakesLayer.GetDefinition() as ArcGIS.Core.CIM.CIMBasicFeatureLayer;
                 // this does not work.  Following line just stops selection, and colour change is ignored
@@ -3243,6 +3418,9 @@ assumed that its crossing the lake boundary is an inaccuracy.
                             gridOgrLayer.SetFeature(cell);
                         }
                     } while (cell is not null);
+                }
+                if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                    await ArcSWATPlus.mainMap.OpenViewAsync();
                 }
                 await QueuedTask.Run(() => {
                     this.gridLayer.ClearSelection();
@@ -3434,9 +3612,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 return;
             }
             // make only subbasins layer selectable
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             await QueuedTask.Run(() => {
-                foreach (ArcGIS.Desktop.Mapping.Layer layer in MapView.Active.Map.GetLayersAsFlattenedList().Where(l => l is FeatureLayer).ToList()) {
-                    ((FeatureLayer)layer).SetSelectable(false);
+                foreach (ArcGIS.Desktop.Mapping.Layer layer in ArcSWATPlus.mainMap.GetLayersAsFlattenedList().ToList()) {
+                    if (layer is FeatureLayer) {
+                        ((FeatureLayer)layer).SetSelectable(false);
+                    }
                 }
                 var cimFeatureDefinition = subbasinsLayer.GetDefinition() as ArcGIS.Core.CIM.CIMBasicFeatureLayer;
                 // this does not work.  Following line just stops selection, and colour change is ignored
@@ -3472,20 +3655,41 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 Utils.error("Cannot find subbasins layer", this._gv.isBatch);
                 return;
             }
+            // fids of the features will change as we delete them, so use polygonids, which we know will be unique
+            // also because fids of Arc layer will not be the same as fids of OGR layer which we use for editing
             Selection selection = null;
+            FeatureClass subbasinArcFeatures = null;
+            var pids = new List<int>(); // will be selected polygonids
+            var fids = new List<long>();
             await QueuedTask.Run(() => {
                 selection = subbasinsArcLayer.GetSelection();
                 if (selection.GetCount() == 0) {
                     Utils.information("Please select at least one subbasin to be merged", this._gv.isBatch);
                     return;
                 }
+                subbasinArcFeatures = subbasinsArcLayer.GetFeatureClass();
+                foreach (var fid in selection.GetObjectIDs()) {
+                    fids.Add(fid);
+                    ArcGIS.Core.Data.QueryFilter qf = new ArcGIS.Core.Data.QueryFilter {
+                        WhereClause = string.Format("FID = {0}", fid)
+                    };
+                    using (RowCursor rowCursor = subbasinArcFeatures.Search(qf, false)) {
+                        rowCursor.MoveNext();
+                        using (Row row = rowCursor.Current as ArcGIS.Core.Data.Feature) {
+                            pids.Add(Convert.ToInt32(row[Topology._POLYGONID]));
+                        }
+                    }
+                }
                 subbasinsArcLayer.ClearSelection();
             });
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             await MapView.Active.ClearSketchAsync();
             // remove the layers we will edit
             await Utils.removeLayerByLegend(FileTypes.legend(ft));
             await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._STREAMS));
-            using (var subbasinsDs = Ogr.Open(this._gv.wshedFile, 1))
+            using (var subbasinsDs = Ogr.Open(this._gv.subbasinsFile, 1))
             using (var streamDs = Ogr.Open(this._gv.streamFile, 1))
             using (var channelDs = Ogr.Open(this._gv.channelFile, 1)) {
                 var subbasinsLayer = subbasinsDs.GetLayerByIndex(0);
@@ -3568,13 +3772,22 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 }
                 // collect map of deleted basin number to replacement for updating channelLayer
                 var changedBasins = new Dictionary<int, int>();
-                // fids of the features will change as we delete them, so use polygonids, which we know will be unique
-                var pids = new List<int>();
-                await QueuedTask.Run(() => {
-                    foreach (var fid in selection.GetObjectIDs()) {
-                        pids.Add(subbasinsLayer.GetFeature(fid).GetFieldAsInteger(polygonidField));
-                    }
-                });
+                //var pids = new List<int>();
+                //var fids = new List<long>();
+                //await QueuedTask.Run(() => {
+                //    foreach (var fid in selection.GetObjectIDs()) {
+                //        fids.Add(fid);
+                //        ArcGIS.Core.Data.QueryFilter qf = new ArcGIS.Core.Data.QueryFilter {
+                //                WhereClause = string.Format("ObjectId = {0}", fid)
+                //            };
+                //        using (RowCursor rowCursor = subbasinArcFeatures.Search(qf, false)) {
+                //            rowCursor.MoveNext();
+                //            using (Row row = rowCursor.Current) {
+                //                pids.Add(Convert.ToInt32(row[Topology._POLYGONID]));
+                //            }
+                //        }
+                //    }
+                //});
                 // in the following
                 // suffix A refers to the subbasin being merged
                 // suffix UAs refers to the subbasin(s) upstream from A
@@ -3945,6 +4158,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         int polygonidD;
                         if (changedBasins.TryGetValue(channel.GetFieldAsInteger(basinField), out polygonidD)) {
                             channel.SetField(basinField, polygonidD);
+                            channelLayer.SetFeature(channel);
                         }
                     } while (channel is not null);
                 }
@@ -3961,6 +4175,18 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     this._gv.topo.outlets.Remove(polygonIdA);
                 }
                 Utils.loginfo(string.Format("{0} outlets after merging subbasins", this._gv.topo.outlets.Count));
+                streamDs.Dispose();
+                subbasinsDs.Dispose();
+                channelDs.Dispose();
+            }
+            // restore subbasin and stream layers
+            var (subLayer, ok) = await Utils.getLayerByFilename(this._gv.subbasinsFile, ft, this._gv, null, Utils._WATERSHED_GROUP_NAME, false);
+            if (!ok) {
+                Utils.error(string.Format("Failed to reload subbasins file {0}", this._gv.subbasinsFile), this._gv.isBatch);
+            }
+            (var streamsLayer, ok) = await Utils.getLayerByFilename(this._gv.streamFile, FileTypes._STREAMS, this._gv, null, Utils._WATERSHED_GROUP_NAME, false);
+            if (!ok) {
+                Utils.error(string.Format("Failed to reload streams file {0}", this._gv.streamFile), this._gv.isBatch);
             }
         }
 
@@ -4222,15 +4448,17 @@ assumed that its crossing the lake boundary is an inaccuracy.
             var @base = System.IO.Path.ChangeExtension(ad8File, null);
             var accFile = @base + "clip.tif";
             Utils.removeFiles(accFile);
-            var parms = Geoprocessing.MakeValueArray(basinFile, ad8File, accFile, "Value is not null");
-            var result = await Geoprocessing.ExecuteToolAsync("SetNull", parms);
+            var parms = Geoprocessing.MakeValueArray(basinFile, ad8File, accFile, "VALUE IS NULL");
+            var result = await Geoprocessing.ExecuteToolAsync("sa.SetNull", parms);
             if (string.IsNullOrEmpty(result.ReturnValue)) {
+                Geoprocessing.ShowMessageBox(result.Messages, "GP Messages", result.IsFailed ? GPMessageBoxStyle.Error : GPMessageBoxStyle.Default);
                 Utils.error("Failed to create downstream accumulation file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
                 return (null, null, 0, 0);
             } else {
                 Utils.loginfo("Created downstream accumulation file: " + accFile + $@" {result.ReturnValue}");
             }
             Debug.Assert(System.IO.File.Exists(accFile));
+            await Utils.removeLayer(accFile);
             Utils.copyPrj(ad8File, accFile);
             var accDs = OSGeo.GDAL.Gdal.Open(accFile, OSGeo.GDAL.Access.GA_ReadOnly);
             if (accDs is null) {
@@ -4242,7 +4470,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             var accTransform = new double[6];
             accDs.GetGeoTransform(accTransform);
             var accArray = new double[accBand.XSize * accBand.YSize];
-            accBand.ReadRaster(0, 0, accBand.XSize, accBand.YSize, accArray, accBand.XSize, accBand.YSize, 0, 0);           ;
+            accBand.ReadRaster(0, 0, accBand.XSize, accBand.YSize, accArray, accBand.XSize, accBand.YSize, 0, 0);
             var unitArea = Math.Abs(accTransform[1] * accTransform[5]) * this._gv.horizontalFactor * this._gv.horizontalFactor / 1000000.0;
             Utils.loginfo(string.Format("Grid cell area {0} sq km", unitArea * this._gv.gridSize * this._gv.gridSize));
             // create polygons and Add to gridFile
@@ -4343,7 +4571,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                                     this._gv.topo.lostDsNodeIds.Add(lost);
                                 } else {
                                     storeData.dsNodeId = ioId;
-                                    Utils.loginfo(string.Format("Placed {0} with id {1} at {2} in grid cell {3}.", Points.toString(point), storeData.dsNodeId, pt, storeData.num));
+                                    Utils.loginfo(string.Format("Placed {0} with id {1} at ({2}, {3}) in grid cell {4}.", Points.toString(point), storeData.dsNodeId, (int)pt[0], (int)pt[1], storeData.num));
                                 }
                                 found = true;
                                 break;
@@ -4432,7 +4660,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             // first check if there are any inlets
             using (var snapDs = Ogr.Open(this._gv.snapFile, 0)) {
                 var snapLayer = snapDs.GetLayerByIndex(0);
-                var exp = string.Format("{0} == 1 AND {1} == 0", Topology._INLET, Topology._PTSOURCE);
+                var exp = string.Format("{0} = 1 AND {1} = 0", Topology._INLET, Topology._PTSOURCE);
                 snapLayer.SetAttributeFilter(exp);
                 snapLayer.ResetReading();
                 var f = snapLayer.GetNextFeature();
@@ -4509,8 +4737,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
             // ad8 as the false raster
             // and "not null" as the condition, since this is true for the upstream locations covered by ad8up
             var downAccFile = @base + "Down.tif";
-            var parms = Geoprocessing.MakeValueArray(upAccFile, accFile, downAccFile, "Value is not null");
-            var result = await Geoprocessing.ExecuteToolAsync("SetNull", parms);
+            var parms = Geoprocessing.MakeValueArray(upAccFile, accFile, downAccFile, "VALUE IS NOT NULL");
+            var result = await Geoprocessing.ExecuteToolAsync("sa.SetNull", parms);
             if (string.IsNullOrEmpty(result.ReturnValue)) {
                 Utils.error("Failed to create downstream accumulation file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
                 return null;
@@ -4695,16 +4923,22 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         //new double[3] { x2, y2, 0},
                         //new double[3] { x1, y2, 0},
                         //new double[3] { x1, y1, 0}
-                        var wkt = string.Format("Polygon (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0}, {1}))", x1, y1, x2, y2);
+                        var wkt = string.Format("POLYGON (({0} {1}, {2} {1}, {2} {3}, {0} {3}, {0} {1}))", x1, y1, x2, y2);
                         var polygon = OSGeo.OGR.Geometry.CreateFromWkt(wkt);
                         var feature = new OSGeo.OGR.Feature(defn);
                         feature.SetField(idIndex, gridData.num);
                         feature.SetField(downIndex, gridData.downNum);
                         feature.SetField(areaIndex, Math.Abs(gridData.area * x_size * y_size * this._gv.horizontalFactor * this._gv.horizontalFactor) / 10000.0);
                         feature.SetGeometry(polygon);
-                        gridLayer.SetFeature(feature);
+                        var err = gridLayer.CreateFeature(feature);
+                        if (err != Ogr.OGRERR_NONE) {
+                            Utils.error(string.Format("Unable to add feature to gridstreams shapefile {0}", gridFile), this._gv.isBatch);
+                        }
+                        feature = null;
                     }
                 }
+                ds.Dispose();
+                ds = null;
             }
             // load grid shapefile above subbasins layer
             var subbasinsLayer = Utils.getLayerByLegend(Utils._SUBBASINSLEGEND);
@@ -4746,7 +4980,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 DataSource ds = driver.CreateDataSource(gridStreamsFile, null);
                 var srsWkt = this._gv.topo.crsProject.Wkt;
                 OSGeo.OSR.SpatialReference srs = new OSGeo.OSR.SpatialReference(srsWkt);
-                gridStreamsLayer = ds.CreateLayer("Grid", srs, wkbGeometryType.wkbMultiPolygon, null);
+                gridStreamsLayer = ds.CreateLayer("GridStreams", srs, wkbGeometryType.wkbLineString, null);
                 gridStreamsLayer.CreateField(new FieldDefn(Topology._LINKNO, OSGeo.OGR.FieldType.OFTInteger), 1);
                 gridStreamsLayer.CreateField(new FieldDefn(Topology._DSLINKNO, OSGeo.OGR.FieldType.OFTInteger), 1);
                 gridStreamsLayer.CreateField(new FieldDefn(Topology._DSNODEID, OSGeo.OGR.FieldType.OFTInteger), 1);
@@ -4764,7 +4998,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 if (maxDrainArea > minDrainArea) {
                     // guard against division by zero
                     var rng = maxDrainArea - minDrainArea;
-                    areaToPenWidth = x => (x - minDrainArea) * 1.8 / rng + 0.2;
+                    var mult = Parameters._MAXPENWIDTH - 0.2;
+                    areaToPenWidth = x => (x - minDrainArea) * mult / rng + 0.2;
                 } else {
                     areaToPenWidth = _ => 1.0;
                 }
@@ -4772,7 +5007,6 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 double sourceX, sourceY, targetX, targetY;
                 foreach (var gridCols in storeGrid.Values) {
                     // grids can be big so we'll Add one row at a time
-                    var features = new List<OSGeo.OGR.Feature>();
                     foreach (var gridData in gridCols.Values) {
                         var downNum = gridData.downNum;
                         (sourceX, sourceY) = Topology.cellToProj(gridData.maxCol, gridData.maxRow, accTransform);
@@ -4785,7 +5019,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                             numOutlets += 1;
                         }
                         // respect default 'start at outlet' of TauDEM
-                        var wkt = string.Format("Polyline (( {0} {1}, {2} {3} ))", targetX, targetY, sourceX, sourceY);
+                        var wkt = string.Format("LINESTRING ({0} {1}, {2} {3})", targetX, targetY, sourceX, sourceY);
                         var line = OSGeo.OGR.Geometry.CreateFromWkt(wkt);
                         var feature = new OSGeo.OGR.Feature(defn);
                         feature.SetField(linkIndex, gridData.num);
@@ -4797,9 +5031,15 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         // set pen width to value in range 0 .. 2
                         feature.SetField(penIndex, areaToPenWidth(gridData.drainArea));
                         feature.SetGeometry(line);
-                        gridStreamsLayer.SetFeature(feature);
+                        var err = gridStreamsLayer.CreateFeature(feature);
+                        if (err != Ogr.OGRERR_NONE) {
+                            Utils.error(string.Format("Unable to add feature to gridstreams shapefile {0}", gridStreamsFile), this._gv.isBatch);
+                        }
+                        feature = null;
                     }
                 }
+                ds.Dispose();
+                ds = null;
                 // load grid streams shapefile
                 // try to load above grid layer
                 var gridLayer = Utils.getLayerByLegend(Utils._GRIDLEGEND);
@@ -4809,18 +5049,22 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     return -1;
                 }
                 // make stream width dependent on drainage values (drainage is accumulation, ie number of dem cells draining to start of stream)
-                FileTypes.colourStreams(gridArcStreamsLayer, Topology._PENWIDTH, Topology._DRAINAGE);
+                await FileTypes.colourStreams(gridArcStreamsLayer, Topology._PENWIDTH, Topology._DRAINAGE);
                 this._gv.streamFile = gridStreamsFile;
                 this.streamDrainage = true;
                 // remove visibility from streams layer, if any
                 var streamsLayer = Utils.getLayerByLegend(Utils._STREAMSLEGEND);
                 if (streamsLayer is not null) {
-                    streamsLayer.SetVisibility(false);
+                    await QueuedTask.Run(() => {
+                        streamsLayer.SetVisibility(false);
+                    });
                 }
                 // remove visibility from channels layer, if any
                 var channelsLayer = Utils.getLayerByLegend(Utils._CHANNELSLEGEND);
                 if (channelsLayer is not null) {
-                    streamsLayer.SetVisibility(false);
+                    await QueuedTask.Run(() => {
+                        channelsLayer.SetVisibility(false);
+                    });
                 }
                 this.progress("");
                 return numOutlets;
@@ -4885,8 +5129,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
             var ft = FileTypes._DRAINSTREAMS;
             var legend = FileTypes.legend(ft);
             await Utils.removeLayerAndFiles(drainStreamsFile);
-            using (var driver = Ogr.GetDriverByName("ESRI Shapefile")) {
-                DataSource ds = driver.CreateDataSource(drainStreamsFile, null);
+            var driver = Ogr.GetDriverByName("ESRI Shapefile");
+            using (DataSource ds = driver.CreateDataSource(drainStreamsFile, null)) {
                 var srsWkt = this._gv.topo.crsProject.Wkt;
                 OSGeo.OSR.SpatialReference srs = new OSGeo.OSR.SpatialReference(srsWkt);
                 drainStreamsLayer = ds.CreateLayer("Grid streams", srs, wkbGeometryType.wkbLineString, null);
@@ -4965,7 +5209,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                             var _tmp_1 = pt[0];
                             var _tmp_2 = pt[1];
                             if (xmin <= _tmp_1 && _tmp_1 < xmax && (ymin <= _tmp_2 && _tmp_2 < ymax)) {
-                                Utils.loginfo(string.Format("Placed {0} with id {1} at {2} in grid cell {3}", Points.toString(pointType), nodeId, pt, basin));
+                                Utils.loginfo(string.Format("Placed {0} with id {1} at ({2}, {3}) in grid cell {4}", Points.toString(pointType), nodeId, (int)pt[0], (int)pt[1], basin));
                                 dsnode = nodeId;
                                 break;
                             }
@@ -4976,14 +5220,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
                         }
                         var feature = new OSGeo.OGR.Feature(defn);
                         // respect default 'start at outlet' of TauDEM
-                        var wkt = string.Format("Polyline (( {0} {1}, {2} {3} ))", target[0], target[1], source[0], source[1]);
+                        var wkt = string.Format("LINESTRING ( {0} {1}, {2} {3} )", target[0], target[1], source[0], source[1]);
                         var stream = OSGeo.OGR.Geometry.CreateFromWkt(wkt);
                         feature.SetField(linkIndex, basin);
                         feature.SetField(dslinkIndex, downBasin);
                         feature.SetField(dsnodeIndex, dsnode);
                         feature.SetField(wsnoIndex, basin);
                         feature.SetGeometry(stream);
-                        drainStreamsLayer.SetFeature(feature);
+                        drainStreamsLayer.CreateFeature(feature);
                         featureCount++;
                     }
                 } else {
@@ -5027,14 +5271,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
                                     Utils.error(string.Format("Failed to find target grid cell in {2} for drain from {0} to {1}", basin, downBasin, subbasinsFile), this._gv.isBatch);
                                     return null;
                                 }
+                                target = downResult.Item2;
                             }
-                            target = downResult.Item2;
                             var dsnode = -1;
                             foreach (var (nodeId, (pointType, pt)) in this.inletOutletPoints) {
                                 var _tmp_3 = pt[0];
                                 var _tmp_4 = pt[1];
                                 if (xmin <= _tmp_3 && _tmp_3 < xmax && (ymin <= _tmp_4 && _tmp_4 < ymax)) {
-                                    Utils.loginfo(string.Format("Placed {0} with id {1} at {2} in grid cell {3}", Points.toString(pointType), nodeId, pt, basin));
+                                    Utils.loginfo(string.Format("Placed {0} with id {1} at ({2}, {3}) in grid cell {4}", Points.toString(pointType), nodeId, (int)pt[0], (int)pt[1], basin));
                                     dsnode = nodeId;
                                     break;
                                 }
@@ -5045,14 +5289,14 @@ assumed that its crossing the lake boundary is an inaccuracy.
                             }
                             var feature = new OSGeo.OGR.Feature(defn);
                             // respect default 'start at outlet' of TauDEM
-                            var wkt = string.Format("Polyline (( {0} {1}, {2} {3} ))", target[0], target[1], source[0], source[1]);
+                            var wkt = string.Format("LINESTRING ( {0} {1}, {2} {3} )", target[0], target[1], source[0], source[1]);
                             var stream = OSGeo.OGR.Geometry.CreateFromWkt(wkt);
                             feature.SetField(linkIndex, basin);
                             feature.SetField(dslinkIndex, downBasin);
                             feature.SetField(dsnodeIndex, dsnode);
                             feature.SetField(wsnoIndex, basin);
                             feature.SetGeometry(stream);
-                            drainStreamsLayer.SetFeature(feature);
+                            drainStreamsLayer.CreateFeature(feature);
                             featureCount++;
                         }
                     }
@@ -5065,29 +5309,30 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 if (unplaced.Count > 0) {
                     Utils.information(string.Format("Warning: failed to place inlet/outlet points with IDs {0}", unplaced), this._gv.isBatch);
                 }
-                var time2 = DateTime.Now;
-                Utils.loginfo(string.Format("Writing drainage grid streams took {0} seconds", Convert.ToInt32(time2.Subtract(time1).TotalSeconds)));
-                // load grid streams shapefile
-                // try to load above subbasins layer layer
-                var drainStreamsArcLayer = (await Utils.getLayerByFilename(drainStreamsFile, FileTypes._DRAINSTREAMS, this._gv, subbasinsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
-                if (drainStreamsArcLayer is null) {
-                    Utils.error(string.Format("Failed to load grid streams shapefile {0}", drainStreamsFile), this._gv.isBatch);
-                    return null;
-                }
-                this._gv.streamFile = drainStreamsFile;
-                // remove visibility from streams layer, if any
-                var streamsLayer = Utils.getLayerByLegend(Utils._STREAMSLEGEND);
-                if (streamsLayer is not null) {
-                    streamsLayer.SetVisibility(false);
-                }
-                // remove visibility from channels layer, if any
-                var channelsLayer = Utils.getLayerByLegend(Utils._CHANNELSLEGEND);
-                if (channelsLayer is not null) {
-                    channelsLayer.SetVisibility(false);
-                }
-                this.progress("");
-                return drainStreamsFile;
+                ds.Dispose();
             }
+            var time2 = DateTime.Now;
+            Utils.loginfo(string.Format("Writing drainage grid streams took {0} seconds", Convert.ToInt32(time2.Subtract(time1).TotalSeconds)));
+            // load grid streams shapefile
+            // try to load above subbasins layer layer
+            var drainStreamsArcLayer = (await Utils.getLayerByFilename(drainStreamsFile, FileTypes._DRAINSTREAMS, this._gv, subbasinsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
+            if (drainStreamsArcLayer is null) {
+                Utils.error(string.Format("Failed to load grid streams shapefile {0}", drainStreamsFile), this._gv.isBatch);
+                return null;
+            }
+            this._gv.streamFile = drainStreamsFile;
+            // remove visibility from streams layer, if any
+            var streamsLayer = Utils.getLayerByLegend(Utils._STREAMSLEGEND);
+            if (streamsLayer is not null) {
+                streamsLayer.SetVisibility(false);
+            }
+            // remove visibility from channels layer, if any
+            var channelsLayer = Utils.getLayerByLegend(Utils._CHANNELSLEGEND);
+            if (channelsLayer is not null) {
+                channelsLayer.SetVisibility(false);
+            }
+            this.progress("");
+            return drainStreamsFile;
         }
 
             // Run the landscape dialog and create files as requested.
@@ -5375,7 +5620,6 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     Utils.error($"Failed to create field in outlet file {filePath}", false);
                     return false;
                 }
-                outletLayer.CreateField(new FieldDefn(Topology._ID, OSGeo.OGR.FieldType.OFTInteger), 1);
                 outletLayer.CreateField(new FieldDefn(Topology._INLET, OSGeo.OGR.FieldType.OFTInteger), 1);
                 outletLayer.CreateField(new FieldDefn(Topology._RES, OSGeo.OGR.FieldType.OFTInteger), 1);
                 outletLayer.CreateField(new FieldDefn(Topology._PTSOURCE, OSGeo.OGR.FieldType.OFTInteger), 1);

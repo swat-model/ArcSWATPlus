@@ -178,16 +178,20 @@ namespace ArcSWATPlus {
                 }
                 // we allocate space for the array early since we want to generate any memory exception early
                 // fill all chunks with noData
+                if (this.isInt) {
+                    this.i_array = new int[chunkSize * this.numCols];
+                    System.Array.Fill<int>(this.i_array, (int)noData);
+                } else {
+                    this.f_array = new float[chunkSize * this.numCols];
+                    System.Array.Fill<float>(this.f_array, (float)noData);
+                }
                 if (this.canWrite) {
                     if (this.isInt) {
-                        this.i_array = new int[chunkSize * this.numCols];
-                        System.Array.Fill<int>(this.i_array, (int)noData);
                         foreach (var ch in this.chunks.Values) {
                             this.band.WriteRaster(0, ch.rowOffset, this.numCols, this.numRows, this.i_array, this.numCols, ch.numRows, 0, 0);
                         }
                     } else {
-                        this.f_array = new float[chunkSize * this.numCols];
-                        System.Array.Fill<float>(this.f_array, (float)noData);
+                        
                         foreach (var ch in this.chunks.Values) {
                             this.band.WriteRaster(0, ch.rowOffset, this.numCols, this.numRows, this.f_array, this.numCols, ch.numRows, 0, 0);
                         }
@@ -311,11 +315,10 @@ namespace ArcSWATPlus {
                 //self.readCount += 1
                 this.currentIndex = index;
             }
-            //Debug.Assert(this.array is not null);
             if (this.isInt) {
-                this.i_array[(row - chunk.rowOffset) * this.numCols + col] = (int)val;
+                this.i_array[(row - chunk.rowOffset) * this.numCols + col] = Convert.ToInt32(val);
             } else {
-                this.f_array[(row - chunk.rowOffset) * this.numCols + col] = (float)val;
+                this.f_array[(row - chunk.rowOffset) * this.numCols + col] = Convert.ToSingle(val);
             }
             this.arrayChanged = true;
         }
@@ -346,6 +349,7 @@ namespace ArcSWATPlus {
         public virtual void release() {
             // resetting currentIndex and arrayChanged allows a Raster object to be closed and reopened:
             // opening will start with a read
+            if (this.ds is not null) { this.ds.Dispose(); }
             this.chunks = new Dictionary<int, Chunk>();
             this.currentIndex = -1;
             this.arrayChanged = false;

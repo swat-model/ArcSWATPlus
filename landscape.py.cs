@@ -29,6 +29,10 @@ using static System.Net.WebRequestMethods;
 using System.Runtime.CompilerServices;
 using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using ArcGIS.Desktop.Core.Utilities;
+using ArcGIS.Desktop.Mapping;
+using ArcGIS.Desktop.Framework.Threading.Tasks;
+using static ArcGIS.Desktop.Internal.Mapping.Views.PropertyPages.Map.TransformationViewModel;
+using System.Security.Policy;
 
 namespace ArcSWATPlus { 
     public class Landscape { 
@@ -115,7 +119,7 @@ namespace ArcSWATPlus {
             //# number of chunks to use for rasters and their arrays; increased when memory fails
             this.chunkCount = 1;
             //# raster  transform
-            this.transform = null;
+            this.transform = new double[6];
             //# output raster  no data value 
             this.noData = -32768;
             //# raster  projection
@@ -189,6 +193,8 @@ namespace ArcSWATPlus {
                 Utils.copyPrj(inFile, clipFile);
                 Debug.Assert(System.IO.File.Exists(clipFile), string.Format("Failed to create clipped raster {2} by clipping {0} with {1}", inFile, clipperFile, clipFile));
                 isNewFile = true;
+                // clipping file generates a new layer which we don't want
+                await Utils.removeLayer(clipFile);
             }
             return (clipFile, isNewFile);
         }
@@ -222,12 +228,17 @@ namespace ArcSWATPlus {
                 this._gv.clearOpenRasters();
                 var completed = false;
                 while (!completed) {
+                    completed = true;
                     this.demRaster = new Raster(dem, this._gv, canWrite: false, isInt: false);
                     var res = demRaster.open(this.chunkCount);
                     if (!res) {
                         this._gv.closeOpenRasters();
                         return false;
                     }
+                    this.numRows = this.demRaster.numRows;
+                    this.numCols = this.demRaster.numCols;
+                    this.demRaster.ds.GetGeoTransform(this.transform);
+                    this.projection = this.demRaster.ds.GetSpatialRef();
                     var hillslopeFile = @base + "slopes" + suffix;
                     if (this.mustRun ||
                         !Utils.isUpToDate(dem, this._gv.valleyDepthsFile) ||
@@ -252,26 +263,26 @@ namespace ArcSWATPlus {
                         // else, for example, 1 step downstream in flow raster  could stay in same channel pixel, or skip a channel pixel.
                         // Could probably live with just same pixel size, but they should both come from TauDEM using same DEM anyway.
                         var flowTransform = new double[6];
-                        flowRaster.ds.GetGeoTransform(this.transform);
+                        this.flowRaster.ds.GetGeoTransform(flowTransform);
                         if (!Topology.sameTransform(this.transform, flowTransform, this.numRows, this.numCols)) {
                             Utils.error(string.Format("Clipped flow directions raster {0} and clipped DEM raster {1} must have same geometry", d8Flow, dem), this._gv.isBatch);
                             return false;
                         }
                         var chanTransform = new double[6];
-                        channelsRaster.ds.GetGeoTransform(chanTransform);
+                        this.channelsRaster.ds.GetGeoTransform(chanTransform);
                         if (!Topology.sameTransform(this.transform, chanTransform, this.numRows, this.numCols)) {
                             Utils.error(string.Format("Clipped channels raster {0} and clipped DEM raster {1} must have same geometry", channels, dem), this._gv.isBatch);
                             return false;
                         }
                         this._progress("Hillslopes ...");
-                        await this.openResult(this._gv.valleyDepthsFile, isInt: false);
+                        this.valleyDepthsRaster = await this.openResult(this._gv.valleyDepthsFile, isInt: false);
                         if (this.valleyDepthsRaster is null) {
                             this._gv.closeOpenRasters();
                             return false;
                         }
                         this.findHeads();
                         this.findSides();
-                        await this.openResult(hillslopeFile, isInt: true);
+                        this.hillslopeRaster = await this.openResult(hillslopeFile, isInt: true);
                         if (this.hillslopeRaster is null) {
                             this._gv.closeOpenRasters();
                             return false;
@@ -346,8 +357,6 @@ namespace ArcSWATPlus {
 
         // Generate floodplain raster by buffering the channels.
         public async Task calcFloodplainBuffer() {
-            double drainAreaKm;
-            double areaToSqKm = 0;
             if (!System.IO.File.Exists(this._gv.channelFile)) {
                 if (this._gv.useGridModel) {
                     if (!await this.makeChannelShapefile(this.channelThresh)) {
@@ -360,52 +369,96 @@ namespace ArcSWATPlus {
                 }
             }
             var channels = this._gv.channelFile;
+            var channelsTable = Path.ChangeExtension(channels, ".dbf");
+            // OGR geometry Buffer function in C# generates lines, not polygons!!
+            // So we use ArcGIS geoprocessing function.
+            // First task is to add a BufferWidthnn field to the channels file 
+            // this has to include the buffer multiplier as the ArcGIS buffer
+            // only allows a field, not an expression for the buffer size.
+            // We add the multiplier value to the field name to make this more apparent
             var bufferShapefile = Utils.join(this._gv.shapesDir, "bufferflood.shp");
             var ft = FileTypes._BUFFERFLOOD;
             var legend = FileTypes.legend(ft);
             // easiest to start from scratch
             await Utils.removeLayerAndFiles(bufferShapefile);
-            Utils.copyShapefile(channels, this._gv.shapesDir, "bufferflood.shp");
-            using (var buffDs = Ogr.Open(bufferShapefile, 1)) {
-                var buffLayer = buffDs.GetLayerByIndex(0);
-                // we need to add a layer with a fixed value of 1 to be used later for the flood raster
-                buffLayer.CreateField(new FieldDefn("Flood", FieldType.OFTInteger), 1);
-                var defn = buffLayer.GetLayerDefn();
-                var drainAreaIndex = defn.GetFieldIndex(Topology._DRAINAREA);
-                var floodIndex = defn.GetFieldIndex("Flood");
-                if (drainAreaIndex < 0) {
-                    // try for AreaC - used in ESRI stream files
-                    drainAreaIndex = defn.GetFieldIndex("AreaC");
-                    if (drainAreaIndex >= 0) {
-                        areaToSqKm = 100.0;
-                    }
+            var channelsLayer = (await Utils.getLayerByFilename(channels, FileTypes._CHANNELS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
+            List<FieldDescription> defn = null;
+            await QueuedTask.Run(() => { defn = channelsLayer.GetFieldDescriptions(); });
+            Predicate<FieldDescription> isDrain = (x) => { return x.Name == Topology._DRAINAREA; };
+            var drainAreaIndex = defn.FindIndex(0, isDrain);
+            if (drainAreaIndex < 0) {
+                // try for AreaC - used in ESRI stream files
+                isDrain = (x) => { return x.Name == "AreaC"; };
+                drainAreaIndex = defn.FindIndex(0, isDrain);
+                string expr1 = "";
+                if (drainAreaIndex >= 0) {
+                    // have a AreaC field which is in hectares,
+                    // Need to create a Topology._DRAINAREA field with value in m^2.
+                    expr1 = "!AreaC! * 10000";
                 } else {
-                    areaToSqKm = 1000000.0 / (this._gv.horizontalFactor * this._gv.horizontalFactor);
+                    // use a default of 1 sq km, = 1000000 m^2
+                    expr1 = "1000000";
                 }
-                buffLayer.ResetReading();
-                OSGeo.OGR.Feature reach;
-                do {
-                    reach = buffLayer.GetNextFeature();
-                    if (reach is null) { break; }
-                    if (drainAreaIndex < 0) {
-                        drainAreaKm = 100;
-                    } else {
-                        drainAreaKm = reach.GetFieldAsDouble(drainAreaIndex) / areaToSqKm;
+                var parms1 = Geoprocessing.MakeValueArray(channelsTable, Topology._DRAINAREA, expr1, "PYTHON3", null, "DOUBLE");
+                var result1 = await Geoprocessing.ExecuteToolAsync("management.CalculateField", parms1);
+                if (result1.ErrorCode != 0) {
+                    var msg = "Failed to create field " + Topology._DRAINAREA + ": ";
+                    foreach (var err in result1.ErrorMessages) {
+                        msg = msg + $@"{err.Text} ";
                     }
-                    var bufferWidth = this._gv.channelWidthMultiplier * Math.Pow(drainAreaKm, this._gv.channelWidthExponent) * this._dlg.bufferMultiplierValue;
-                    var bufferGeometry = reach.GetGeometryRef().Buffer(bufferWidth, quadsecs: 30);
-                    reach.SetGeometry(bufferGeometry);
-                    reach.SetField(floodIndex, 1);
-                    buffLayer.SetFeature(reach);
-                } while (reach is not null);
+                    Utils.error(msg, this._gv.isBatch);
+                    return;
+                } else {
+                    Utils.loginfo("Created field " + Topology._DRAINAREA + ": " + $@"{result1.ReturnValue}");
+                }
+            }
+            var bufferWidthField = string.Format("Width{0}", this._dlg.bufferMultiplierValue);
+            var expr2 = string.Format("{0} * ((!{1}! / 1000000) ** {2}) * {3}", this._gv.channelWidthMultiplier, Topology._DRAINAREA, this._gv.channelWidthExponent, this._dlg.bufferMultiplierValue);
+            var parms2 = Geoprocessing.MakeValueArray(channelsTable, bufferWidthField, expr2, "PYTHON3", null, "DOUBLE");
+            var result2 = await Geoprocessing.ExecuteToolAsync("management.CalculateField", parms2);
+            if (result2.ErrorCode != 0) {
+                var msg = "Failed to create field " + bufferWidthField + ": ";
+                foreach (var err in result2.ErrorMessages) {
+                    msg = msg + $@"{err.Text} ";
+                }
+                Utils.error(msg, this._gv.isBatch);
+                return;
+            } else {
+                Utils.loginfo("Created field " + bufferWidthField + ": " + $@"{result2.ReturnValue}");
+            }
+            // now create buffer as single polygon shape
+            var parms3 = Geoprocessing.MakeValueArray(channels, bufferShapefile, bufferWidthField, "ALL");
+            var result3 = await Geoprocessing.ExecuteToolAsync("analysis.PairwiseBuffer", parms3);
+            if (result3.ErrorCode != 0) {
+                var msg = "Failed to create buffer shapefile: ";
+                foreach (var err in result3.ErrorMessages) {
+                    msg = msg + $@"{err.Text} ";
+                }
+                Utils.error(msg, this._gv.isBatch);
+                return;
+            } else {
+                Utils.loginfo("Created buffer shapefile: " + $@"{result3.ReturnValue}");
             }
             var bufferRasterFile = Utils.join(this._gv.floodDir, "bufferflood" + this._dlg.bufferMultiplierValue.ToString() + ".tif");
             await Utils.removeLayerAndFiles(bufferRasterFile);
             Debug.Assert(!System.IO.File.Exists(bufferRasterFile));
-            var parms = Geoprocessing.MakeValueArray(bufferShapefile, "Flood", bufferRasterFile, this._gv.demFile);
+            await Utils.removeLayer(bufferShapefile);
+            // buffershapefile tends to have unclosed edits
+            await Project.Current.DiscardEditsAsync();
+            var parms = Geoprocessing.MakeValueArray(bufferShapefile, "Id", bufferRasterFile, this._gv.demFile);
             var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
-            await Geoprocessing.ExecuteToolAsync("conversion.FeatureToRaster", parms, environment, null, null, GPExecuteToolFlags.None);
-            Debug.Assert(System.IO.File.Exists(bufferRasterFile));
+            var result4 = await Geoprocessing.ExecuteToolAsync("conversion.FeatureToRaster", parms, environment, null, null, GPExecuteToolFlags.None);
+            if (result4.ErrorCode != 0) {
+                var msg = "Failed to create buffer raster: ";
+                foreach (var err in result4.ErrorMessages) {
+                    msg = msg + $@"{err.Text} ";
+                }
+                Utils.error(msg, this._gv.isBatch);
+                return;
+            } else {
+                Utils.loginfo("Created buffer raster: " + $@"{result4.ReturnValue}");
+            }
+            //Debug.Assert(System.IO.File.Exists(bufferRasterFile));
             Utils.copyPrj(bufferShapefile, bufferRasterFile);
             // load flood abaove DEM
             var demLayer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._DEM));
@@ -663,7 +716,10 @@ namespace ArcSWATPlus {
             this.reachIdentifier = 0;
             foreach (var row in Enumerable.Range(0, this.numRows)) {
                 foreach (var col in Enumerable.Range(0, this.numCols)) {
-                    if ((int)this.channelsRaster.read(col, row) > 0) {
+                    if (row == 10 && col == 74) {
+                        var chan = (int)this.channelsRaster.read(row, col);
+                    }
+                    if ((int)this.channelsRaster.read(row, col) > 0) {
                         var count = this.upSlopeChannelPointsCount(row, col);
                         if (count == 0) {
                             // head of channel
@@ -705,7 +761,7 @@ namespace ArcSWATPlus {
                     n = dir0;
                     // loop clockwise (arbitrary - could go other way)
                     while (true) {
-                        n = (n - 1) % 8;
+                        n = (n + 7) % 8;  // (n-1) % 8 can be negative in C# 
                         if (n == dir0) {
                             // no point not on some channel drains into here - can use own elevation
                             elev = (float)demRaster.read(row, col);
@@ -718,7 +774,7 @@ namespace ArcSWATPlus {
                         }
                         if (this.downSlopePoint(y, x) == (row, col)) {
                             // (y, x) drains directly to (row, col)
-                            if ((int)this.channelsRaster.read(row, col) > 0) {
+                            if ((int)this.channelsRaster.read(y, x) > 0) {
                                 // found an upslope channel point
                                 continue;
                             }
@@ -750,7 +806,7 @@ namespace ArcSWATPlus {
                     n = dir0;
                     // loop clockwise to find left side points
                     while (true) {
-                        n = (n - 1) % 8;
+                        n = (n + 7) % 8;  // (n-1) % 8 can be negative in C# 
                         if (n == dir0) {
                             break;
                         }
@@ -787,11 +843,11 @@ namespace ArcSWATPlus {
                         }
                         if (this.downSlopePoint(y, x) == (row, col)) {
                             // (y, x) drains directly to (row, col)
-                            if ((int)this.channelsRaster.read(row, col) > 0) {
+                            if ((int)this.channelsRaster.read(y, x) > 0) {
                                 // found upslope channel point
                                 break;
                             } else {
-                                this.sides[(y, x)] = (6 * ident + 4, (float)this.demRaster.read(row, col));
+                                this.sides[(y, x)] = (6 * ident + 4, (float)this.demRaster.read(y, x));
                             }
                         }
                     }
@@ -917,7 +973,7 @@ namespace ArcSWATPlus {
                 var rown = row + Utils._dY[n];
                 var coln = col + Utils._dX[n];
                 if (this.pointInMap(rown, coln)) {
-                    if (this.downSlopePoint(rown, coln) == (row, col) && (int)this.channelsRaster.read(row, col) > 0) {
+                    if (this.downSlopePoint(rown, coln) == (row, col) && (int)this.channelsRaster.read(rown, coln) > 0) {
                         count += 1;
                     }
                 }

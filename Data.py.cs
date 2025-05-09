@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Data.Common;
 
 using System.Collections.Generic;
-using ActiproSoftware.Windows.Shapes;
 using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using ArcGIS.Core.Geometry;
 using ArcGIS.Desktop.Framework.Contracts;
@@ -185,7 +184,7 @@ namespace ArcSWATPlus {
 
         public void multiply(double factor) {
             //Multiply water body values by factor
-            this.cellCount = Convert.ToInt32(this.cellCount * factor + 0.5);
+            this.cellCount = Convert.ToInt32(this.cellCount * factor);
             this.area *= factor;
             this.originalArea *= factor;
             this.totalElevation *= factor;
@@ -422,11 +421,12 @@ namespace ArcSWATPlus {
                         foreach (var (slope, hru) in slopeNumbers) {
                             var cellData = this.hruMap[hru];
                             var area = cellData.area;
-                            if (area > maxArea) { }
-                            maxArea = area;
-                            maxCrop = crop;
-                            maxSoil = soil;
-                            maxSlope = slope;
+                            if (area > maxArea) {
+                                maxArea = area;
+                                maxCrop = crop;
+                                maxSoil = soil;
+                                maxSlope = slope;
+                            }
                         }
                     }
                 }

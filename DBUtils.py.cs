@@ -28,6 +28,7 @@ using Microsoft.Win32;
 using System.Windows.Forms;
 using System.Resources;
 using System.Windows.Shapes;
+using ArcGIS.Core.Data.UtilityNetwork.Trace;
 
 namespace ArcSWATPlus {
 
@@ -342,17 +343,37 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
         }
 
-        //  sqlite3 connection to project database
+        //  sqlite3 connection to project database and reference database
         public virtual void connectToProjectDatabase() {
-            if (this.conn is not null) { return; }
-            this.conn = new SQLiteConnection("Data Source=" + this.dbFile);
             if (this.conn is null) {
-                Utils.error(string.Format("Failed to connect to project database {0}", this.dbFile), this.isBatch);
-            } else {
+                this.conn = new SQLiteConnection("Data Source=" + this.dbFile);
+                if (this.conn is null) {
+                    Utils.error(string.Format("Failed to connect to project database {0}", this.dbFile), this.isBatch);
+                    return;
+                }
+            }
+            if (this.conn.State != ConnectionState.Open) {
                 this.conn.Open();
-                // turn journal off for better speed
-                var sql = "PRAGMA journal_mode=OFF";
-                this.execNonQuery(sql);
+            }
+            if (this.conn.State != ConnectionState.Open) {
+                Utils.error(string.Format("Failed to open project database {0}", this.dbFile), this.isBatch);
+                return;
+            }
+            var sql = "PRAGMA journal_mode=OFF";
+            this.execNonQuery(sql);
+            if (this.connRef is null) {
+                this.connRef = new SQLiteConnection("Data Source=" + this.dbRefFile);
+                if (this.connRef is null) {
+                    Utils.error(string.Format("Failed to connect to reference database {0}", this.dbRefFile), this.isBatch);
+                    return;
+                }
+            }
+            if (this.connRef.State != ConnectionState.Open) {
+                this.connRef.Open();
+            }
+            if (this.connRef.State != ConnectionState.Open) {
+                Utils.error(string.Format("Failed to open reference database {0}", this.dbRefFile), this.isBatch);
+                return;
             }
         }
 
@@ -374,7 +395,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public virtual bool hasData(string table) {
             try {
                 var sql = sqlSelect(table, "*", "", "");
-                using (var reader = getReader(sql)) {
+                using (System.Data.SQLite.SQLiteDataReader reader = getReader(sql)) {
                     return reader.HasRows;
                 }
             } catch (Exception) {
@@ -461,7 +482,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         }
 
         public bool hasColumn (string table, string columnName) {
-            var sql = string.Format("PRAGMA TABLE_INFO({0})", table);
+            var sql = string.Format("PRAGMA TABLE_INFO('{0}')", table);
             using (var cmd = new SQLiteCommand(sql, this.conn)) {
                 using (var reader = cmd.ExecuteReader()) {
                     if (reader.HasRows) {
@@ -634,6 +655,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 try {
                     while (reader.Read()) {
                         var table = reader.GetString(0);
+                        if (table.StartsWith("config_")) { continue; }
                         if (table.Contains("landuse")) {
                             this.landuseTableNames.Add(table);
                         } else if (table.Contains("soil") && !table.Contains("usersoil") && !table.Contains(DBUtils._SOILS_SOL_NAME)) {
@@ -1537,7 +1559,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     // changed to copy all of plant and urban tables
                     // pid = 0
                     // uid = 0
-                    using (var readCmd = new SQLiteCommand(localConn)) { 
+                    using (var readCmd = new SQLiteCommand(localConn)) {
                         foreach (var crop in this.landuseVals) {
                             var name = this.getLanduseCode(crop);
                             if (name.ToUpper() == "BARR" || name.ToUpper() == "WATR") {
@@ -1549,14 +1571,16 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             readCmd.Parameters.Clear();
                             readCmd.Parameters.AddWithValue("@p1", name);
                             readCmd.CommandText = plantSelect;
+                            var found = false;
                             using (var readPlant = readCmd.ExecuteReader()) {
-                                if (!readPlant.HasRows) {
-                                    readCmd.CommandText = urbanSelect;
-                                    using (var readUrban = readCmd.ExecuteReader()) {
-                                        if (!readUrban.HasRows) {
-                                            Utils.error(string.Format("Landuse name {0} (and perhaps others) not defined in {1} or {2} tables in database {3}.", name, this.plantTable, this.urbanTable, this.plantSoilDatabase), this.isBatch);
-                                            return false;
-                                        }
+                                found = readPlant.HasRows;
+                            }
+                            if (!found) {
+                                readCmd.CommandText = urbanSelect;
+                                using (var readUrban = readCmd.ExecuteReader()) {
+                                    if (!readUrban.HasRows) {
+                                        Utils.error(string.Format("Landuse name {0} (and perhaps others) not defined in {1} or {2} tables in database {3}.", name, this.plantTable, this.urbanTable, this.plantSoilDatabase), this.isBatch);
+                                        return false;
                                     }
                                 }
                             }
@@ -1701,31 +1725,35 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             var plantSql = DBUtils.sqlSelect(this.plantTable, "description", "", "name=@p1 COLLATE NOCASE");
             var urbanSql = DBUtils.sqlSelect(this.urbanTable, "description", "", "name=@p1 COLLATE NOCASE");
             var result = new Dictionary<int, (string, string)>();
-            foreach (var crop in crops) {
-                var landuseCode = this.getLanduseCode(crop);
-                cmd.Parameters.Clear();
-                cmd.Parameters.AddWithValue("@p1", landuseCode);
-                // try plant table first
-                cmd.CommandText = plantSql;
-                using (var reader1 = cmd.ExecuteReader()) {
-                    if (!reader1.HasRows) {
-                        cmd.CommandText = urbanSql;
-                        using (var reader2 = cmd.ExecuteReader()) {
-                            if (!reader2.HasRows) {
-                                // avoid repeating error report
-                                result[crop] = (crop.ToString(), "");
-                            } else {
-                                result[crop] = (landuseCode, reader2.GetString(1));
+            try {
+                foreach (var crop in crops) {
+                    var landuseCode = this.getLanduseCode(crop);
+                    cmd.Parameters.Clear();
+                    cmd.Parameters.AddWithValue("@p1", landuseCode);
+                    // try plant table first
+                    cmd.CommandText = plantSql;
+                    using (var reader1 = cmd.ExecuteReader()) {
+                        if (!reader1.HasRows) {
+                            cmd.CommandText = urbanSql;
+                            using (var reader2 = cmd.ExecuteReader()) {
+                                if (!reader2.HasRows) {
+                                    // avoid repeating error report
+                                    result[crop] = (crop.ToString(), "");
+                                } else {
+                                    result[crop] = (landuseCode, reader2.GetString(1));
+                                }
                             }
+                        } else {
+                            result[crop] = (landuseCode, reader1.GetString(1));
                         }
-                    } else {
-                        result[crop] = (landuseCode, reader1.GetString(1));
                     }
                 }
             }
-            if (!(isProjDb || isRefDb)) {
-                localConn.Close();
-                localConn.Dispose();
+            finally {
+                if (!(isProjDb || isRefDb)) {
+                    localConn.Close();
+                    localConn.Dispose();
+                }
             }
             return result;
         }
@@ -3058,8 +3086,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             string design;
             string values = "";
             SQLiteConnection localConn = null;
-            bool isRefDb;
-            bool isProjDb;
+            bool isRefDb = false;
+            bool isProjDb = true;
             string db;
             var needsSeparateLayerTable = false;
             var isLanduse = false;
@@ -3073,114 +3101,90 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 return result;
             }
 
-            if (typ == "usersoil" || typ == "usersoil_layer" || typ == "plant" || typ == "urban") {
-                db = this.plantSoilDatabase;
-                isProjDb = File.Equals(this.plantSoilDatabase, this.dbFile);
-                isRefDb = File.Equals(this.plantSoilDatabase, this.dbRefFile);
-                if (isProjDb) {
-                    localConn = this.conn;
-                } else if (isRefDb) {
-                    localConn = this.connRef;
-                } else {
-                    localConn = new SQLiteConnection("DataSource=" + this.plantSoilDatabase);
-                }
-                if (typ == "usersoil") {
-                    // we should have have either 152 columns
-                    // or 11 plus a layers file
-                    // read first line to find which
-                    using (var reader = new StreamReader(fil)) {
-                        var line = reader.ReadLine();
-                        var cols = line.Split(',');
-                        needsSeparateLayerTable = cols.Length < 20;
+            try {
+                if (typ == "usersoil" || typ == "usersoil_layer" || typ == "plant" || typ == "urban") {
+                    db = this.plantSoilDatabase;
+                    isProjDb = File.Equals(this.plantSoilDatabase, this.dbFile);
+                    isRefDb = File.Equals(this.plantSoilDatabase, this.dbRefFile);
+                    if (isProjDb) {
+                        localConn = this.conn;
+                    } else if (isRefDb) {
+                        localConn = this.connRef;
+                    } else {
+                        localConn = new SQLiteConnection("DataSource=" + this.plantSoilDatabase);
                     }
-                    if (needsSeparateLayerTable) {
-                        var layerTable = this.readCsv("usersoil_layer", new List<string> {
+                    if (typ == "usersoil") {
+                        // we should have have either 152 columns
+                        // or 11 plus a layers file
+                        // read first line to find which
+                        using (var reader = new StreamReader(fil)) {
+                            var line = reader.ReadLine();
+                            var cols = line.Split(',');
+                            needsSeparateLayerTable = cols.Length < 20;
+                        }
+                        if (needsSeparateLayerTable) {
+                            var layerTable = this.readCsv("usersoil_layer", new List<string> {
                             table
                         });
-                        Utils.loginfo(string.Format("Making separate usersoil tables {0} and {1}", table, layerTable));
-                        values = makeValues(11); // " VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11)";
+                            Utils.loginfo(string.Format("Making separate usersoil tables {0} and {1}", table, layerTable));
+                            values = makeValues(11); // " VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11)";
+                        } else {
+                            values = makeValues(152);
+                        }
+                    } else if (typ == "usersoil_layer") {
+                        values = makeValues(17);
+                    } else if (typ == "plant") {
+                        values = makeValues(55);
+                    } else if (typ == "urban") {
+                        values = makeValues(13);
+                    }
+                } else {
+                    localConn = this.conn;
+                    isProjDb = true;
+                    isRefDb = false;
+                    db = this.dbFile;
+                    values = " VALUES(@p1,@p2)";
+                    isLanduse = typ == "landuse";
+                }
+                var sql = "INSERT INTO " + table + values;
+                if (localConn is null) {
+                    return "";
+                }
+                // should not happen, but safety first
+                var dropSQL = "DROP TABLE IF EXISTS " + table;
+                using (var cmd = new SQLiteCommand(dropSQL, localConn)) {
+                    try {
+                        cmd.ExecuteNonQuery();
+                    }
+                    catch (Exception) {
+                        Utils.exceptionError(string.Format("Could not drop table {0} from database {1}", table, db), this.isBatch);
+                        return "";
+                    }
+                }
+                if (typ == "usersoil") {
+                    if (needsSeparateLayerTable) {
+                        design = DBUtils._SOILTABLE;
                     } else {
-                        values = makeValues(152);
+                        design = DBUtils._USERSOILTABLE;
                     }
                 } else if (typ == "usersoil_layer") {
-                    values = makeValues(17);
+                    design = DBUtils._SOILLAYERTABLE;
                 } else if (typ == "plant") {
-                    values = makeValues(55);
+                    design = DBUtils._PLANTTABLE;
                 } else if (typ == "urban") {
-                    values = makeValues(13);
-                }
-            } else {
-                localConn = this.conn;
-                isProjDb = true;
-                isRefDb = false;
-                db = this.dbFile;
-                values = " VALUES(@p1,@p2)";
-                isLanduse = typ == "landuse";
-            }
-            var sql = "INSERT INTO " + table + values;
-            if (localConn is null) {
-                return "";
-            }
-            // should not happen, but safety first
-            var dropSQL = "DROP TABLE IF EXISTS " + table;
-            using (var cmd = new SQLiteCommand(dropSQL, localConn)) {
-                try {
-                    cmd.ExecuteNonQuery();
-                }
-                catch (Exception) {
-                    Utils.exceptionError(string.Format("Could not drop table {0} from database {1}", table, db), this.isBatch);
-                    return "";
-                }
-            }
-            if (typ == "usersoil") {
-                if (needsSeparateLayerTable) {
-                    design = DBUtils._SOILTABLE;
+                    design = DBUtils._URBANTABLE;
+                } else if (isLanduse) {
+                    design = DBUtils._LANDUSELOOKUPTABLE2;
                 } else {
-                    design = DBUtils._USERSOILTABLE;
+                    design = DBUtils._SOILLOOKUPTABLE;
                 }
-            } else if (typ == "usersoil_layer") {
-                design = DBUtils._SOILLAYERTABLE;
-            } else if (typ == "plant") {
-                design = DBUtils._PLANTTABLE;
-            } else if (typ == "urban") {
-                design = DBUtils._URBANTABLE;
-            } else if (isLanduse) {
-                design = DBUtils._LANDUSELOOKUPTABLE2;
-            } else {
-                design = DBUtils._SOILLOOKUPTABLE;
-            }
-            var createSQL = "CREATE TABLE " + table + design;
-            using (var cmd = new SQLiteCommand(createSQL, localConn)) {
-                try {
-                    cmd.ExecuteNonQuery();
-                }
-                catch (Exception) {
-                    Utils.error(string.Format("Could not create table {0} in database {1}", table, db), this.isBatch);
-                    if (!(isProjDb || isRefDb)) {
-                        localConn.Close();
-                        localConn.Dispose();
-                    }
-                    return "";
-                }
-            }
-            using (var reader = new StreamReader(fil)) {
-                var headers = reader.ReadLine().Split(',');
-                if (typ == "landuse") {
-                    // check if we have the optional third description field
-                    if (headers.Length == 3) {
-                        // recreate table with 3 columns
-                        this.execNonQuery(dropSQL);
-                        createSQL = "CREATE TABLE " + table + DBUtils._LANDUSELOOKUPTABLE3;
-                        this.execNonQuery(createSQL);
-                        sql = "INSERT INTO " + table + " VALUES(@p1,@p2,@p3)";
-                    }
-                }
-                string line;
-                while ((line = reader.ReadLine()) != null) {
+                var createSQL = "CREATE TABLE " + table + design;
+                using (var cmd = new SQLiteCommand(createSQL, localConn)) {
                     try {
-                        this.execNonQuery(sql, line.Split(','));
-                    } catch (Exception) {
-                        Utils.exceptionError(string.Format("Could not write to table {0} in database {1} from file {2}", table, db, fil), this.isBatch);
+                        cmd.ExecuteNonQuery();
+                    }
+                    catch (Exception) {
+                        Utils.error(string.Format("Could not create table {0} in database {1}", table, db), this.isBatch);
                         if (!(isProjDb || isRefDb)) {
                             localConn.Close();
                             localConn.Dispose();
@@ -3188,26 +3192,55 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                         return "";
                     }
                 }
-            }
-            if (typ == "usersoil" || typ == "plant" || typ == "urban") {
-                if (typ == "usersoil") {
-                    this.usersoilTableNames.Add(table);
-                } else if (typ == "plant") {
-                    this.plantTableNames.Add(table);
-                } else {
-                    this.urbanTableNames.Add(table);
+                using (var reader = new StreamReader(fil)) {
+                    var headers = reader.ReadLine().Split(',');
+                    if (typ == "landuse") {
+                        // check if we have the optional third description field
+                        if (headers.Length == 3) {
+                            // recreate table with 3 columns
+                            this.execNonQuery(dropSQL);
+                            createSQL = "CREATE TABLE " + table + DBUtils._LANDUSELOOKUPTABLE3;
+                            this.execNonQuery(createSQL);
+                            sql = "INSERT INTO " + table + " VALUES(@p1,@p2,@p3)";
+                        }
+                    }
+                    string line;
+                    while ((line = reader.ReadLine()) != null) {
+                        try {
+                            this.execNonQuery(sql, line.Split(','));
+                        }
+                        catch (Exception) {
+                            Utils.exceptionError(string.Format("Could not write to table {0} in database {1} from file {2}", table, db, fil), this.isBatch);
+                            if (!(isProjDb || isRefDb)) {
+                                localConn.Close();
+                                localConn.Dispose();
+                            }
+                            return "";
+                        }
+                    }
                 }
-            } else if (typ == "usersoil_layer") {
-            } else if (isLanduse) {
-                this.landuseTableNames.Add(table);
-            } else {
-                this.soilTableNames.Add(table);
+                if (typ == "usersoil" || typ == "plant" || typ == "urban") {
+                    if (typ == "usersoil") {
+                        this.usersoilTableNames.Add(table);
+                    } else if (typ == "plant") {
+                        this.plantTableNames.Add(table);
+                    } else {
+                        this.urbanTableNames.Add(table);
+                    }
+                } else if (typ == "usersoil_layer") {
+                } else if (isLanduse) {
+                    this.landuseTableNames.Add(table);
+                } else {
+                    this.soilTableNames.Add(table);
+                }
+                return table;
             }
-            if (!(isProjDb || isRefDb)) {
-                localConn.Close();
-                localConn.Dispose();
+            finally {
+                if (!(isProjDb || isRefDb)) {
+                    localConn.Close();
+                    localConn.Dispose();
+                }
             }
-            return table;
         }
 
         //using HRUMap = Dictionary<int,Dictionary<int,Dictionary<int,HashSet<int>>>>;
@@ -3505,7 +3538,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             foreach (var (scat, sourceDdata) in percentages) {
                 foreach (var (sid, data) in sourceDdata) {
                     foreach (var (hydTyp, percent) in data) {
-                        if (Convert.ToInt32(percent + 0.5) != 100) {
+                        if (Convert.ToInt32(percent) != 100) {
                             if (percent == 0 && new HashSet<string> {
                                 "RES",
                                 "PND",
@@ -3513,7 +3546,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             }.Contains(scat)) {
                                 // an unused lake exit: ignore
                             } else {
-                                errors.Add(string.Format("The percentages for id {1}, category {2}, flow type {3} in the {0} table sum to {4} rather than 100", table, sid, scat, hydTyp, Convert.ToInt32(percent + 0.5)));
+                                errors.Add(string.Format("The percentages for id {1}, category {2}, flow type {3} in the {0} table sum to {4} rather than 100", table, sid, scat, hydTyp, Convert.ToInt32(percent)));
                             }
                         }
                     }
@@ -3939,12 +3972,16 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         }
 
         // imitation of QGIS writeEntry
+        // if title is not empty relativise path before writing it
         public void writeEntry(string title, string path, string val) {
             this.gv.db.connectToProjectDatabase();
             var parts = path.Split('/');
             var table = "config_" + parts[0];
             var field = parts[1];
             if (field == "table") { field = "tabl"; } // table is an SQL reserved word
+            if (!string.IsNullOrEmpty(title)) {
+                val = writePath(val);
+            }
             var sql = "UPDATE " + table + " SET " + field + String.Format("='{0}';", val);
             try {
                 this.gv.db.execNonQuery(sql);

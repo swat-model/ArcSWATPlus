@@ -878,7 +878,7 @@
             this.areaGroup.Controls.Add(this.areaLabel);
             this.areaGroup.Controls.Add(this.areaMin);
             this.areaGroup.Controls.Add(this.areaSlider);
-            this.areaGroup.Location = new System.Drawing.Point(314, 259);
+            this.areaGroup.Location = new System.Drawing.Point(343, 105);
             this.areaGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.areaGroup.Name = "areaGroup";
             this.areaGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
@@ -952,7 +952,7 @@
             this.landuseSoilSlopeGroup.Controls.Add(this.landuseLabel);
             this.landuseSoilSlopeGroup.Controls.Add(this.landuseMin);
             this.landuseSoilSlopeGroup.Controls.Add(this.landuseSlider);
-            this.landuseSoilSlopeGroup.Location = new System.Drawing.Point(44, 299);
+            this.landuseSoilSlopeGroup.Location = new System.Drawing.Point(343, 25);
             this.landuseSoilSlopeGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.landuseSoilSlopeGroup.Name = "landuseSoilSlopeGroup";
             this.landuseSoilSlopeGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);

@@ -25,7 +25,7 @@ namespace ArcSWATPlus
             this._parent = parent;
         }
 
-        private void LandscapeForm_Load(object sender, EventArgs e) {
+        public void init(int numCellsSt, int branchThresh) {
             // for now hillslopes not available, and form will assume floodplain
             this.hillslopesCheckBox.Visible = false;
             this.floodplainCheckBox.Visible = false;
@@ -48,9 +48,6 @@ namespace ArcSWATPlus
             if (!System.IO.File.Exists(this._gv.distStFile)) {
                 this.methodTab.TabPages.RemoveAt(2);
             }
-        }
-
-        public void init(int numCellsSt, int branchThresh) {
             this.bufferMultiplier.Value = 10;
             this.areaUnitsBox.SelectedIndex = 0;
             this.ridgeThresholdCells.Text = numCellsSt.ToString();
@@ -123,7 +120,7 @@ namespace ArcSWATPlus
             }
             var area = numCells * this.areaOfCell;
             this.changing = true;
-            this.ridgeThresholdArea.Text = string.Format("0G4", area);
+            this.ridgeThresholdArea.Text = string.Format("{0:G4}", area);
             this.changing = false;
             this._parent.parameterChange();
         }

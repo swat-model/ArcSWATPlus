@@ -183,13 +183,13 @@ namespace ArcSWATPlus
             double landusePercent;
             int hru;
             int slope;
-            double slopeValue;
+            double slopeValue = 0;
             int slopeCol;
             string cropCode = "";
             bool soilIsNoData;
             int soil;
             int soilCol;
-            int crop;
+            int crop = 0;
             int cropCol;
             int distStCol;
             int distChCol;
@@ -210,16 +210,15 @@ namespace ArcSWATPlus
             //int elevationTopRow;
             int lastHru = 0;
             int basinReadRows = 1;
-            int slopeActReadRows;
+            int slopeActReadRows = 0;
             int slopeReadRows;
-            int soilActReadRows;
+            int soilActReadRows = 0;
             int soilReadRows;
-            int cropActReadRows;
+            int cropActReadRows = 0;
             int cropReadRows;
             int elevationReadRows;
             int distStReadRows = 1;
             int distChReadRows = 1;
-            OSGeo.GDAL.Dataset hrusRasterDs;
             OSGeo.GDAL.Dataset slopeBandsDs = null;
             OSGeo.GDAL.Driver driver;
             string proj;
@@ -248,12 +247,13 @@ namespace ArcSWATPlus
                 }
                 basinNumberRows = basinDs.RasterYSize;
                 basinNumberCols = basinDs.RasterXSize;
-                fivePercent = basinNumberRows / 20;
+                fivePercent = (int)Math.Ceiling(basinNumberRows / 20.0);
                 basinDs.GetGeoTransform(basinTransform);
                 basinBand = basinDs.GetRasterBand(1);
                 basinBand.GetNoDataValue(out basinNoData, out basinHasNoData);
-                // can have -128 as the nodata value while map read returns 128
-                basinNoData = Math.Abs(basinNoData);
+                // TODO is this necessary? appropriate?
+                //// can have -128 as the nodata value while map read returns 128
+                //basinNoData = Math.Abs(basinNoData);
             }
             Dataset distStDs = null;
             Dataset distChDs = null;
@@ -475,20 +475,18 @@ namespace ArcSWATPlus
             //    }
             //}
             // counts to calculate landuse and soil overlaps
-            var landuseCount = 0;
-            var landuseNoDataCount = 0;
-            var soilDefinedCount = 0;
-            var soilUndefinedCount = 0;
-            var soilNoDataCount = 0;
+            var landuseCount = 0.0;
+            var landuseNoDataCount = 0.0;
+            var soilDefinedCount = 0.0;
+            var soilUndefinedCount = 0.0;
+            var soilNoDataCount = 0.0;
             var slopeBandsNoData = -1;
             Band slopeBandsBand = null;
-            var hrusRasterNoData = -1;
-            Band hrusRasterBand = null;
             // prepare slope bands grid
             // remove old one since may not be wanted: will be recalculated if it is needed
             this._gv.slopeBandsFile = System.IO.Path.ChangeExtension(this._gv.demFile, null) + "slope_bands.tif";
             await Utils.removeLayerAndFiles(this._gv.slopeBandsFile);
-            if (!this._gv.useGridModel && this._gv.db.slopeLimits.Count > 0) {
+            if (this._gv.db.slopeLimits.Count > 0) {
                 proj = slopeDs.GetProjection();
                 driver = Gdal.GetDriverByName("GTiff");
                 if (File.Exists(this._gv.slopeBandsFile)) {
@@ -502,24 +500,6 @@ namespace ArcSWATPlus
                 slopeBandsDs.SetGeoTransform(slopeTransform);
                 slopeBandsDs.SetProjection(proj);
                 Utils.copyPrj(this._gv.slopeFile, this._gv.slopeBandsFile);
-            }
-            // prepare HRUs raster
-            if (!this._gv.useGridModel) {
-                proj = basinDs.GetProjection();
-                driver = Gdal.GetDriverByName("GTiff");
-                var hrusRasterFile = Utils.join(this._gv.rastersDir, Parameters._HRUSRASTER);
-                await Utils.removeLayerAndFiles(hrusRasterFile);
-                if (File.Exists(hrusRasterFile)) {
-                    // ArcGIS does not let go
-                    hrusRasterDs = Gdal.Open(hrusRasterFile, Access.GA_Update);
-                } else {
-                    hrusRasterDs = driver.Create(hrusRasterFile, basinNumberCols, basinNumberRows, 1, DataType.GDT_Int32, null);
-                }
-                hrusRasterBand = hrusRasterDs.GetRasterBand(1);
-                hrusRasterBand.SetNoDataValue(hrusRasterNoData);
-                hrusRasterDs.SetGeoTransform(basinTransform);
-                hrusRasterDs.SetProjection(proj);
-                Utils.copyPrj(this._gv.basinFile, hrusRasterFile);
             }
             int hasMinVal;
             elevationBand.GetMinimum(out this.minElev, out hasMinVal);
@@ -540,6 +520,8 @@ namespace ArcSWATPlus
             }
             // convert to metres
             this.minElev *= this._gv.verticalFactor;
+            // avoid rounding errors
+            this.minElev -= 10;
             maxElev *= this._gv.verticalFactor;
             // have seen minInt for minElev, so let's play safe
             // else can get absurdly large list of elevations
@@ -552,8 +534,8 @@ namespace ArcSWATPlus
             for (var i = 0; i < elevMapSize; i++) {
                 this.elevMap.Add(0);
             }
-            int distStActReadRows;
-            int floodActReadRows;
+            int distStActReadRows = 0;
+            int floodActReadRows = 0;
             // We read raster data in complete rows, using several rows for the grid model if necessary.
             // Complete rows should be reasonably efficient, and for the grid model
             // reading all rows necessary for each row of grid cells avoids rereading any row
@@ -636,10 +618,10 @@ namespace ArcSWATPlus
                         lsuRows = new int[elevationReadRows * elevationNumberCols];
                     } else {
                         transform = basinTransform;
-                        lsuRow = new int[basinNumberCols]; ;
+                        lsuRow = new int[basinNumberCols];
                     }
                     MapPoint p = MapPointBuilderEx.CreateMapPoint(transform[0], transform[3]);
-                    lsuShapes = new Polygonize(true, elevationNumberCols, -1, p, transform[1], Math.Abs(transform[5]));
+                    lsuShapes = new Polygonize(true, this._gv.useGridModel ? elevationNumberCols : basinNumberCols, -1, p, transform[1], Math.Abs(transform[5]));
                 }
                 if (this.fullHRUsWanted) {
                     // grid models are based on the DEM raster, and non-grid models on the basins grid
@@ -651,7 +633,7 @@ namespace ArcSWATPlus
                         hruRow = new int[basinNumberCols];
                     }
                     MapPoint p = MapPointBuilderEx.CreateMapPoint(transform[0], transform[3]);
-                    hruShapes = new Polygonize(true, elevationNumberCols, -1, p, transform[1], Math.Abs(transform[5]));
+                    hruShapes = new Polygonize(true, this._gv.useGridModel ? elevationNumberCols : basinNumberCols, -1, p, transform[1], Math.Abs(transform[5]));
                 }
             }
             var cropCurrentRow = -1;
@@ -676,10 +658,10 @@ namespace ArcSWATPlus
             if (usePlaya) {
                 wpData = new int[elevationReadRows * elevationNumberCols];
             }
-                var progressCount = 0;
+            var progressCount = 0;
             if (this._gv.useGridModel) {
                 var time1 = DateTime.Now;
-                fivePercent = this._gv.topo.subbasinToSWATBasin.Count / 20;
+                fivePercent = (int)Math.Ceiling(this._gv.topo.subbasinToSWATBasin.Count / 20.0);
                 var gridCount = 0;
                 foreach (var (chLink, chBasin) in this._gv.topo.chLinkToChBasin) {
                     if (this._gv.topo.chLinkInsideLake.ContainsKey(chLink)) {
@@ -768,7 +750,6 @@ namespace ArcSWATPlus
                     }
                     var topY = Topology.rowToY(elevationTopRow, elevationTransform);
                     var cropTopRow = cropRowFun(elevationTopRow, topY);
-                    cropActReadRows = 0;
                     if (cropTopRow != cropCurrentRow) {
                         if (0 <= cropTopRow && cropTopRow <= cropNumberRows - cropReadRows) {
                             cropBand.ReadRaster(0, cropTopRow, cropNumberCols, cropReadRows, cropData, cropNumberCols, cropReadRows, 0, 0);
@@ -781,10 +762,11 @@ namespace ArcSWATPlus
                                 cropBand.ReadRaster(0, cropTopRow, cropNumberCols, cropActReadRows, cropData, cropNumberCols, cropReadRows, 0, 0);
                                 cropCurrentRow = cropTopRow;
                             }
+                        } else {
+                            cropActReadRows = 0;
                         }
                     }
                     var soilTopRow = soilRowFun(elevationTopRow, topY);
-                    soilActReadRows = 0;
                     if (soilTopRow != soilCurrentRow) {
                         if (0 <= soilTopRow && soilTopRow <= soilNumberRows - soilReadRows) {
                             soilBand.ReadRaster(0, soilTopRow, soilNumberCols, soilReadRows, soilData, soilNumberCols, soilReadRows, 0, 0);
@@ -797,10 +779,11 @@ namespace ArcSWATPlus
                                 soilBand.ReadRaster(0, soilTopRow, soilNumberCols, soilActReadRows, soilData, soilNumberCols, soilReadRows, 0, 0);
                                 soilCurrentRow = soilTopRow;
                             }
+                        } else {
+                            soilActReadRows = 0;
                         }
                     }
                     var slopeTopRow = slopeRowFun(elevationTopRow, topY);
-                    slopeActReadRows = 0;
                     if (slopeTopRow != slopeCurrentRow) {
                         if (0 <= slopeTopRow && slopeTopRow <= slopeNumberRows - slopeReadRows) {
                             slopeBand.ReadRaster(0, slopeTopRow, slopeNumberCols, slopeReadRows, slopeData, slopeNumberCols, slopeReadRows, 0, 0);
@@ -813,9 +796,10 @@ namespace ArcSWATPlus
                                 slopeBand.ReadRaster(0, slopeTopRow, slopeNumberCols, slopeActReadRows, slopeData, slopeNumberCols, slopeReadRows, 0, 0);
                                 slopeCurrentRow = slopeTopRow;
                             }
+                        } else {
+                            slopeActReadRows = 0;
                         }
                     }
-                    distStActReadRows = 0;
                     var distStTopRow = 0;
                     if (!this._gv.existingWshed) {
                         distStTopRow = distStRowFun(elevationTopRow, topY);
@@ -831,10 +815,11 @@ namespace ArcSWATPlus
                                     distStBand.ReadRaster(0, distStTopRow, distStNumberCols, distStActReadRows, distStData, distStNumberCols, distStReadRows, 0, 0);
                                     distStCurrentRow = distStTopRow;
                                 }
+                            } else {
+                                distStActReadRows = 0;
                             }
                         }
                     }
-                    floodActReadRows = 0;
                     var floodTopRow = 0;
                     if (this._gv.useLandscapes) {
                         floodTopRow = floodRowFun(elevationTopRow, topY);
@@ -850,6 +835,8 @@ namespace ArcSWATPlus
                                     floodBand.ReadRaster(0, floodTopRow, floodNumberCols, floodActReadRows, floodData, floodNumberCols, floodReadRows, 0, 0);
                                     floodCurrentRow = floodTopRow;
                                 }
+                            } else {
+                                floodActReadRows = 0;
                             }
                         }
                     }
@@ -877,17 +864,18 @@ namespace ArcSWATPlus
                                 // can have index too large because Math.Max not calculated properly by gdal
                                 if (index >= elevMapSize) {
                                     for (int i = elevMapSize; i <= index; i++) {
-                                        elevMap.Add(0);
+                                        this.elevMap.Add(0);
                                     }
                                     elevMapSize = index + 1;
                                 }
+                                this.elevMap[index] += 1;
                             }
                             Dictionary<int, Dictionary<int, Dictionary<int, Dictionary<int, Dictionary<int, int>>>>> channelLandscapeCropSoilSlopeNumbers = null;
                             if (this._gv.useLandscapes || this.fullHRUsWanted) {
                                 if (!subbasinChannelLandscapeCropSoilSlopeNumbers.TryGetValue(subbasin, out channelLandscapeCropSoilSlopeNumbers)) {
                                     channelLandscapeCropSoilSlopeNumbers = new Dictionary<int, Dictionary<int, Dictionary<int, Dictionary<int, Dictionary<int, int>>>>>();
-                                    subbasinChannelLandscapeCropSoilSlopeNumbers[subbasin] = channelLandscapeCropSoilSlopeNumbers;
                                 }
+                                subbasinChannelLandscapeCropSoilSlopeNumbers[subbasin] = channelLandscapeCropSoilSlopeNumbers;
                             }
                             x = Topology.colToX(col, elevationTransform);
                             crop = -1;
@@ -1213,6 +1201,11 @@ namespace ArcSWATPlus
                                 // use an equivalent landuse if any
                                 crop = this._db.translateLanduse(Convert.ToInt32(crop));
                             }
+                            bool isWet = false;
+                            if (crop != cropNoData) {
+                                cropCode = this._gv.db.getLanduseCode(crop);
+                                isWet = Parameters._WATERLANDUSES.Contains(cropCode);
+                            }
                             soilCol = soilColFun(col, x);
                             if (0 <= soilCol && soilCol < soilNumberCols && (0 <= soilRow && soilRow < soilNumberRows)) {
                                 soil = soilData[soilCol];
@@ -1223,27 +1216,7 @@ namespace ArcSWATPlus
                             } else {
                                 soil = (int)soilNoData;
                             }
-                            bool OK = false;
-                            if (soil == soilNoData) {
-                                soilIsNoData = true;
-                            } else {
-                                soilIsNoData = false;
-                                // use an equivalent soil if any
-                                (soil, OK) = this._db.translateSoil(Convert.ToInt32(soil));
-                            }
-                            if (soilIsNoData) {
-                                soilNoDataCount += 1;
-                            } else if (OK) {
-                                soilDefinedCount += 1;
-                            } else {
-                                soilUndefinedCount += 1;
-                            }
                             // make sure crop and soil do not conflict about water
-                            bool isWet = false;
-                            if (crop != cropNoData) {
-                                cropCode = this._gv.db.getLanduseCode(crop);
-                                isWet = Parameters._WATERLANDUSES.Contains(cropCode);
-                            }
                             if (this._gv.db.useSSURGO) {
                                 if (isWet) {
                                     soil = Parameters._SSURGOWater;
@@ -1254,19 +1227,38 @@ namespace ArcSWATPlus
                                     }
                                 }
                             }
+                            bool OK = false;
+                            if (soil == soilNoData) {
+                                soilIsNoData = true;
+                            } else {
+                                soilIsNoData = false;
+                                if (soil == Parameters._SSURGOWater) {
+                                    OK = true;
+                                } else {
+                                    // use an equivalent soil if any
+                                    (soil, OK) = this._db.translateSoil(Convert.ToInt32(soil));
+                                }
+                            }
+                            if (soilIsNoData) {
+                                soilNoDataCount += 1;
+                            } else if (OK) {
+                                soilDefinedCount += 1;
+                            } else {
+                                soilUndefinedCount += 1;
+                            }
                             slopeCol = slopeColFun(col, x);
                             if (0 <= slopeCol && slopeCol < slopeNumberCols && (0 <= slopeRow && slopeRow < slopeNumberRows)) {
                                 slopeValue = slopeData[slopeCol];
                             } else {
                                 slopeValue = slopeNoData;
                             }
+                            // slopes will be nodata in pits
+                            if (slopeValue == slopeNoData) {
+                                slopeValue = Parameters._DEFAULTSLOPE;
+                            }
                             // set water or wetland pixels to have slope at most WATERMAXSLOPE
                             if (isWet) {
-                                if (slopeValue == slopeNoData) {
-                                    slopeValue = Parameters._WATERMAXSLOPE;
-                                } else {
-                                    slopeValue = Math.Min(slopeValue, Parameters._WATERMAXSLOPE);
-                                }
+                                slopeValue = Math.Min(slopeValue, Parameters._WATERMAXSLOPE);
                             }
                             if (slopeValue != slopeNoData) {
                                 // for HUC, slope bands only used for agriculture
@@ -1285,9 +1277,9 @@ namespace ArcSWATPlus
                                 if (0 <= floodCol && floodCol < floodNumberCols && (0 <= floodRow && floodRow < floodNumberRows)) {
                                     flood = floodData[floodCol];
                                 }
-                                // floodplain maps use 1 for the floodplain and nodata elsewhere (for display purposes)
+                                // floodplain maps in ArcGIS use 0 for the floodplain and nodata elsewhere (for display purposes)
                                 // We reset this to a landscape value
-                                landscape = flood == 1 ? Utils._FLOODPLAIN : Utils._UPSLOPE;
+                                landscape = flood == 0 ? Utils._FLOODPLAIN : Utils._UPSLOPE;
                                 int lsuId = Utils.landscapeUnitId(SWATChannel, landscape);
                                 lsuRow[col] = lsuId;
                             }
@@ -1316,10 +1308,14 @@ namespace ArcSWATPlus
                                         }
                                     }
                                     for (int i = elevMapSize; i <= index; i++) {
-                                        elevMap.Add(0);
+                                        this.elevMap.Add(0);
                                     }
                                     elevMapSize = index + 1;
                                 }
+                                //var count = this.basinElevMap[subbasin].Count;
+                                //if (index < 0 || index >= count) {
+                                //    var z = 0;
+                                //}
                                 this.basinElevMap[subbasin][index] += 1;
                                 this.elevMap[index] += 1;
                             }
@@ -1436,7 +1432,6 @@ namespace ArcSWATPlus
                 lsusFile = await this.createLSUShapefileFromShapes(lsuShapes, subbasinChannelLandscapeCropSoilSlopeNumbers);
             } else {
                 this._dlg.progress("Writing landscape units shapes ...");
-                // TODO
                 lsusFile = this.createLSUShapefileFromWshed();
             }
             if (lsusFile is not null && !this._gv.useGridModel) {
@@ -1449,7 +1444,6 @@ namespace ArcSWATPlus
                     subLayer = demLayer;
                 }
                 await Utils.removeLayerByLegend(legend);
-                // TODO
                 var fullLSUsLayer = (await Utils.getLayerByFilename(lsusFile, FileTypes._LSUS, this._gv, subLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
             }
             this._dlg.progress("");
@@ -1639,7 +1633,7 @@ namespace ArcSWATPlus
                                 //                                 CreateHRUs.checkConsistent(lsuData, basin, candidate, landscape, 2)
                                 basinData.merge(channel, candidate);
                                 // fix chBasinAreas map
-                                // errors can casue this code to be executed twice
+                                // errors can cause this code to be executed twice
                                 // and second time channel has already been removed
                                 if (this._gv.topo.chBasinAreas.ContainsKey(channel)) {
                                     this._gv.topo.chBasinAreas[candidate] += this._gv.topo.chBasinAreas[channel];
@@ -1912,7 +1906,7 @@ namespace ArcSWATPlus
                                 }
                                 feature.SetField(percentSubIndx, percentSub);
                                 feature.SetGeometry(geometry);
-                                var err = layer.SetFeature(feature);
+                                var err = layer.CreateFeature(feature);
                                 if (err != Ogr.OGRERR_NONE) {
                                     Utils.error(string.Format("Unable to add feature to LSUs shapefile {0}", this._gv.fullLSUsFile), this._gv.isBatch);
                                     return false;
@@ -1976,7 +1970,7 @@ namespace ArcSWATPlus
             if (linkIndx < 0) {
                 return false;
             }
-            var fivePercent = lastHru / 20;
+            var fivePercent = Math.Ceiling(lastHru / 20.0);
             var progressCount = 0;
             progressBar.Visible = true;
             progressBar.Value = 0;
@@ -2030,7 +2024,7 @@ namespace ArcSWATPlus
                                         feature.SetField(hrusIndx, "NA");
                                         feature.SetField(linkIndx, channel);
                                         feature.SetGeometry(geometry);
-                                        var err = layer.SetFeature(feature);
+                                        var err = layer.CreateFeature(feature);
                                         if (err != Ogr.OGRERR_NONE) {
                                             Utils.error(string.Format("Unable to add feature to FullHRUs shapefile {0}", this._gv.fullHRUsFile), this._gv.isBatch);
                                             progressBar.Visible = false;
@@ -2139,6 +2133,7 @@ namespace ArcSWATPlus
                         return null;
                     }
                 }
+                var areaFactor = this._gv.horizontalFactor * this._gv.horizontalFactor;
                 var toDelete = new List<long>();
                 lsusLayer.ResetReading();
                 OSGeo.OGR.Feature f;
@@ -2146,9 +2141,16 @@ namespace ArcSWATPlus
                     f = lsusLayer.GetNextFeature();
                     if (f is null) { break; }
                     var geom = f.GetGeometryRef();
-                    if (!geom.IsValid()) {
+                    // geometry can be null if LSU within lake
+                    if (geom is null) {
+                        area = 0;
+                    }
+                    else if (!geom.IsValid()) {
                         var geom1 = geom.MakeValid(null);
                         f.SetGeometry(geom1);
+                        area = geom1.Area() * areaFactor / 1E4;
+                    } else {
+                        area = geom.Area() * areaFactor / 1E4;
                     }
                     if (this._gv.useGridModel) {
                         basin = f.GetFieldAsInteger(polyIndx);
@@ -2172,7 +2174,6 @@ namespace ArcSWATPlus
                         }
                     } else {
                         var chBasin = f.GetFieldAsInteger(polyIndx);
-                        area = f.GetFieldAsDouble(areaIndx);
                         SWATChannel = f.GetFieldAsInteger(chIndx);
                         // area can be zero if LSU within lake
                         if (SWATChannel == 0 || area == 0) {
@@ -2191,7 +2192,6 @@ namespace ArcSWATPlus
                             continue;
                         }
                     }
-                    var areaFactor = this._gv.horizontalFactor * this._gv.horizontalFactor;
                     BasinData basinData;
                     if (this.basins.TryGetValue(basin, out basinData)) {
                         var subbasinCells = basinData.subbasinCellCount();
@@ -2277,7 +2277,7 @@ namespace ArcSWATPlus
             ProgressBar progressBar, int lastHru) {
             await Utils.removeLayerAndFiles(this._gv.fullHRUsFile);
             var driver = Ogr.GetDriverByName("ESRI Shapefile");
-            using (DataSource ds = driver.CreateDataSource(this._gv.fullLSUsFile, null)) {
+            using (DataSource ds = driver.CreateDataSource(this._gv.fullHRUsFile, null)) {
                 var wkt = this._gv.topo.crsProject.Wkt;
                 OSGeo.OSR.SpatialReference srs = new OSGeo.OSR.SpatialReference(wkt);
                 var hrusLayer = ds.CreateLayer("HRUs", srs, wkbGeometryType.wkbPolygon, null);
@@ -2294,16 +2294,16 @@ namespace ArcSWATPlus
                 hrusLayer.CreateField(new FieldDefn(Topology._LINKNO, FieldType.OFTInteger), 1);
                 Debug.Assert(this._gv.crsProject is not null);
                 Utils.copyPrj(this._gv.demFile, this._gv.fullHRUsFile);
-                if (this.insertHRUFeatures(hrusLayer, hrusLayer.GetLayerDefn(), hruShapes, subbasinChannelLandscapeCropSoilSlopeNumbers, progressBar, lastHru)) {
-                    // insert above dem in legend, so streams and watershed still visible
-                    await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._HRUS));
-                    var demLayer = (await Utils.getLayerByFilename(this._gv.demFile, FileTypes._DEM, null, null, null)).Item1;
-                    var fullHRUSLayer = (await Utils.getLayerByFilename(this._gv.fullLSUsFile, FileTypes._HRUS, this._gv, demLayer, Utils._WATERSHED_GROUP_NAME)).Item1;
-                    return true;
-                } else {
+                if (!this.insertHRUFeatures(hrusLayer, hrusLayer.GetLayerDefn(), hruShapes, subbasinChannelLandscapeCropSoilSlopeNumbers, progressBar, lastHru)) {
                     return false;
                 }
+                hrusLayer.SyncToDisk();
             }
+            // insert above dem in legend, so streams and watershed still visible
+            await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._HRUS));
+            var demLayer = (await Utils.getLayerByFilename(this._gv.demFile, FileTypes._DEM, null, null, null)).Item1;
+            var fullHRUSLayer = (await Utils.getLayerByFilename(this._gv.fullHRUsFile, FileTypes._HRUS, this._gv, demLayer, Utils._WATERSHED_GROUP_NAME)).Item1;
+            return true;
         }
 
         // Count HRUs in watershed.
@@ -2764,7 +2764,7 @@ namespace ArcSWATPlus
                             // fraction of lsu that is HRU
                             frac = 1.0 - lsuData.waterBody.originalArea / lsuData.area;
                             // water body cellCount may have been made zero, so reconstruct
-                            cellCount = Convert.ToInt32(lsuData.cellCount * frac + 0.5);
+                            cellCount = Convert.ToInt32(lsuData.cellCount * frac);
                             area = lsuData.area - lsuData.waterBody.originalArea;
                         }
                         var cellData = new CellData(cellCount, area, lsuData.totalElevation * frac, lsuData.totalSlope * frac, lsuData.totalLongitude * frac, lsuData.totalLatitude * frac, crop);
@@ -2817,7 +2817,7 @@ namespace ArcSWATPlus
                                 // fraction of lsu that is HRU
                                 frac = 1.0 - lsuData.waterBody.originalArea / lsuData.area;
                                 // water body cellCount may have been made zero, so reconstruct
-                                cellCount = Convert.ToInt32(lsuData.cellCount * frac + 0.5);
+                                cellCount = Convert.ToInt32(lsuData.cellCount * frac);
                                 area = lsuData.area - lsuData.waterBody.originalArea;
                             }
                             var cellData = new CellData(cellCount, area, lsuData.totalElevation * frac, lsuData.totalSlope * frac, lsuData.totalLongitude * frac, lsuData.totalLatitude * frac, crop);
@@ -2911,8 +2911,8 @@ namespace ArcSWATPlus
                                 if (areaToRedistribute > 0) {
                                     // make sure we don't divide by zero (or close to it)
                                     if (Math.Abs(hrusArea - areaToRedistribute) < this._gv.cellArea) {
-                                        if (exemptWater) {
-                                            // all rest is reservoir or pond:
+                                        if (exemptWater || (this._gv.isHUC || this._gv.isHAWQS)) {
+                                            // all rest is reservoir or pond, or with HUC or HAWQS may be water being added to lake
                                             lsuData.hruMap = new Dictionary<int, CellData>();
                                             lsuData.cropSoilSlopeNumbers = new Dictionary<int, Dictionary<int, Dictionary<int, int>>>();
                                             continue;
@@ -3365,7 +3365,7 @@ namespace ArcSWATPlus
             if (exemptWater) {
                 hrusArea -= lsuData.waterBody.originalArea;
             }
-            CreateHRUs.checkConsistent(lsuData, basin, channel, landscape, 4);
+            //CreateHRUs.checkConsistent(lsuData, basin, channel, landscape, 4);  TODO
             var hrus = lsuData.hruMap;
             if (hrus.Count == 1) {
                 // and not exemptWater:
@@ -3405,7 +3405,7 @@ namespace ArcSWATPlus
                 var redistributeFactor = hrusArea / (hrusArea - areaToRedistribute);
                 lsuData.redistribute(redistributeFactor);
             }
-            CreateHRUs.checkConsistent(lsuData, basin, channel, landscape, 5);
+            // CreateHRUs.checkConsistent(lsuData, basin, channel, landscape, 5); TODO
             return true;
         }
 
@@ -3647,13 +3647,22 @@ namespace ArcSWATPlus
         public virtual (int, int, int, double, double) analyseElevMap(List<int> mapp) {
             // find index of first non-zero frequency
             var minimum = 0;
+            if (mapp is null || mapp.Count == 0) {
+                return (0, 0, 0, 0, 0);
+            }
             while (mapp[minimum] == 0) {
                 minimum += 1;
+                if (minimum == mapp.Count) {
+                    return (0, 0, 0, 0, 0);
+                }
             }
             // find index of last non-zero frequency
             var maximum = mapp.Count - 1;
             while (mapp[maximum] == 0) {
                 maximum -= 1;
+                if (maximum < 0) {
+                    return (minimum, 0, 0, 0, 0);
+                }
             }
             // calculate mean elevation and total of frequencies
             var summ = 0.0;
@@ -3683,7 +3692,7 @@ namespace ArcSWATPlus
         //         
         //         Also assigns HRU numbers and writes gis_hrus table if withHRUs.
         //         
-        public async Task printBasins(bool withHRUs, FeatureLayer fullHRUsLayer) {
+        public async Task printBasins(bool withHRUs) {
             var fileName = withHRUs ? Parameters._HRUSREPORT : Parameters._BASINREPORT;
             var path = Utils.join(this._gv.textDir, fileName);
             using (var fw = new StreamWriter(path)) {
@@ -3870,7 +3879,7 @@ namespace ArcSWATPlus
                     var clearSQL = "DROP TABLE IF EXISTS " + table;
                     this._db.execNonQuery(clearSQL);
                     this._db.execNonQuery(DBUtils._HRUSCREATESQL);
-                    await this.printBasinsDetails(basinHa, true, fw, fullHRUsLayer, horizLine);
+                    await this.printBasinsDetails(basinHa, true, fw, horizLine);
                     this._dlg.progress("");
                     var time2 = DateTime.Now;
                     Utils.loginfo(string.Format("Writing gis_points, gis_hrus and gis_routing tables took {0} seconds", Convert.ToInt32(time2.Subtract(time1).TotalSeconds)));
@@ -3878,7 +3887,7 @@ namespace ArcSWATPlus
                     //this._db.hashDbTable(conn, "gis_hrus");
                     //this._db.hashDbTable(conn, "gis_routing");
                 } else {
-                    await this.printBasinsDetails(basinHa, false, fw, fullHRUsLayer, horizLine);
+                    await this.printBasinsDetails(basinHa, false, fw, horizLine);
                 }
             }
             this._reportsCombo.Visible = true;
@@ -3896,11 +3905,18 @@ namespace ArcSWATPlus
             double basinHa,
             bool withHRUs,
             StreamWriter fw,
-            FeatureLayer fullHRUsLayer,
             string horizLine) {
             string msg;
             string subMsg;
             bool hasCrop;
+            OSGeo.OGR.DataSource fullHRUsDs = null;
+            OSGeo.OGR.Layer fullHRUsLayer = null;
+            if (withHRUs && this.fullHRUsWanted) {
+                if (File.Exists(this._gv.fullHRUsFile)) {
+                    fullHRUsDs = Ogr.Open(this._gv.fullHRUsFile, 1);
+                    fullHRUsLayer = fullHRUsDs.GetLayerByIndex(0);
+                }
+            }
             var setHRUS = withHRUs && fullHRUsLayer is not null;
             int subIndx = 0;
             int chIndx = 0;
@@ -3913,39 +3929,39 @@ namespace ArcSWATPlus
             int hrusIndx = 0;
             if (setHRUS) {
                 Debug.Assert(fullHRUsLayer is not null);
-                subIndx = await this._gv.topo.getIndex(fullHRUsLayer, Topology._SUBBASIN);
+                subIndx = fullHRUsLayer.FindFieldIndex(Topology._SUBBASIN, 1);
                 if (subIndx < 0) {
                     setHRUS = false;
                 }
-                chIndx = await this._gv.topo.getIndex(fullHRUsLayer, Topology._CHANNEL);
+                chIndx = fullHRUsLayer.FindFieldIndex(Topology._CHANNEL, 1);
                 if (chIndx < 0) {
                     setHRUS = false;
                 }
-                catIndx = await this._gv.topo.getIndex(fullHRUsLayer, Topology._LANDSCAPE);
+                catIndx = fullHRUsLayer.FindFieldIndex(Topology._LANDSCAPE, 1);
                 if (catIndx < 0) {
                     setHRUS = false;
                 }
-                luseIndx = await this._gv.topo.getIndex(fullHRUsLayer, Parameters._LANDUSE);
+                luseIndx = fullHRUsLayer.FindFieldIndex(Parameters._LANDUSE, 1);
                 if (luseIndx < 0) {
                     setHRUS = false;
                 }
-                soilIndx = await this._gv.topo.getIndex(fullHRUsLayer, Parameters._SOIL);
+                soilIndx = fullHRUsLayer.FindFieldIndex(Parameters._SOIL, 1);
                 if (soilIndx < 0) {
                     setHRUS = false;
                 }
-                slopeIndx = await this._gv.topo.getIndex(fullHRUsLayer, Parameters._SLOPEBAND);
+                slopeIndx = fullHRUsLayer.FindFieldIndex(Parameters._SLOPEBAND, 1);
                 if (slopeIndx < 0) {
                     setHRUS = false;
                 }
-                areaIndx = await this._gv.topo.getIndex(fullHRUsLayer, Parameters._AREA);
+                areaIndx = fullHRUsLayer.FindFieldIndex(Parameters._AREA, 1);
                 if (areaIndx < 0) {
                     setHRUS = false;
                 }
-                hrusIndx = await this._gv.topo.getIndex(fullHRUsLayer, Topology._HRUS);
+                hrusIndx = fullHRUsLayer.FindFieldIndex(Topology._HRUS, 1);
                 if (hrusIndx < 0) {
                     setHRUS = false;
                 }
-                linkIndx = await this._gv.topo.getIndex(fullHRUsLayer, Topology._LINKNO);
+                linkIndx = fullHRUsLayer.FindFieldIndex(Topology._LINKNO, 1);
                 if (linkIndx < 0) {
                     setHRUS = false;
                 }
@@ -3964,7 +3980,7 @@ namespace ArcSWATPlus
             // (in case rerun with different HRU settings or different merges)
             if (setHRUS) {
                 Debug.Assert(fullHRUsLayer is not null);
-                await this.clearHRUSNums(fullHRUsLayer, hrusIndx, chIndx, linkIndx);
+                this.clearHRUSNums(fullHRUsLayer, hrusIndx, chIndx, linkIndx);
             }
             var noLanduseReported = false;
             var noSoilReported = false;
@@ -4051,8 +4067,10 @@ namespace ArcSWATPlus
             }
             if (setHRUS) {
                 Debug.Assert(fullHRUsLayer is not null);
-                await this.addHRUSNums(fullHRUsLayer, subIndx, chIndx, catIndx, luseIndx, soilIndx, slopeIndx, hrusIndx, linkIndx);
-                await this.writeActHRUs(fullHRUsLayer, subIndx, chIndx, catIndx, areaIndx, hrusIndx);
+                this.addHRUSNums(fullHRUsLayer, subIndx, chIndx, catIndx, luseIndx, soilIndx, slopeIndx, hrusIndx, linkIndx);
+                fullHRUsLayer.SyncToDisk();
+                fullHRUsDs.FlushCache();
+                await this.writeActHRUs(subIndx, chIndx, catIndx, areaIndx, hrusIndx);
             }
         }
 
@@ -4112,7 +4130,7 @@ namespace ArcSWATPlus
                         this._db.addToRouting(lsuId, "LSU", wid, wCat, Topology._TOTAL, 100);
                     } else {
                         // use Katrin's formula
-                        var upslopePercent = Convert.ToInt32(100 * lsuData.cropSoilSlopeArea / (lsuData.cropSoilSlopeArea + downLsuData.cropSoilSlopeArea) + 0.5);
+                        var upslopePercent = Convert.ToInt32(100 * lsuData.cropSoilSlopeArea / (lsuData.cropSoilSlopeArea + downLsuData.cropSoilSlopeArea));
                         if (downLsuData.waterBody is not null && !downLsuData.waterBody.isUnknown()) {
                             wid = downLsuData.waterBody.id;
                             wCat = downLsuData.waterBody.isReservoir() ? "RES" : "PND";
@@ -4192,6 +4210,7 @@ namespace ArcSWATPlus
             var (floodTarget, floodCat) = lake > 0 ? (lake, lCat) : wid > 0 ? (wid, wCat) : (SWATChannel, "CH");
             var arlsuHa = lsuData.area / 10000.0;
             var routeWaterAsWaterBody = lsuData.waterBody is not null && !lsuData.waterBody.isUnknown();
+            var zeroAreaReportCount = 0;
             foreach (var (crop, soilSlopeNumbers) in lsuData.cropSoilSlopeNumbers) {
                 if (crop != this._gv.db.waterLanduse || !routeWaterAsWaterBody) {
                     var arluse = lsuData.cropAreas[crop] / 10000;
@@ -4216,7 +4235,14 @@ namespace ArcSWATPlus
                             // use cellArea rather than cellCount to calculate means
                             // cellCounts are integer and inaccurate (even zero) for small HRUs
                             if (cellData.area == 0) {
-                                Utils.error(string.Format("HRU {0} in LSU {1} has zero area", this.HRUNum, lsuId), this._gv.isBatch);
+                                //Don't report more than 4
+                                zeroAreaReportCount += 1;
+                                if (zeroAreaReportCount > 4) { 
+                                    Utils.error(string.Format("HRU {0} in LSU {1} (and perhaps others) has zero area", this.HRUNum, lsuId), this._gv.isBatch);
+                                    return;
+                                } else {
+                                    Utils.error(string.Format("HRU {0} in LSU {1} has zero area", this.HRUNum, lsuId), this._gv.isBatch);
+                                }
                                 meanMultiplier = 1;
                             } else {
                                 meanMultiplier = this._gv.cellArea / cellData.area;
@@ -4243,12 +4269,12 @@ namespace ArcSWATPlus
                             var centroidll = this._gv.topo.pointToLatLong(centroid);
                             var lat = centroidll[1];
                             if (double.IsNaN(lat)) {
-                                Utils.error(string.Format("Cannot compue latitude for {0} on channel {1}", cellData.totalLatitude * meanMultiplier, SWATChannel), this._gv.isBatch);
+                                Utils.error(string.Format("Cannot compute latitude for {0} on channel {1}", cellData.totalLatitude * meanMultiplier, SWATChannel), this._gv.isBatch);
                                 lat = 0;
                             }
                             var lon = centroidll[0];
                             if (double.IsNaN(lon)) {
-                                Utils.error(string.Format("Cannot compue longitude for {0} on channel {1}", cellData.totalLongitude * meanMultiplier, SWATChannel), this._gv.isBatch);
+                                Utils.error(string.Format("Cannot compute longitude for {0} on channel {1}", cellData.totalLongitude * meanMultiplier, SWATChannel), this._gv.isBatch);
                                 lon = 0;
                             }
                             this._db.execNonQuery(DBUtils._HRUSINSERTSQL, new object[] { this.HRUNum, lsuId, subHa, arlsuHa, luse, arluse, snam, arso, slp, arslp, meanSlopePercent, lat, lon, meanElevation });
@@ -4309,30 +4335,19 @@ namespace ArcSWATPlus
         }
 
         // Set HRUS values to NA, and reset SWAT channel numbers to originals (before any channel merges).
-        public async Task clearHRUSNums(FeatureLayer fullHRUsLayer, int hrusIndx, int chIndx, int linkIndx) {
-            await QueuedTask.Run(() => {
-                var op = new ArcGIS.Desktop.Editing.EditOperation();
-                op.Name = "Clear HRU numbers";
-                using (var rc = fullHRUsLayer.Search()) {
-                    while (rc.MoveNext()) {
-                        var feature = rc.Current as ArcGIS.Core.Data.Feature;
-                        var chLink = (int)feature[linkIndx];
-                        int SWATChannel;
-                        if (!this._gv.topo.channelToSWATChannel.TryGetValue(chLink, out SWATChannel)) { SWATChannel = 0; }
-                        op.Modify(feature, chIndx, SWATChannel);
-                        op.Modify(feature, hrusIndx, "NA");
-                    }
+        public void clearHRUSNums(OSGeo.OGR.Layer fullHRUsLayer, int hrusIndx, int chIndx, int linkIndx) {
+            fullHRUsLayer.ResetReading();
+            OSGeo.OGR.Feature feature = null;
+            do {
+                feature = fullHRUsLayer.GetNextFeature();
+                if (feature != null) {
+                    var chLink = feature.GetFieldAsInteger(linkIndx);
+                    int SWATChannel;
+                    if (!this._gv.topo.channelToSWATChannel.TryGetValue(linkIndx, out SWATChannel)) { SWATChannel = 0; }
+                    feature.SetField(chIndx, SWATChannel);
+                    feature.SetField(hrusIndx, "NA");
                 }
-                bool OK;
-                if (op.IsEmpty) {
-                    OK = false;
-                } else {
-                    OK = op.Execute();
-                }
-                if (!OK) {
-                    Utils.error("Cannot make changes to FullHRUs shapefile", this._gv.isBatch);
-                }
-            });
+            } while (feature != null);
         }
 
 
@@ -4340,8 +4355,8 @@ namespace ArcSWATPlus
         //         
         //         Do not merge HRUs according to channel merges, so that the merges can be changed without having
         //         to recompute the geometries.  ActHRUs wil be given merged geometries for merged channels.
-        public virtual async Task addHRUSNums(
-            FeatureLayer fullHRUsLayer,
+        public void addHRUSNums(
+            OSGeo.OGR.Layer fullHRUsLayer,
             int subIndx,
             int chIndx,
             int catIndx,
@@ -4351,83 +4366,65 @@ namespace ArcSWATPlus
             int hrusIndx,
             int linkIndx) {
             string hruNum;
-            await QueuedTask.Run(() => {
-                using (var rc = fullHRUsLayer.Search()) {
-                    while (rc.MoveNext()) {
-                        var op = new ArcGIS.Desktop.Editing.EditOperation();
-                        op.Name = "Add HRU numbers";
-                        var feature = rc.Current as ArcGIS.Core.Data.Feature;
-                        var fid = feature.GetObjectID();
-                        var SWATBasin = (int)feature[subIndx];
-                        var category = Utils.landscapeFromName((string)feature[catIndx]);
-                        var origCropCode = (string)feature[luseIndx];
-                        var soilName = (string)feature[soilIndx];
-                        var slopeRange = (string)feature[slopeIndx];
-                        var basin = this._gv.topo.SWATBasinToSubbasin[SWATBasin];
-                        var basinData = this.basins[basin];
-                        var channel = (int)feature[linkIndx];
-                        // FullHRUS file created before channel merging, so based on original channels, which might have been merged
-                        var targetChannel = this._gv.topo.finalTarget(channel, this.mergedChannels);
-                        var lsuData = basinData.getLsus()[targetChannel][category];
-                        if (lsuData.waterBody is not null && origCropCode.ToUpper() == "WATR" && !lsuData.waterBody.isUnknown()) {
-                            if (lsuData.waterBody.isReservoir()) {
-                                hruNum = string.Format("RES {0}", lsuData.waterBody.id);
-                            } else {
-                                hruNum = string.Format("PND {0}", lsuData.waterBody.id);
-                            }
+            fullHRUsLayer.ResetReading();
+            OSGeo.OGR.Feature feature = null;
+            do {
+                feature = fullHRUsLayer.GetNextFeature();
+                if (feature != null) {
+                    var fid = feature.GetFID();
+                    var SWATBasin = feature.GetFieldAsInteger(subIndx);
+                    var category = Utils.landscapeFromName(feature.GetFieldAsString(catIndx));
+                    var origCropCode = feature.GetFieldAsString(luseIndx);
+                    var soilName = feature.GetFieldAsString(soilIndx);
+                    var slopeRange = feature.GetFieldAsString(slopeIndx);
+                    var basin = this._gv.topo.SWATBasinToSubbasin[SWATBasin];
+                    var basinData = this.basins[basin];
+                    var channel = (int)feature.GetFieldAsInteger(linkIndx);
+                    // FullHRUS file created before channel merging, so based on original channels, which might have been merged
+                    var targetChannel = this._gv.topo.finalTarget(channel, this.mergedChannels);
+                    var lsuData = basinData.getLsus()[targetChannel][category];
+                    if (lsuData.waterBody is not null && origCropCode.ToUpper() == "WATR" && !lsuData.waterBody.isUnknown()) {
+                        if (lsuData.waterBody.isReservoir()) {
+                            hruNum = string.Format("RES {0}", lsuData.waterBody.id);
                         } else {
-                            hruNum = null;
-                            foreach (var soilSlopeNumbers in lsuData.cropSoilSlopeNumbers.Values) {
-                                foreach (var (soil, slopeNumbers) in soilSlopeNumbers) {
-                                    if (this._db.getSoilName(soil).Item1 == soilName) {
-                                        foreach (var (slope, hru) in slopeNumbers) {
-                                            var cellData = lsuData.hruMap[hru];
-                                            if (this._db.getLanduseCode(cellData.crop) == origCropCode && this._db.slopeRange(slope) == slopeRange) {
-                                                if (hruNum is null) {
-                                                    hruNum = cellData.actHRUNum.ToString();
-                                                } else {
-                                                    hruNum = hruNum + string.Format(", {0}", cellData.actHRUNum);
-                                                }
+                            hruNum = string.Format("PND {0}", lsuData.waterBody.id);
+                        }
+                    } else {
+                        hruNum = null;
+                        foreach (var soilSlopeNumbers in lsuData.cropSoilSlopeNumbers.Values) {
+                            foreach (var (soil, slopeNumbers) in soilSlopeNumbers) {
+                                if (this._db.getSoilName(soil).Item1 == soilName) {
+                                    foreach (var (slope, hru) in slopeNumbers) {
+                                        var cellData = lsuData.hruMap[hru];
+                                        if (this._db.getLanduseCode(cellData.crop) == origCropCode && this._db.slopeRange(slope) == slopeRange) {
+                                            if (hruNum is null) {
+                                                hruNum = cellData.actHRUNum.ToString();
+                                            } else {
+                                                hruNum = hruNum + string.Format(", {0}", cellData.actHRUNum);
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                        bool OK;
-                        bool hasMods = false;
-                        if (hruNum is null) {
-                            OK = true;
-                        } else {
-                            op.Modify(feature, hrusIndx, hruNum);
-                            hasMods = true;
-                        }
+                    }
+                    if (hruNum != null) {
+                        feature.SetField(hrusIndx, hruNum);
                         if (targetChannel != channel) {
                             var targetSWATChannel = this._gv.topo.channelToSWATChannel[targetChannel];
-                            op.Modify(feature, chIndx, targetSWATChannel);
-                            hasMods = true;
+                            feature.SetField(chIndx, targetSWATChannel);
                         }
-                        if (hasMods) {
-                            if (!op.IsEmpty) {
-                                OK = op.Execute();
-                            } else {
-                                OK = false;
-                            }
-                        } else {
-                            OK = true;
-                        }
-                        if (!OK) {
+                        if (fullHRUsLayer.SetFeature(feature) != Ogr.OGRERR_NONE) {
                             Utils.error("Cannot write to FullHRUs attribute table", this._gv.isBatch);
                             return;
                         }
                     }
                 }
-            });
+            } while (feature != null);
         }
 
         // Create and load the actual HRUs file, with deselected HRUs removed and HRUs merged according to channel merges.
         public virtual async Task writeActHRUs(
-            FeatureLayer fullHRUsLayer,
             int subIndx,
             int chIndx,
             int catIndx,
@@ -4440,21 +4437,22 @@ namespace ArcSWATPlus
             var fidsToBeMerged = new Dictionary<long, long>();
             var fidsToMerge = new HashSet<long>();
             using (var ds = Ogr.Open(actHRUsFile, 1)) {
-                var layer = ds.GetLayerByIndex(0);
-                this.findMerges(layer, hrusIndx, ref fidsToMerge, ref fidsToBeMerged);
+                var actLayer = ds.GetLayerByIndex(0);
+                this.findMerges(actLayer, hrusIndx, ref fidsToMerge, ref fidsToBeMerged);
                 // now merge any merged channels, plus ponds and reservoirs
-                if (!this.mergeActHRUs(layer, subIndx, chIndx, catIndx, areaIndx, hrusIndx, fidsToMerge, fidsToBeMerged)) {
+                if (!this.mergeActHRUs(actLayer, subIndx, chIndx, catIndx, areaIndx, hrusIndx, fidsToMerge, fidsToBeMerged)) {
                     Utils.error("Failed to complete actual HRUs shapefile", this._gv.isBatch);
                     return;
                 }
             }
             // insert above FullHRUs in legend
+            var fullLayer = Utils.getLayerByLegend(Utils._FULLHRUSLEGEND);
             await Utils.removeLayerByLegend(Utils._ACTHRUSLEGEND);
-            var actHRUsLayer = (await Utils.getLayerByFilename(actHRUsFile, FileTypes._ACTHRUS, this._gv, fullHRUsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
+            var actHRUsLayer = (await Utils.getLayerByFilename(actHRUsFile, FileTypes._ACTHRUS, this._gv, fullLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
             // remove visibility from FullHRUs layer
-            await Utils.setLayerVisibility(fullHRUsLayer, false);
-            // copy actual HRUs file as template for visualisation, and save Json file
-            await this.createHrusResultsFile(actHRUsFile, actHRUsLayer);
+            await Utils.setLayerVisibility(fullLayer, false);
+            // copy actual HRUs file as template for visualisation
+            this.createHrusResultsFile(actHRUsFile, actHRUsLayer);
         }
 
         // Build table of HRU fids to merge.
@@ -4666,22 +4664,9 @@ namespace ArcSWATPlus
         }
 
         // Copy actual hrus file to results folder; remove fields except HRUS.
-        // Also save Json file from actual hrus file.
-        public async Task createHrusResultsFile(string actHRUsFile, FeatureLayer arcLayer) {
+        public void createHrusResultsFile(string actHRUsFile, FeatureLayer arcLayer) {
             Utils.copyShapefile(actHRUsFile, Parameters._HRUS, this._gv.resultsDir);
             var hrusFile = Utils.join(this._gv.resultsDir, Parameters._HRUS + ".shp");
-            var hrusJson = Utils.join(this._gv.resultsDir, Parameters._HRUS + ".json");
-            await Utils.removeLayer(hrusJson);
-            var parms = Geoprocessing.MakeValueArray(hrusFile, hrusJson);
-            var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
-            var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
-            //var parms = Geoprocessing.MakeValueArray(arcLayer, hrusJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-            //var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
-            if (string.IsNullOrEmpty(result.ReturnValue)) {
-                Utils.error("Failed to create HRUs GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
-            } else {
-                Utils.loginfo("Created HRUs GEOJson file: " + hrusJson + $@" {result.ReturnValue}");
-            }
             using (var ds = Ogr.Open(hrusFile, 1)) {
                 var hrusLayer = ds.GetLayerByIndex(0);
                 Topology.removeFields(hrusLayer, new List<string> { Topology._HRUS }, hrusFile, this._gv.isBatch);
@@ -4741,7 +4726,6 @@ namespace ArcSWATPlus
                     if (SWATChannel > 0) {
                         // defensive programming
                         lsusLayer.SetAttributeFilter(string.Format("{0} = {1}", Topology._CHANNEL, SWATChannel));
-                        lsusLayer.ResetReading();
                         OSGeo.OGR.Feature targetFeature;
                         do {
                             targetFeature = lsusLayer.GetNextFeature();
@@ -4767,7 +4751,6 @@ namespace ArcSWATPlus
                     if (SWATChannel > 0) {
                         // defensive programming
                         lsusLayer.SetAttributeFilter(string.Format("{0} = {1}", Topology._CHANNEL, SWATChannel));
-                        lsusLayer.ResetReading();
                         OSGeo.OGR.Feature feature;
                         do {
                             feature = lsusLayer.GetNextFeature();
@@ -4796,7 +4779,9 @@ namespace ArcSWATPlus
                                         newFeature.SetGeometry(geom3);
                                     }
                                     ListFuns.insertIntoSortedLongList(fid, toDelete, true);
-                                    lsusLayer.SetFeature(newFeature);
+                                    lsusLayer.CreateFeature(newFeature);
+                                    // delete entry from mergeMap so we can check later all used
+                                    mergeMap[target].Remove(lscape);
                                 } else {
                                     // there is no lsu to merge with (eg this is upslope but merge target is all floodplain)
                                     // just need to update this feature's lsuid and channel
@@ -4806,8 +4791,15 @@ namespace ArcSWATPlus
                                     feature.SetField(chIndx, tSWATChannel);
                                     lsusLayer.SetFeature(feature);
                                 }
+
                             }
                         } while (feature is not null);
+                    }
+                }
+                // can get newFeatures left in mergeMap because, e.g, the upper LSU has no upslope but the lower one does
+                foreach (var mapp in mergeMap.Values) {
+                    foreach (var feature in mapp.Values) {
+                        lsusLayer.CreateFeature(feature);
                     }
                 }
                 // remove features to be deleted
@@ -4890,38 +4882,12 @@ namespace ArcSWATPlus
                 Utils.copyShapefile(subs1File, Parameters._SUBS, this._gv.resultsDir);
                 // Utils.loginfo('subs1 copied to subs')
                 var subsFile = Utils.join(this._gv.resultsDir, Parameters._SUBS + ".shp");
-                var subsJson = Utils.join(this._gv.resultsDir, Parameters._SUBS + ".json");
-                await Utils.removeLayer(subsJson);
-                var parms = Geoprocessing.MakeValueArray(subsFile, subsJson);
-                var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
-                var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
-                //var arcLayer = Utils.getLayerByLegend(Utils._SUBBASINSLEGEND);
-                //var parms = Geoprocessing.MakeValueArray(arcLayer, subsJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-                //var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
-                if (string.IsNullOrEmpty(result.ReturnValue)) {
-                    Utils.error("Failed to create subbasins GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
-                } else {
-                    Utils.loginfo("Created subbasins GEOJson file: " + subsJson + $@" {result.ReturnValue}");
-                }
                 if (!addToSubs1) {
                     Topology.removeFields(subs1Layer, new List<string> { Topology._SUBBASIN }, subsFile, this._gv.isBatch);
                 }
                 // copy lsus2 to results directory and remove fields other than LSUID
                 Utils.copyShapefile(lsus2File, Parameters._LSUS, this._gv.resultsDir);
                 var lsusFile = Utils.join(this._gv.resultsDir, Parameters._LSUS + ".shp");
-                var lsusJson = Utils.join(this._gv.resultsDir, Parameters._LSUS + ".json");
-                await Utils.removeLayer(lsusJson);
-                parms = Geoprocessing.MakeValueArray(lsusFile, lsusJson);
-                //environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
-                result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
-                //arcLayer = Utils.getLayerByLegend(Utils._ACTLSUSLEGEND);
-                //parms = Geoprocessing.MakeValueArray(arcLayer, lsusJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-                //result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
-                if (string.IsNullOrEmpty(result.ReturnValue)) {
-                    Utils.error("Failed to create LSUs GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
-                } else {
-                    Utils.loginfo("Created LSUs GEOJson file: " + lsusJson + $@" {result.ReturnValue}");
-                }
                 using (var lsusDs = Ogr.Open(lsusFile, 1)) {
                     var lsusLayer = lsusDs.GetLayerByIndex(0);
                     Topology.removeFields(lsusLayer, new List<string> { Topology._LSUID }, lsusFile, this._gv.isBatch);
@@ -5166,6 +5132,7 @@ namespace ArcSWATPlus
                                     var f = lsus2Layer.GetNextFeature();
                                     if (f is null) {
                                         Utils.error(string.Format("Failed to find LSU with LSUId {0} in {1}", lsuId, lsus2File), this._gv.isBatch);
+                                        continue;
                                     }
                                     f.SetField(catlsuIdx, landscape);
                                     f.SetField(slopelsuIdx, meanSlopePercent);
@@ -5495,9 +5462,7 @@ namespace ArcSWATPlus
                 subsLayer = subsDs.GetLayerByIndex(0);
             }
             var aqFile = Utils.join(this._gv.resultsDir, Parameters._AQUIFERS + ".shp");
-            var aqJson = Utils.join(this._gv.resultsDir, Parameters._AQUIFERS + ".json");
             await Utils.removeLayer(aqFile);
-            await Utils.removeLayer(aqJson);
             if (this._dlg.floodplainComboBox.SelectedIndex == 0) {
                 // use subbasins shapefile as aquifers shapefile
                 Utils.copyShapefile(subsFile, Parameters._AQUIFERS, this._gv.resultsDir);
@@ -5532,6 +5497,7 @@ namespace ArcSWATPlus
                                 OSGeo.OGR.Geometry upAqGeom = null;
                                 do {
                                     feature = actLSUsLayer.GetNextFeature();
+                                    if (feature is null) { break; }
                                     var lscape = feature.GetFieldAsString("Landscape");
                                     if (lscape == "Floodplain") {
                                         if (floodAqGeom is null) {
@@ -5552,13 +5518,13 @@ namespace ArcSWATPlus
                                 var floodAq = new OSGeo.OGR.Feature(defn);
                                 floodAq.SetGeometry(floodAqGeom);
                                 floodAq.SetField(Topology._AQUIFER, SWATBasin * 10 + Utils._FLOODPLAIN);
-                                if (aqLayer.SetFeature(floodAq) != Ogr.OGRERR_NONE) {
+                                if (aqLayer.CreateFeature(floodAq) != Ogr.OGRERR_NONE) {
                                     throw new Exception(string.Format("Failed to write aquifers shapefile {0}", aqFile));
                                 }
                                 var upAq = new OSGeo.OGR.Feature(defn);
                                 upAq.SetGeometry(upAqGeom);
                                 upAq.SetField(Topology._AQUIFER, SWATBasin * 10 + Utils._UPSLOPE);
-                                if (aqLayer.SetFeature(upAq) != Ogr.OGRERR_NONE) {
+                                if (aqLayer.CreateFeature(upAq) != Ogr.OGRERR_NONE) {
                                     throw new Exception(string.Format("Failed to write aquifers shapefile {0}", aqFile));
                                 }
                             }
@@ -5570,18 +5536,7 @@ namespace ArcSWATPlus
                 catch (Exception ex) {
                     Utils.information(string.Format("Failed to generate aquifers shapefile: aquifer result visualisation will not be possible: {0}", ex.Message), this._gv.isBatch);
                 }
-            }
-            await Utils.removeLayer(aqJson);
-            var parms = Geoprocessing.MakeValueArray(aqFile, aqJson);
-            var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
-            var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms, environment, null, null, GPExecuteToolFlags.None);
-            //var parms = Geoprocessing.MakeValueArray(aqFile, aqJson, "NOT_FORMATTED", "NO_Z_VALUES", "NO_M_VALUES", "GEOJSON");
-            //var result = await Geoprocessing.ExecuteToolAsync("conversion.FeaturesToJSON", parms);
-            if (string.IsNullOrEmpty(result.ReturnValue)) {
-                Utils.error("Failed to create aquifer GEOJson file: " + $@"{result.ErrorMessages}", this._gv.isBatch);
-            } else {
-                Utils.loginfo("Created aquifer GEOJson file: " + aqJson + $@" {result.ReturnValue}");
-            }
+            };
             // make map of subbasin to outlet subbasin in each watershed:
             var outletSubbasins = new Dictionary<int, int>();
             // lakes with watershed outlets within them
@@ -5631,8 +5586,8 @@ namespace ArcSWATPlus
                     addNewField(tempLayer, tempDeepAqFile, Topology._AQUIFER, Topology._SUBBASIN, x => outletSubbasins[x]);
                     Topology.removeFields(tempLayer, new List<string> { Topology._AQUIFER }, tempDeepAqFile, this._gv.isBatch);
                     // dissolve on Aquifer field
-                    parms = Geoprocessing.MakeValueArray(tempDeepAqFile, deepAqFile, Topology._AQUIFER);
-                    result = await Geoprocessing.ExecuteToolAsync("analysis.PairwiseDissolve", parms);
+                    var parms = Geoprocessing.MakeValueArray(tempDeepAqFile, deepAqFile, Topology._AQUIFER);
+                    var result = await Geoprocessing.ExecuteToolAsync("analysis.PairwiseDissolve", parms);
                     if (string.IsNullOrEmpty(result.ReturnValue)) {
                         Utils.error("Failed to dissolve deep aquifer shapefile: " + $@"{result.ErrorMessages}", this._gv.isBatch);
                     } else {
@@ -5928,6 +5883,7 @@ namespace ArcSWATPlus
                 Utils.error(string.Format("Could not load reservoir file {0}", outletFile), this._gv.isBatch);
                 return;
             }
+            await QueuedTask.Run(() => addReservoirLayer.SetExpanded(false));
         }
 
         // Set water body id to rid for upstream components of this reservoir.
@@ -6282,7 +6238,7 @@ namespace ArcSWATPlus
                 if (original is not null) {
                     // crop may not have been in original because of splitting
                     if (!original.TryGetValue(crop, out originalArea)) { originalArea = 0; }
-                    originalArea /= 1000;
+                    originalArea /= 10000;
                     string0 += string.Format("({0:F2})", originalArea).PadLeft(15);
                 }
                 fw.Write(landuseCode.PadLeft(30) + string0);
@@ -6848,7 +6804,7 @@ namespace ArcSWATPlus
                         basinData.mergedLsus = null;
                     }
                 }
-                await this.CreateHRUs.printBasins(false, null);
+                await this.CreateHRUs.printBasins(false);
                 this._dlg.channelsLabelText = string.Format("Channels count: {0}", this.CreateHRUs.countChannels());
                 this._dlg.fullHRUsLabelText = string.Format("Full HRUs count: {0}", this.CreateHRUs.countHRUs());
                 // write landuse, soil, landscape choices in case of failure later
@@ -6928,6 +6884,9 @@ namespace ArcSWATPlus
                     this._dlg.progress("Reading basin data from database ...");
                     time1 = DateTime.Now;
                     (this.CreateHRUs.basins, OK) = this._db.regenerateBasins(this._gv);
+                    //if (OK) {
+                    //    OK = this._gv.topo.readLakesData(this._gv.db);
+                    //}
                     time2 = DateTime.Now;
                     Utils.loginfo(string.Format("Reading from previous took {0} seconds", Convert.ToInt32(time2.Subtract(time1).TotalSeconds)));
                     this._dlg.progress("");
@@ -6939,7 +6898,7 @@ namespace ArcSWATPlus
                                 this.CreateHRUs.mergeChannels();
                             }
                         }
-                        await this.CreateHRUs.printBasins(false, null);
+                        await this.CreateHRUs.printBasins(false);
                         this._reportsCombo.Visible = true;
                         if (this._reportsCombo.FindString(Parameters._TOPOITEM) < 0) {
                             this._reportsCombo.Items.Add(Parameters._TOPOITEM);
@@ -6989,17 +6948,19 @@ namespace ArcSWATPlus
                     this._dlg.progress("");
                     // now have occurrences of landuses, so can make proper colour scheme and legend entry
                     // soils will be done after HRU creation, since only uses occurring soils
-                    FileTypes.colourLanduses(this.landuseLayer, this._gv);
+                    await FileTypes.colourLanduses(this.landuseLayer, this._gv);
                     if (!this._gv.isBatch) {
                         Debug.Assert(this.landuseLayer is not null);
-                        //if (this._db.slopeLimits.Count > 0) {
-                        //    var slopeBandsLayer = (await Utils.getLayerByFilename(this._gv.slopeBandsFile, FileTypes._SLOPEBANDS, this._gv, null, Utils._SLOPE_GROUP_NAME)).Item1 as RasterLayer;
-                        //    if (slopeBandsLayer is not null) {
+                        if (this._db.slopeLimits.Count > 0) {
+                            var slopeBandsLayer = (await Utils.getLayerByFilename(this._gv.slopeBandsFile, FileTypes._SLOPEBANDS, this._gv, null, Utils._SLOPE_GROUP_NAME)).Item1 as RasterLayer;
+                            if (slopeBandsLayer is not null) {
+                                await QueuedTask.Run(() => slopeBandsLayer.SetVisibility(false));
+                            }
                         //        var slopeBandsTreeLayer = root.findLayer(slopeBandsLayer.GetFID());
                         //        Debug.Assert(slopeBandsTreeLayer is not null);
                         //        treeModel.refreshLayerLegend(slopeBandsTreeLayer);
                         //    }
-                        //}
+                        }
                     }
                     if (OK) {
                         if (!this._gv.useGridModel) {
@@ -7011,7 +6972,7 @@ namespace ArcSWATPlus
                         if (this._gv.isBatch) {
                             Utils.information("Writing landuse and soil report ...", true);
                         }
-                        await this.CreateHRUs.printBasins(false, null);
+                        await this.CreateHRUs.printBasins(false);
                     }
                     this._dlg.getProgressBar.Visible = false;
                 }
@@ -7030,7 +6991,7 @@ namespace ArcSWATPlus
                     this._dlg.exemptButtonEnabled = true;
                     this._dlg.tab2.Enabled = true;
                     this._dlg.setHRUChoice();
-                    //this._dlg.saveProj();
+                    this._dlg.saveProj();
                 }
             }
             return OK;
@@ -7135,12 +7096,12 @@ namespace ArcSWATPlus
                         this.CreateHRUs.selectDominantLanduseSoilSlope();
                     }
                     this.CreateHRUs.saveAreas(false);
-                    var fullHRUsLayer = (await Utils.getLayerByFilename(this._gv.fullHRUsFile, FileTypes._HRUS, null, null, null)).Item1 as FeatureLayer;
+                    //var fullHRUsLayer = (await Utils.getLayerByFilename(this._gv.fullHRUsFile, FileTypes._HRUS, null, null, null)).Item1 as FeatureLayer;
                     if (this._gv.isBatch) {
                         Utils.information("Writing HRUs report ...", true);
                     }
                     await this.CreateHRUs.writeWaterBodiesTable();
-                    await this.CreateHRUs.printBasins(true, fullHRUsLayer);
+                    await this.CreateHRUs.printBasins(true);
                     if (!await this.CreateHRUs.mergeLSUs()) {
                         Utils.error(string.Format("Failed to create actual LSUs shapefile {0}", this._gv.actLSUsFile), this._gv.isBatch);
                     }
@@ -7148,7 +7109,7 @@ namespace ArcSWATPlus
                         // can now provide soil layer legend
                         var soilLayer = (await Utils.getLayerByFilename(this._gv.soilFile, FileTypes._SOILS, null, null, null)).Item1 as RasterLayer;
                         if (soilLayer is not null) {
-                            FileTypes.colourSoils(soilLayer, this._gv);
+                            await FileTypes.colourSoils(soilLayer, this._gv);
                             //var treeModel = QgsLayerTreeModel(root);
                             //var soilTreeLayer = root.findLayer(soilLayer.GetFID());
                             //Debug.Assert(soilTreeLayer is not null);
@@ -7188,7 +7149,7 @@ namespace ArcSWATPlus
                     this._parent.postCreateHRUs(1);
                 }
             }
-}
+        }
 
         public void cancel() {
             this._dlg.Close();

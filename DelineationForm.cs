@@ -207,7 +207,6 @@ namespace ArcSWATPlus
             this.verticalCombo.SelectedIndex = this.verticalCombo.Items.IndexOf(Parameters._METRES);
             //this.verticalCombo.activated.connect(this.setVerticalUnits);
             //this.snapThreshold.setValidator(QIntValidator());
-            await this.readProj();
             // initally disable numCells, area and areaUnitsBox (enabled only after loading DEM, when cell-area conversion possible)
             this.numCellsCh.Enabled = false;
             this.areaCh.Enabled = false;
@@ -221,6 +220,7 @@ namespace ArcSWATPlus
             this.burnButton.Enabled = false;
             this.setMergeResGroups(this._parent.isDelineated);
             this.checkMPI();
+            await this.readProj();
             // Prevent annoying "error 4 .shp not recognised" messages.
             // These should become exceptions but instead just disappear.
             // Safer in any case to raise exceptions if something goes wrong.
@@ -1260,6 +1260,7 @@ namespace ArcSWATPlus
 
         // Set area of 1 cell according to area units choice.
         public void setAreaOfCell(double areaSqM) {
+            this._gv.cellArea = areaSqM;
             if ((string)this.areaUnitsBox.SelectedItem == Parameters._SQKM) {
                 this.areaOfCell = areaSqM / 1000000.0;
             } else if ((string)this.areaUnitsBox.SelectedItem == Parameters._HECTARES) {
@@ -1560,7 +1561,10 @@ namespace ArcSWATPlus
         //    this.snappedLabel.Text = "";
         //}
 
-        public bool setActiveLayer(Layer layer) {
+        public async Task<bool> setActiveLayer(Layer layer) {
+            if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                await ArcSWATPlus.mainMap.OpenViewAsync();
+            }
             try {
                 List<Layer> layersToSelect = new List<Layer>() { layer };
                 MapView.Active.SelectLayers(layersToSelect);
@@ -4127,7 +4131,7 @@ namespace ArcSWATPlus
         }
 
         private void areaCh_TextChanged(object sender, EventArgs e) {
-            this.setNumCellsSt();
+            this.setNumCellsCh();
         }
 
         private void areaUnitsBox_SelectedIndexChanged(object sender, EventArgs e) {
@@ -4161,12 +4165,13 @@ namespace ArcSWATPlus
             }
             Utils.loginfo(string.Format("Existing watershed is {0}", this._gv.existingWshed));
             (this._gv.useGridModel, _) = proj.readBoolEntry(title, "delin/useGridModel", false);
+            this.useGridModel = this._gv.useGridModel;
             Utils.loginfo(string.Format("Use grid model is {0}", this._gv.useGridModel));
             int gridSize;
             if (this._gv.useGridModel) {
                 (gridSize, found) = proj.readNumEntry(title, "delin/gridSize", 1);
                 if (found) {
-                    //this.GridSize.Value = gridSize);
+                    this.gridSize.Value = gridSize;
                     this._gv.gridSize = gridSize;
                 }
             }
@@ -4253,7 +4258,7 @@ namespace ArcSWATPlus
             ft = this._gv.existingWshed ? FileTypes._EXISTINGWATERSHED : FileTypes._WATERSHED;
             if (found && !string.IsNullOrEmpty(wshedFile) && System.IO.File.Exists(wshedFile)) {
                 wshedLayer = (await Utils.getLayerByFilename(wshedFile, ft, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
-            } else {
+            } else if (!this._gv.useGridModel) {
                 layer = Utils.getLayerByLegend(FileTypes.legend(ft));
                 if (layer is not null) {
                     possFile = await Utils.layerFilename(layer);
@@ -4298,7 +4303,7 @@ namespace ArcSWATPlus
             if (this._gv.useGridModel) {
                 this._parent.gridLakesAdded = proj.readBoolEntry(title, "delin/gridLakesAdded", false).Item1;
                 if (this._parent.gridLakesAdded && lakeLayer is not null) {
-                    this._parent.populateLakeIdCombo(lakeLayer);
+                    await this._parent.populateLakeIdCombo(lakeLayer);
                 } else {
                     this._parent.lakePointsAdded = proj.readBoolEntry(title, "delin/lakePointsAdded", false).Item1;
                 }
@@ -4489,7 +4494,14 @@ namespace ArcSWATPlus
             catch (Exception) {
                 numCells = 0;
             }
-            proj.writeNumEntry(title, "delin/threshold", numCells);
+            proj.writeNumEntry(title, "delin/thresholdCh", numCells);
+            try {
+                numCells = Convert.ToInt32(this.numCellsSt.Text);
+            }
+            catch (Exception) {
+                numCells = 0;
+            }
+            proj.writeNumEntry(title, "delin/thresholdSt", numCells);
             try {
                 snapThreshold = Convert.ToInt32(this.snapThreshold.Text);
             }
@@ -4727,6 +4739,11 @@ namespace ArcSWATPlus
         public string selectOutletsInteractiveLabelText {
             get { return selectOutletsInteractiveLabel.Text; }
             set { selectOutletsInteractiveLabel.Text = value; }
+        }
+
+        public bool useGridModel {
+            get { return gridBox.Checked || useGrid.Checked; }
+            set { gridBox.Checked = value; useGrid.Checked = value; }
         }
 
         public int gridSizeValue {

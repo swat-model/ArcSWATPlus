@@ -116,7 +116,7 @@ namespace ArcSWATPlus {
         }
         
         // 
-        //         Generate floodplain raster , with floodplain value 0 and upland value 1.
+        //         Generate floodplain raster , with floodplain value 0 upslope nodata
         //         
         //         valleyDepthsRaster is already calculated and stored in valleyDepthsFile
         //         ridgeThresh is the threshold in pixel counts for ridges (inverse accumulation).
@@ -476,13 +476,13 @@ namespace ArcSWATPlus {
                                 Utils.information(string.Format("Problem in calculating slope position at {0}: numerator {1}; denominator {2}: {3}. Set to 0", Topology.cellToProj(col, row, valleyTransform), vd, rh + vd, ex.Message), this._gv.isBatch);
                                 sp = 0;
                             }
-                            this.floodplainRaster.write(row, col, sp <= this.floodThresh ? 1 : (int)this.noData);
+                            this.floodplainRaster.write(row, col, sp <= this.floodThresh ? 0 : (int)this.noData);
                         }
                     }
                 }
             }
         }
-        
+
         // TODO: deal with array access
         //===========================================================================
         // def calcFloodPlain2(self):
@@ -527,10 +527,18 @@ namespace ArcSWATPlus {
             // check assumption about rasters:
             var subTransform = new double[6];
             subbasinsRaster.ds.GetGeoTransform(subTransform);
-            Debug.Assert(this.demTransform == subTransform, "DEM and subbasins rasters not compatible");
+            // TODO
+            //if (this.demTransform != subTransform) {
+            //    Utils.error("DEM and subbasins rasters not compatible", this._gv.isBatch);
+            //    return;
+            //}
             var distTransform = new double[6];
             distRaster.ds.GetGeoTransform(distTransform);
-            Debug.Assert(this.demTransform == distTransform, "DEM and distance to outlet rasters not compatible");
+            // TODO
+            //if (this.demTransform == distTransform) {
+            //    Utils.error("DEM and distance to outlet rasters not compatible", this._gv.isBatch);
+            //    return;
+            //}
             if (this._gv.topo.subbasinToStream.Count == 0) {
                 // need to calculate some topology
                 string streamFile;

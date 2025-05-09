@@ -382,7 +382,12 @@ namespace ArcSWATPlus {
             // TauDEM needs to be able to find proj.db
             var pathProBin = Path.GetDirectoryName(new System.Uri(Assembly.GetEntryAssembly().Location).AbsolutePath);
             var pathPro = Uri.UnescapeDataString(Directory.GetParent(pathProBin).FullName);
-            procStartInfo.EnvironmentVariables["PROJ_LIB"] = Path.Combine(pathPro, @"Resources\pedata\gdaldata");
+            // defining PROJ_LIB seems to cause PitRemove to create an all nodata fel file, so leave the error report in TauDEM output
+            // which sems to do no harm
+            // procStartInfo.EnvironmentVariables["PROJ_LIB"] = Path.Combine(pathPro, @"Resources\pedata\gdaldata");
+            // attempt to prevent use of TauDEM539Bin/gdalplugins which halts processing
+            // instead we use TauDEM539BinForArc with no gdalplugins subdirectory
+            // procStartInfo.EnvironmentVariables["GDAL_DRIVER_PATH"] = Path.Combine(pathPro, @"bin\gdalplugins");
             procStartInfo.RedirectStandardOutput = true;
             procStartInfo.RedirectStandardError = true;
             procStartInfo.UseShellExecute = false;

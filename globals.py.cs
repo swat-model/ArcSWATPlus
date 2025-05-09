@@ -24,18 +24,19 @@ using System.Runtime.ConstrainedExecution;
 namespace ArcSWATPlus
 {
 
-        // Data used across across the plugin, and some utilities on it.
-        public class GlobalVars {
+    // Data used across across the plugin, and some utilities on it.
+    public class GlobalVars
+    {
 
         public int fontSize;
 
-            public string addinPath;
+        public string addinPath;
 
-            public StyleProjectItem arcSWATPlusStyle;
+        public StyleProjectItem arcSWATPlusStyle;
 
-            public object aboutPos;
+        public object aboutPos;
 
-            public string actHRUsFile;
+        public string actHRUsFile;
 
         public string actLSUsFile;
 
@@ -47,15 +48,15 @@ namespace ArcSWATPlus
 
         public string basinFile;
 
-            public int basinNoData;
+        public int basinNoData;
 
-            public string burnedDemFile;
+        public string burnedDemFile;
 
-            public string burnFile;
+        public string burnFile;
 
         public double burninDepth;
 
-            public double cellArea;
+        public double cellArea;
 
         public string channelBasinFile;
 
@@ -83,9 +84,9 @@ namespace ArcSWATPlus
 
         public string dbProjTemplate;
 
-            public string dbRefTemplate;
+        public string dbRefTemplate;
 
-            public object delineatePos;
+        public object delineatePos;
 
         public string delinStreamFile;
 
@@ -103,17 +104,17 @@ namespace ArcSWATPlus
 
         public object elevationBandsPos;
 
-            public double elevationNoData;
+        public double elevationNoData;
 
-            public int elevBandsThreshold;
+        public int elevBandsThreshold;
 
-            public List<string> exemptLanduses;
+        public List<string> exemptLanduses;
 
-            public object exemptPos;
+        public object exemptPos;
 
-            public bool existingWshed;
+        public bool existingWshed;
 
-            public string extraOutletFile;
+        public string extraOutletFile;
 
         public string felFile;
 
@@ -127,25 +128,25 @@ namespace ArcSWATPlus
 
         public bool forTNC;
 
-            public bool fromGRASS;
+        public bool fromGRASS;
 
-            public string fullHRUsFile;
+        public string fullHRUsFile;
 
         public string fullLSUsFile;
 
-            public int gridSize;
+        public int gridSize;
 
-            public string hd8File;
+        public string hd8File;
 
         public double horizontalFactor;
 
         public object hrusPos;
 
-            public bool isBatch;
+        public bool isBatch;
 
-            public bool isHAWQS;
+        public bool isHAWQS;
 
-            public bool isHUC;
+        public bool isHUC;
 
         public string lakeFile;
 
@@ -155,11 +156,11 @@ namespace ArcSWATPlus
 
         public string landuseDir;
 
-            public string landuseFile;
+        public string landuseFile;
 
         public int landuseGroupIndex;
 
-            public string logFile;
+        public string logFile;
 
         public double mainLengthMultiplier;
 
@@ -167,31 +168,33 @@ namespace ArcSWATPlus
 
         public string mpiexecPath;
 
-            public int numElevBands;
+        public int numElevBands;
 
         public HashSet<Raster> openRasters;
 
         public string outletFile;
 
-            public object outletsPos;
+        public object outletsPos;
 
-            public object parametersPos;
+        public object parametersPos;
 
-            public string pFile;
+        public string pFile;
 
         public string playaFile;
 
         public string plotsDir;
 
-            public string plugin_dir;
+        public string plugin_dir;
 
-            public string pngDir;
+        public string pngDir;
 
-            public string projDir;
+        public string projDir;
 
-            public string projName;
+        public string projName;
 
-            public Proj proj;
+        public string projGdb;
+
+        public Proj proj;
 
         //public int QGISSubVersion;
 
@@ -205,21 +208,21 @@ namespace ArcSWATPlus
 
         public string scenariosDir;
 
-            public object selectLuPos;
+        public object selectLuPos;
 
-            public object selectOutletFilePos;
+        public object selectOutletFilePos;
 
-            public object selectOutletPos;
+        public object selectOutletPos;
 
-            public object selectResPos;
+        public object selectResPos;
 
-            public object selectSubsPos;
+        public object selectSubsPos;
 
-            public string shapesDir;
+        public string shapesDir;
 
-            public string slopeBandsFile;
+        public string slopeBandsFile;
 
-            public string slopeFile;
+        public string slopeFile;
 
         public int slopeGroupIndex;
 
@@ -229,13 +232,13 @@ namespace ArcSWATPlus
 
         public string soilDir;
 
-            public string soilFile;
+        public string soilFile;
 
-            public int soilNoData;
+        public int soilNoData;
 
-            public Dictionary<string, Dictionary<string, int>> splitLanduses;
+        public Dictionary<string, Dictionary<string, double>> splitLanduses;
 
-            public object splitPos;
+        public object splitPos;
 
         public string srcChannelFile;
 
@@ -247,13 +250,13 @@ namespace ArcSWATPlus
 
         public string SWATPlusDir;
 
-            public string TauDEMDir;
+        public string TauDEMDir;
 
         public TauDEMUtils taudem;
 
-            public string textDir;
+        public string textDir;
 
-            public Topology topo;
+        public Topology topo;
 
         public double tributaryLengthMultiplier;
 
@@ -277,26 +280,26 @@ namespace ArcSWATPlus
 
         public double verticalFactor;
 
-            public string verticalUnits;
+        public string verticalUnits;
 
-            public object visualisePos;
+        public object visualisePos;
 
         public int watershedGroupIndex;
 
         public string wshedFile;
 
-            public int xBlockSize;
+        public int xBlockSize;
 
-            public int yBlockSize;
+        public int yBlockSize;
 
-            public GlobalVars(
-                string version,
-                bool isBatch,
-                bool isHUC = false,
-                bool isHAWQS = false,
-                string logFile = null) {
+        public GlobalVars(
+            string version,
+            bool isBatch,
+            bool isHUC = false,
+            bool isHAWQS = false,
+            string logFile = null) {
 
-                string SWATPlusDir;
+            string SWATPlusDir;
             // font size in points
             this.fontSize = Parameters._DEFAULTFONTSIZE;
             // location of addIn code (including here or below python scripts, stylx file)
@@ -306,7 +309,7 @@ namespace ArcSWATPlus
             if (!Directory.Exists(SWATPlusDir)) {
                 Utils.error(string.Format(@"Cannot find SWATPlus directory, expected to be {0}.
 Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
-            } 
+            }
             //# SWATPlus directory
             this.SWATPlusDir = SWATPlusDir;
             this.dbPath = Utils.join(SWATPlusDir, Parameters._DBDIR);
@@ -426,7 +429,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             //# list of landuses exempt from HRU removal
             this.exemptLanduses = new List<string>();
             //# table of landuses being split
-            this.splitLanduses = new Dictionary<string, Dictionary<string, int>>();
+            this.splitLanduses = new Dictionary<string, Dictionary<string, double>>();
             //# Elevation bands threshold in metres
             this.elevBandsThreshold = 0;
             //# Number of elevation bands
@@ -443,6 +446,8 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.projName = projFile.Substring(0, posn);
             //# Project directory
             this.projDir = Path.GetDirectoryName(projPath);
+            // project geodatabase
+            this.projGdb = Path.Combine(this.projDir, this.projName + ".gdb");
             // Proj
             this.proj = new Proj(this);
             var title = this.projName;
@@ -570,7 +575,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             Directory.CreateDirectory(this.projDir);
             var watershedDir = Utils.join(this.projDir, "Watershed");
             Directory.CreateDirectory(watershedDir);
-            this.rastersDir = Utils.join(watershedDir, "Rasters"); 
+            this.rastersDir = Utils.join(watershedDir, "Rasters");
             Directory.CreateDirectory(this.rastersDir);
             this.demDir = Utils.join(rastersDir, "DEM");
             Directory.CreateDirectory(this.demDir);
@@ -627,7 +632,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             if (this.exemptLanduses.Contains(luse)) {
                 return true;
             }
-            foreach (KeyValuePair<string, Dictionary<string, int>> entry in this.splitLanduses) {
+            foreach (KeyValuePair<string, Dictionary<string, double>> entry in this.splitLanduses) {
                 if (this.exemptLanduses.Contains(entry.Key) && entry.Value.Keys.Contains(luse)) {
                     return true;
                 }
@@ -646,16 +651,15 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             string clearSql = "DROP TABLE IF EXISTS " + exemptTable;
             this.db.execNonQuery(clearSql);
             this.db.execNonQuery(DBUtils._LANDEXEMPTCREATESQL);
-            foreach (var luse in this.exemptLanduses)
-            {
-                this.db.execNonQuery(exemptTable, new string[1] {luse});
+            foreach (var luse in this.exemptLanduses) {
+                this.db.execNonQuery(DBUtils._LANDEXEMPTINSERTSQL, new object[1] { luse });
             }
             clearSql = "DROP TABLE IF EXISTS " + splitTable;
             this.db.execNonQuery(clearSql);
             this.db.execNonQuery(DBUtils._SPLITHRUSCREATESQL);
-            foreach (KeyValuePair<string, Dictionary<string, int>> entry in this.splitLanduses) {
-                foreach (KeyValuePair<string, int> entry1 in entry.Value) {
-                    this.db.execNonQuery(splitTable, new object[3] { entry.Key, entry1.Key, entry1.Value });
+            foreach (KeyValuePair<string, Dictionary<string, double>> entry in this.splitLanduses) {
+                foreach (KeyValuePair<string, double> entry1 in entry.Value) {
+                    this.db.execNonQuery(DBUtils._SPLITHRUSINSERTSQL, new object[3] { entry.Key, entry1.Key, entry1.Value });
                 }
             }
             //conn.commit();
@@ -670,7 +674,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
         public void getExemptSplit() {
             // in case called twice
             this.exemptLanduses = new List<string>();
-            this.splitLanduses = new Dictionary<string, Dictionary<string, int>>();
+            this.splitLanduses = new Dictionary<string, Dictionary<string, double>>();
             var exemptTable = "gis_landexempt";
             var splitTable = "gis_splithrus";
             this.db.connectToProjectDatabase();
@@ -688,7 +692,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                 while (reader.Read()) {
                     var luse = reader.GetString(0);
                     if (!this.splitLanduses.ContainsKey(luse)) {
-                        this.splitLanduses[luse] = new Dictionary<string, int>();
+                        this.splitLanduses[luse] = new Dictionary<string, double>();
                     }
                     this.splitLanduses[luse][reader.GetString(1)] = Convert.ToInt32(reader.GetValue(2));
                 }
@@ -782,23 +786,25 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                 return false;
             }
             string table = "project_config";
-            var reader = this.db.getReader(DBUtils.sqlSelect(table, "delineation_done", "", ""));
-            if (!reader.HasRows) return false;
-            reader.Read();
-            return Convert.ToInt32(reader.GetValue(0)) == 1;
-    }
+            using (var reader = this.db.getReader(DBUtils.sqlSelect(table, "delineation_done", "", ""))) {
+                if (!reader.HasRows) return false;
+                reader.Read();
+                return Convert.ToInt32(reader.GetValue(0)) == 1;
+            }
+        }
 
-    // Return true if HRU creation is done according to MasterProgress table.
+        // Return true if HRU creation is done according to MasterProgress table.
         public bool isHRUsDone() {
             this.db.connectToProjectDatabase();
             if (this.db.conn is null) {
-                    return false;
+                return false;
             }
             string table = "project_config";
-            var reader = this.db.getReader(DBUtils.sqlSelect(table, "hrus_done", "", ""));
-            if (!reader.HasRows) return false;
-            reader.Read();
-            return Convert.ToInt32(reader.GetValue(0)) == 1;
+            using (var reader = this.db.getReader(DBUtils.sqlSelect(table, "hrus_done", "", ""))) {
+                if (!reader.HasRows) return false;
+                reader.Read();
+                return Convert.ToInt32(reader.GetValue(0)) == 1;
+            }
         }
 
         // Return path to SWAT+ editor..

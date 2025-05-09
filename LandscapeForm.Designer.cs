@@ -163,16 +163,16 @@
             // areaUnitsBox
             // 
             this.areaUnitsBox.FormattingEnabled = true;
-            this.areaUnitsBox.Location = new System.Drawing.Point(226, 84);
+            this.areaUnitsBox.Location = new System.Drawing.Point(248, 84);
             this.areaUnitsBox.Name = "areaUnitsBox";
-            this.areaUnitsBox.Size = new System.Drawing.Size(94, 23);
+            this.areaUnitsBox.Size = new System.Drawing.Size(88, 23);
             this.areaUnitsBox.TabIndex = 6;
             this.areaUnitsBox.SelectedIndexChanged += new System.EventHandler(this.areaUnitsBox_SelectedIndexChanged);
             // 
             // label6
             // 
             this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(191, 90);
+            this.label6.Location = new System.Drawing.Point(211, 87);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(31, 15);
             this.label6.TabIndex = 5;
@@ -189,9 +189,9 @@
             // 
             // ridgeThresholdArea
             // 
-            this.ridgeThresholdArea.Location = new System.Drawing.Point(129, 84);
+            this.ridgeThresholdArea.Location = new System.Drawing.Point(134, 84);
             this.ridgeThresholdArea.Name = "ridgeThresholdArea";
-            this.ridgeThresholdArea.Size = new System.Drawing.Size(51, 23);
+            this.ridgeThresholdArea.Size = new System.Drawing.Size(70, 23);
             this.ridgeThresholdArea.TabIndex = 3;
             this.ridgeThresholdArea.TextChanged += new System.EventHandler(this.ridgeThresholdArea_TextChanged);
             // 
@@ -325,7 +325,6 @@
             this.Controls.Add(this.hillslopesCheckBox);
             this.Name = "LandscapeForm";
             this.Text = "LandscapeForm";
-            this.Load += new System.EventHandler(this.LandscapeForm_Load);
             this.methodTab.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tabPage1.PerformLayout();
