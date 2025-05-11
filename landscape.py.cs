@@ -381,6 +381,8 @@ namespace ArcSWATPlus {
             var legend = FileTypes.legend(ft);
             // easiest to start from scratch
             await Utils.removeLayerAndFiles(bufferShapefile);
+            // make sure we get an uptodate channels layer in case BasinNo recently added
+            await Utils.removeLayer(channels);
             var channelsLayer = (await Utils.getLayerByFilename(channels, FileTypes._CHANNELS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
             List<FieldDescription> defn = null;
             await QueuedTask.Run(() => { defn = channelsLayer.GetFieldDescriptions(); });

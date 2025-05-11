@@ -470,14 +470,25 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
         }
 
-        public void execNonQuery(string sql, object[] parms = null) {
-            using (var cmd = new SQLiteCommand(sql, this.conn)) {
-                if (parms != null) {
-                    for (int i = 1; i <= parms.Length; i++) {
-                        cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+        public void execNonQuery(string sql, object[] parms = null, SQLiteTransaction transaction = null) {
+            if (transaction != null) {
+                using (var cmd = new SQLiteCommand(sql, this.conn, transaction)) {
+                    if (parms != null) {
+                        for (int i = 1; i <= parms.Length; i++) {
+                            cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+                        }
                     }
+                    cmd.ExecuteNonQuery();
                 }
-                cmd.ExecuteNonQuery();
+            } else {
+                using (var cmd = new SQLiteCommand(sql, this.conn)) {
+                    if (parms != null) {
+                        for (int i = 1; i <= parms.Length; i++) {
+                            cmd.Parameters.AddWithValue(string.Format("@p{0}", i), parms[i - 1]);
+                        }
+                    }
+                    cmd.ExecuteNonQuery();
+                }
             }
         }
 
@@ -553,7 +564,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             int sinkId,
             string sinkCategory,
             string hydTyp,
-            double percent) {
+            double percent,
+            SQLiteTransaction transaction = null) {
             string table = null;
             if (sourceCategory == "PT") {
                 table = null;
@@ -583,7 +595,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
             this.routingSources.Add((sourceId, sourceCategory));
             this.routingSinks.Add((sinkId, sinkCategory));
-            this.execNonQuery(DBUtils._ROUTINGINSERTSQL, new object[] { sourceId, sourceCategory, hydTyp, sinkId, sinkCategory, percent });
+            this.execNonQuery(DBUtils._ROUTINGINSERTSQL, new object[] { sourceId, sourceCategory, hydTyp, sinkId, sinkCategory, percent }, transaction);
         }
 
         // Checks categories PT, LSU, SUB sources are defined in gis_table.
@@ -2938,50 +2950,53 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         // Write gis_elevationbands table.
         public virtual void writeElevationBands(Dictionary<int, List<(double, double, double)>> basinElevBands, int numElevBands) {
-
-            var table = "gis_elevationbands";
-            var dropSQL = "DROP TABLE IF EXISTS " + table;
-            this.execNonQuery(dropSQL);
-            var createSQL = "CREATE TABLE " + table + " " + DBUtils._ELEVATIONBANDSTABLE;
-            this.execNonQuery(createSQL);
-            foreach (var (SWATBasin, bands) in basinElevBands) {
-                string row = null;
-                if (bands is not null) {
-                    // need mid-points of bands, but list has start values
-                    var el1 = bands[0].Item1;
-                    var el2 = bands[1].Item1;
-                    var semiWidth = (el2 - el1) / 2.0;
-                    // with very small range of elevations in a subbasin can have fewer bands than numElevBands:
-                    // len(bands) is at most number of enteger elevations in subbasin
-                    // Conversely, with rounding errors can have more bands than numElevBands
-                    var indexBound = Math.Min(numElevBands, bands.Count);
-                    row = string.Format("({0},", SWATBasin);
-                    foreach (var i in Enumerable.Range(0, 10)) {
-                        var el = 0.0;
-                        if (i < indexBound) {
-                            el = bands[i].Item1 + semiWidth;
+            using (var transaction = this.conn.BeginTransaction()) {
+                var table = "gis_elevationbands";
+                var dropSQL = "DROP TABLE IF EXISTS " + table;
+                this.execNonQuery(dropSQL, null, transaction);
+                var createSQL = "CREATE TABLE " + table + " " + DBUtils._ELEVATIONBANDSTABLE;
+                this.execNonQuery(createSQL, null, transaction);
+                foreach (var (SWATBasin, bands) in basinElevBands) {
+                    string row = null;
+                    if (bands is not null) {
+                        // need mid-points of bands, but list has start values
+                        var el1 = bands[0].Item1;
+                        var el2 = bands[1].Item1;
+                        var semiWidth = (el2 - el1) / 2.0;
+                        // with very small range of elevations in a subbasin can have fewer bands than numElevBands:
+                        // len(bands) is at most number of enteger elevations in subbasin
+                        // Conversely, with rounding errors can have more bands than numElevBands
+                        var indexBound = Math.Min(numElevBands, bands.Count);
+                        row = string.Format("({0},", SWATBasin);
+                        foreach (var i in Enumerable.Range(0, 10)) {
+                            var el = 0.0;
+                            if (i < indexBound) {
+                                el = bands[i].Item1 + semiWidth;
+                            }
+                            row += string.Format("{:.2F},", el);
                         }
-                        row += string.Format("{:.2F},", el);
-                    }
-                    foreach (var i in Enumerable.Range(0, 10)) {
-                        var frac = 0.0;
-                        if (i < indexBound) {
-                            frac = bands[i].Item2;
+                        foreach (var i in Enumerable.Range(0, 10)) {
+                            var frac = 0.0;
+                            if (i < indexBound) {
+                                frac = bands[i].Item2;
+                            }
+                            row += string.Format("{:.4F}", frac / 100.0);
+                            var sep = i < 9 ? "," : ")";
+                            row += sep;
                         }
-                        row += string.Format("{:.4F}", frac / 100.0);
-                        var sep = i < 9 ? "," : ")";
-                        row += sep;
+                    } else {
+                        row = string.Format("({0},0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)", SWATBasin);
                     }
-                } else {
-                    row = string.Format("({0},0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)", SWATBasin);
+                    var sql = "INSERT INTO " + table + " VALUES " + row;
+                    try {
+                        this.execNonQuery(sql, null, transaction);
+                    }
+                    catch (Exception) {
+                        Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", table, this.dbFile), this.isBatch);
+                        return;
+                    }
                 }
-                var sql = "INSERT INTO " + table + " VALUES " + row;
-                try {
-                    this.execNonQuery(sql);
-                } catch (Exception) {
-                    Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", table, this.dbFile), this.isBatch);
-                    return;
-                }
+                transaction.Commit();
             }
             //this.hashDbTable(this.conn, table);
         }
@@ -3100,7 +3115,6 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 }
                 return result;
             }
-
             try {
                 if (typ == "usersoil" || typ == "usersoil_layer" || typ == "plant" || typ == "urban") {
                     db = this.plantSoilDatabase;
@@ -3150,67 +3164,43 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 if (localConn is null) {
                     return "";
                 }
-                // should not happen, but safety first
                 var dropSQL = "DROP TABLE IF EXISTS " + table;
-                using (var cmd = new SQLiteCommand(dropSQL, localConn)) {
-                    try {
-                        cmd.ExecuteNonQuery();
-                    }
-                    catch (Exception) {
-                        Utils.exceptionError(string.Format("Could not drop table {0} from database {1}", table, db), this.isBatch);
-                        return "";
-                    }
-                }
-                if (typ == "usersoil") {
-                    if (needsSeparateLayerTable) {
-                        design = DBUtils._SOILTABLE;
-                    } else {
-                        design = DBUtils._USERSOILTABLE;
-                    }
-                } else if (typ == "usersoil_layer") {
-                    design = DBUtils._SOILLAYERTABLE;
-                } else if (typ == "plant") {
-                    design = DBUtils._PLANTTABLE;
-                } else if (typ == "urban") {
-                    design = DBUtils._URBANTABLE;
-                } else if (isLanduse) {
-                    design = DBUtils._LANDUSELOOKUPTABLE2;
-                } else {
-                    design = DBUtils._SOILLOOKUPTABLE;
-                }
-                var createSQL = "CREATE TABLE " + table + design;
-                using (var cmd = new SQLiteCommand(createSQL, localConn)) {
-                    try {
-                        cmd.ExecuteNonQuery();
-                    }
-                    catch (Exception) {
-                        Utils.error(string.Format("Could not create table {0} in database {1}", table, db), this.isBatch);
-                        if (!(isProjDb || isRefDb)) {
-                            localConn.Close();
-                            localConn.Dispose();
-                        }
-                        return "";
-                    }
-                }
-                using (var reader = new StreamReader(fil)) {
-                    var headers = reader.ReadLine().Split(',');
-                    if (typ == "landuse") {
-                        // check if we have the optional third description field
-                        if (headers.Length == 3) {
-                            // recreate table with 3 columns
-                            this.execNonQuery(dropSQL);
-                            createSQL = "CREATE TABLE " + table + DBUtils._LANDUSELOOKUPTABLE3;
-                            this.execNonQuery(createSQL);
-                            sql = "INSERT INTO " + table + " VALUES(@p1,@p2,@p3)";
-                        }
-                    }
-                    string line;
-                    while ((line = reader.ReadLine()) != null) {
+                var createSQL = "";
+                using (var transaction = localConn.BeginTransaction()) {
+                    // should not happen, but safety first
+                    using (var cmd = new SQLiteCommand(dropSQL, localConn)) {
                         try {
-                            this.execNonQuery(sql, line.Split(','));
+                            cmd.ExecuteNonQuery();
                         }
                         catch (Exception) {
-                            Utils.exceptionError(string.Format("Could not write to table {0} in database {1} from file {2}", table, db, fil), this.isBatch);
+                            Utils.exceptionError(string.Format("Could not drop table {0} from database {1}", table, db), this.isBatch);
+                            return "";
+                        }
+                    }
+                    if (typ == "usersoil") {
+                        if (needsSeparateLayerTable) {
+                            design = DBUtils._SOILTABLE;
+                        } else {
+                            design = DBUtils._USERSOILTABLE;
+                        }
+                    } else if (typ == "usersoil_layer") {
+                        design = DBUtils._SOILLAYERTABLE;
+                    } else if (typ == "plant") {
+                        design = DBUtils._PLANTTABLE;
+                    } else if (typ == "urban") {
+                        design = DBUtils._URBANTABLE;
+                    } else if (isLanduse) {
+                        design = DBUtils._LANDUSELOOKUPTABLE2;
+                    } else {
+                        design = DBUtils._SOILLOOKUPTABLE;
+                    }
+                    createSQL = "CREATE TABLE " + table + design;
+                    using (var cmd = new SQLiteCommand(createSQL, localConn, transaction)) {
+                        try {
+                            cmd.ExecuteNonQuery();
+                        }
+                        catch (Exception) {
+                            Utils.error(string.Format("Could not create table {0} in database {1}", table, db), this.isBatch);
                             if (!(isProjDb || isRefDb)) {
                                 localConn.Close();
                                 localConn.Dispose();
@@ -3218,6 +3208,37 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             return "";
                         }
                     }
+                    transaction.Commit();
+                }
+                using (var transaction = this.conn.BeginTransaction()) {
+                    using (var reader = new StreamReader(fil)) {
+                        var headers = reader.ReadLine().Split(',');
+                        if (typ == "landuse") {
+                            // check if we have the optional third description field
+                            if (headers.Length == 3) {
+                                // recreate table with 3 columns
+                                this.execNonQuery(dropSQL, null, transaction);
+                                createSQL = "CREATE TABLE " + table + DBUtils._LANDUSELOOKUPTABLE3;
+                                this.execNonQuery(createSQL, null, transaction);
+                                sql = "INSERT INTO " + table + " VALUES(@p1,@p2,@p3)";
+                            }
+                        }
+                        string line;
+                        while ((line = reader.ReadLine()) != null) {
+                            try {
+                                this.execNonQuery(sql, line.Split(','), transaction);
+                            }
+                            catch (Exception) {
+                                Utils.exceptionError(string.Format("Could not write to table {0} in database {1} from file {2}", table, db, fil), this.isBatch);
+                                if (!(isProjDb || isRefDb)) {
+                                    localConn.Close();
+                                    localConn.Dispose();
+                                }
+                                return "";
+                            }
+                        }
+                    }
+                    transaction.Commit();
                 }
                 if (typ == "usersoil" || typ == "plant" || typ == "urban") {
                     if (typ == "usersoil") {
@@ -3323,10 +3344,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     }
                 }
             }
-                var topology = new Dictionary<int, Dictionary<int, Dictionary<int, HashSet<int>>>>();
-                var reservoirs = new Dictionary<int, Dictionary<int, Dictionary<int, int>>>();
-                var ponds = new Dictionary<int, Dictionary<int, Dictionary<int, int>>>();
-                var sql3 = DBUtils.sqlSelect("gis_channels", "id, subbasin", "", "");
+            var topology = new Dictionary<int, Dictionary<int, Dictionary<int, HashSet<int>>>>();
+            var reservoirs = new Dictionary<int, Dictionary<int, Dictionary<int, int>>>();
+            var ponds = new Dictionary<int, Dictionary<int, Dictionary<int, int>>>();
+            var sql3 = DBUtils.sqlSelect("gis_channels", "id, subbasin", "", "");
             using (var reader3 = this.getReader(sql3)) {
                 while (reader3.Read()) {
                     var SWATChannel = reader3.GetInt32(0);
