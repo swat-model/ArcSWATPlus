@@ -559,6 +559,36 @@ namespace ArcSWATPlus {
             return totalSlope;
         }
 
+        public double totalHRUElevations() {
+            //Total elevation values of HRUs in this LSU
+
+            double totalElevation = 0;
+            foreach (var hruData in this.hruMap.Values) {
+                totalElevation += hruData.totalElevation;
+            }
+            return totalElevation;
+        }
+
+        public double totalHRULatitudes() {
+            //Total latitude values of HRUs in this LSU
+
+            double totalLatitude = 0;
+            foreach (var hruData in this.hruMap.Values) {
+                totalLatitude += hruData.totalLatitude;
+            }
+            return totalLatitude;
+        }
+
+        public double totalHRULongitudes() {
+            //Total longitude values of HRUs in this LSU
+
+            double totalLongitude = 0;
+            foreach (var hruData in this.hruMap.Values) {
+                totalLongitude += hruData.totalLongitude;
+            }
+            return totalLongitude;
+        }
+
         public void setCropAreas(bool isOriginal) {
             // Make map crop -> area from hruMap and cropSoilSlopeNumbers
 
@@ -1051,6 +1081,9 @@ namespace ArcSWATPlus {
                             lsuData.area = lsuData.cropSoilSlopeArea + waterArea;
                             lsuData.cellCount = lsuData.totalHRUCellCount();
                             lsuData.totalSlope = lsuData.totalHRUSlopes();
+                            lsuData.totalElevation = lsuData.totalHRUElevations();
+                            lsuData.totalLatitude = lsuData.totalHRULatitudes();
+                            lsuData.totalLongitude = lsuData.totalHRULongitudes();
                         }
                     }
                     lsuData.setCropAreas(isOriginal);

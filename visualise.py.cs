@@ -1547,6 +1547,7 @@ namespace ArcSWATPlus {
                     }
                 }
             }
+            var filename = Path.Combine(this._gv.addinPath, "runSWATGraph.bat");
             Process graph = new Process {
                 StartInfo = new ProcessStartInfo() {
                     UseShellExecute = false,
@@ -2229,7 +2230,7 @@ namespace ArcSWATPlus {
                     );
                 ft = FileTypes._SUBBASINS;
                 await FileTypes.ApplySymbolToFeatureLayerAsync((FeatureLayer)backLayer, ft, this._gv);
-                await Utils.setMapTip((FeatureLayer)backLayer, ft);
+                await Utils.setMapTip((FeatureLayer)backLayer, ft, this._gv);
             } 
             this.currentResultsLayer = await QueuedTask.Run(() =>
                 LayerFactory.Instance.CreateLayer(new Uri(this.resultsFile),
@@ -2686,7 +2687,7 @@ namespace ArcSWATPlus {
                     );
                 ft = FileTypes._SUBBASINS;
                 await FileTypes.ApplySymbolToFeatureLayerAsync((FeatureLayer)backLayer, ft, this._gv);
-                await Utils.setMapTip((FeatureLayer)backLayer, ft);
+                await Utils.setMapTip((FeatureLayer)backLayer, ft, this._gv);
             }
             this.animateLayer = await QueuedTask.Run(() => LayerFactory.Instance.CreateLayer(new Uri(animateFile),
                 this.animateMap, 0, string.Format("{0} {1}", this.scenario, this.animateVar))) as FeatureLayer;

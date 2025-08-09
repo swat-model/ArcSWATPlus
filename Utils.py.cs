@@ -2,66 +2,57 @@
 
 
 
-using System.Collections.Generic;
-
-using System.Diagnostics;
-
-using System.Linq;
-
-using System;
-
-using System.IO;
-using Path = System.IO.Path;
-using System.Windows;
-using System.Threading;
-using System.Windows.Forms;
-using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
-using System.Reflection;
-
-//using ArcGIS.Desktop.Framework.Utilities;
-using EventLog = ArcGIS.Desktop.Framework.Utilities.EventLog;
-
-using ArcGIS.Desktop.Mapping;
-using ArcGIS.Core.Data;
-using QueryFilter = ArcGIS.Core.Data.QueryFilter;
 using ArcGIS.Core.CIM;
+using ArcGIS.Core.Data;
+using ArcGIS.Core.Data.Raster;
+using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using ArcGIS.Core.Geometry;
-using LinearUnit = ArcGIS.Core.Geometry.LinearUnit;
-using Envelope = ArcGIS.Core.Geometry.Envelope;
-using SpatialReference = ArcGIS.Core.Geometry.SpatialReference;
-using Polygon = ArcGIS.Core.Geometry.Polygon;
-//using ArcGIS.Desktop.Framework.Dialogs;
-using MessageBox = ArcGIS.Desktop.Framework.Dialogs.MessageBox;
-using ArcGIS.Desktop.Core.Geoprocessing;
+using ArcGIS.Core.Internal.CIM;
 using ArcGIS.Desktop.Catalog;
-
-using Microsoft.Extensions.FileSystemGlobbing;
-
+using ArcGIS.Desktop.Core;
+using ArcGIS.Desktop.Core.Geoprocessing;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
-
-using System.Security.Policy;
+using ArcGIS.Desktop.Internal.Catalog;
+using ArcGIS.Desktop.Internal.Catalog.PropertyPages.ParcelDataset;
+using ArcGIS.Desktop.Internal.Mapping.CommonControls;
+using ArcGIS.Desktop.Internal.Mapping.Voxel.Controls.Transparency;
+using ArcGIS.Desktop.Mapping;
+using ArcSWATPlus;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.VisualBasic.Logging;
+using Microsoft.Win32;
+using OSGeo.OGR;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Data.Entity.Migrations.Sql;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Security.Policy;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Forms;
 using System.Windows.Interop;
-using Microsoft.Win32;
-using ArcGIS.Desktop.Internal.Mapping.CommonControls;
-using ArcGIS.Desktop.Core;
-using ArcGIS.Core.Internal.CIM;
-using ArcGIS.Core.Data.Raster;
 using System.Windows.Media.Animation;
-using OSGeo.OGR;
-
-using Layer = ArcGIS.Desktop.Mapping.Layer;
-using Feature = ArcGIS.Core.Data.Feature;
-using System.Data.Entity.Migrations.Sql;
-using Microsoft.VisualBasic.Logging;
-using ArcGIS.Desktop.Internal.Catalog.PropertyPages.ParcelDataset;
-using ArcGIS.Core.Data.UtilityNetwork.Trace;
-using ArcGIS.Desktop.Internal.Mapping.Voxel.Controls.Transparency;
 using static System.Net.Mime.MediaTypeNames;
-using System.Collections.ObjectModel;
-using ArcSWATPlus;
+using Envelope = ArcGIS.Core.Geometry.Envelope;
+//using ArcGIS.Desktop.Framework.Utilities;
+using EventLog = ArcGIS.Desktop.Framework.Utilities.EventLog;
+using Feature = ArcGIS.Core.Data.Feature;
+using Layer = ArcGIS.Desktop.Mapping.Layer;
+using LinearUnit = ArcGIS.Core.Geometry.LinearUnit;
+//using ArcGIS.Desktop.Framework.Dialogs;
+using MessageBox = ArcGIS.Desktop.Framework.Dialogs.MessageBox;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
+using Path = System.IO.Path;
+using Polygon = ArcGIS.Core.Geometry.Polygon;
+using QueryFilter = ArcGIS.Core.Data.QueryFilter;
+using SpatialReference = ArcGIS.Core.Geometry.SpatialReference;
 
 namespace ArcSWATPlus
 {
@@ -822,6 +813,21 @@ namespace ArcSWATPlus
             return null;
         }
 
+        public static (double, bool) getHorizontalFactor(ArcGIS.Core.Geometry.Unit units) {
+            //Get horizontal factor (multiplier to metres from units), plus OK flag
+
+            double factor = 0.0;
+            bool OK = false;
+            if (units == ArcGIS.Core.Geometry.LinearUnit.Meters) {
+                factor = 1.0;
+                OK = true;
+            } else if (units.UnitType == ArcGIS.Core.Geometry.UnitType.Linear) {
+                factor = ((ArcGIS.Core.Geometry.LinearUnit)units).MetersPerUnit;
+                OK = true;
+            }
+            return (factor, OK);
+        }
+
         // Clip layer to just outside DEM if it is 10% or more bigger.
 
         public static async Task<string> clipLayerToDEM(RasterLayer rasterLayer, string fileName, string legend, GlobalVars gv)
@@ -829,12 +835,10 @@ namespace ArcSWATPlus
             var extent = await QueuedTask.Run(() => rasterLayer.QueryExtent());
             var crs = await QueuedTask.Run(() => rasterLayer.GetSpatialReference());
             var unit = crs.Unit;
-            if (unit.FactoryCode == LinearUnit.Feet.FactoryCode)
-            {
-                var factor = 0.0348;
-                extent = extent.Expand(factor, factor, true);
-            }
-            else if (unit.FactoryCode != LinearUnit.Meters.FactoryCode)
+            double factor;
+            bool OK;
+            (factor, OK) = Utils.getHorizontalFactor(unit);
+            if (!OK)
             {
                 // something odd has happened - probably in lat-long - reported elsewhere
                 return fileName;
@@ -893,7 +897,7 @@ namespace ArcSWATPlus
                 if (Utils.samePath(layerFile, fileName))
                 {
                     if (layer is FeatureLayer) {
-                        await setMapTip((FeatureLayer)layer, ft);
+                        await setMapTip((FeatureLayer)layer, ft, gv);
                     }
                     return (layer, false);
                 }
@@ -1009,7 +1013,7 @@ namespace ArcSWATPlus
                         LayerFactory.Instance.CreateLayer(uri, groupLayer, index, legend2)
                     );
                     await FileTypes.ApplySymbolToFeatureLayerAsync((FeatureLayer)mapLayer, ft, gv);
-                    await setMapTip((FeatureLayer)mapLayer, ft);
+                    await setMapTip((FeatureLayer)mapLayer, ft, gv);
                 }
                 var fun = FileTypes.colourFun(ft);
                 if (fun is not null) {
@@ -1034,8 +1038,9 @@ namespace ArcSWATPlus
             }
         }
 
-        public static async Task setMapTip(FeatureLayer layer, int ft) {
-            var (vari, tip) = FileTypes.mapTip(ft);
+        public static async Task setMapTip(FeatureLayer layer, int ft, GlobalVars gv) {
+            bool useOBJECTID = ft == FileTypes._LAKES && gv is not null && (gv.isHUC || gv.isHAWQS);
+            var (vari, tip) = FileTypes.mapTip(ft, useOBJECTID);
             if (!string.IsNullOrEmpty(tip)) {
                 await setMapTip(layer, vari, tip);
             }
@@ -2387,6 +2392,8 @@ public class ListFuns
                 return new Tuple<StyleItemType, string>(StyleItemType.PolygonSymbol, "LSU");
             } else if (ft == FileTypes._LAKES) {
                 return new Tuple<StyleItemType, string>(StyleItemType.PolygonSymbol, "Lake");
+            } else if (ft == FileTypes._AQUIFERS) {
+                return new Tuple<StyleItemType, string>(StyleItemType.PolygonSymbol, "Aquifer");
             }
                 //} else if (ft == FileTypes._GRID) {
                 //    return "grid.qml";
@@ -2422,15 +2429,12 @@ public class ListFuns
         }
 
 
-        public static (string, string) mapTip(int ft) {
+        public static (string, string) mapTip(int ft, bool useOBJECTID=false) {
             if (ft == FileTypes._OUTLETS) {
                 return ("ID", "\"Point id: \" + Text($feature.ID);");
-            }
-            //else if (ft == FileTypes._OUTLETSHUC)
-            //{
-            //    return "<b> Point id:</b> [% \"ID\" %] [% \"Name\" %]";
-            //}
-            else if (ft == FileTypes._CHANNELREACHES) {
+            } else if (ft == FileTypes._OUTLETSHUC) {
+                return ("ID", "\"Point id: \" + Text($feature.ID) + \" \" + Text($feature.Name);");
+            } else if (ft == FileTypes._CHANNELREACHES) {
                 return ("Channel", "\"Channel: \" + Text($feature.Channel);");
             } else if (ft == FileTypes._DRAINSTREAMS || ft == FileTypes._GRIDSTREAMS) {
                 return ("LINKNO", "\"Stream link: \" + Text($feature.LINKNO);");
@@ -2441,7 +2445,11 @@ public class ListFuns
             } else if (ft == FileTypes._HRUS || ft == FileTypes._ACTHRUS) {
                 return ("HRUGIS", "\"HRU(s): \" + Text($feature.HRUGIS);");
             } else if (ft == FileTypes._LAKES) {
-                return ("LakeId", "\"Lake: \" + Text($feature.LakeId);");
+                if (useOBJECTID) {
+                    return ("OBJECTID", "\"Lake: \" + Text($feature.OBJECTID);");
+                } else {
+                    return ("LakeId", "\"Lake: \" + Text($feature.LakeId);");
+                }
             } else if (ft == FileTypes._AQUIFERS) {
                 return ("Aquifer", "\"Aquifer: \" + Text($feature.Aquifer);");
             } else {

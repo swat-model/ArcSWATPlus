@@ -1,40 +1,36 @@
 
 
 
-using System.Diagnostics;
-
-using System.Collections.Generic;
-
-using System;
-using System.IO;
-using Path = System.IO.Path;
-
-using System.Linq;
-using System.Threading;
-using System.Windows.Forms;
-
-using Microsoft.VisualBasic;
-
-using ArcGIS.Desktop.Core;
-using ArcGIS.Desktop.Mapping;
-using ArcGIS.Desktop.Framework.Threading.Tasks;
-using System.Threading.Tasks;
-using ArcGIS.Core.Geometry;
-using LinearUnit = ArcGIS.Core.Geometry.LinearUnit;
 using ArcGIS.Core.Data;
-using ArcGIS.Core.Internal.CIM;
-using ArcGIS.Desktop.Layouts;
 using ArcGIS.Core.Data.Raster;
+using ArcGIS.Core.Geometry;
+using ArcGIS.Core.Internal.CIM;
+using ArcGIS.Desktop.Core;
+using ArcGIS.Desktop.Core.Events;
 using ArcGIS.Desktop.Core.Geoprocessing;
+using ArcGIS.Desktop.Framework.Threading.Tasks;
+using ArcGIS.Desktop.Internal.Framework;
+using ArcGIS.Desktop.Internal.Framework.Utilities;
+using ArcGIS.Desktop.Layouts;
+using ArcGIS.Desktop.Mapping;
+using Microsoft.VisualBasic;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
-using System.Windows.Shapes;
-using ArcGIS.Desktop.Internal.Framework;
-using static System.Net.WebRequestMethods;
 using System.Security.Policy;
-using System.Xml;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using System.Windows.Forms.Design.Behavior;
-using ArcGIS.Desktop.Core.Events;
+using System.Windows.Shapes;
+using System.Xml;
+using static System.Net.WebRequestMethods;
+using LinearUnit = ArcGIS.Core.Geometry.LinearUnit;
+using Path = System.IO.Path;
 
 namespace ArcSWATPlus
 {
@@ -493,7 +489,11 @@ namespace ArcSWATPlus
                     return demLayer.GetRaster().GetMeanCellSize();
                 });
             	var units = crsProject.Unit;
-            	double factor = units.ConversionFactor;
+                var (factor, OK) = Utils.getHorizontalFactor(units);
+                if (!OK) {
+                    Utils.loginfo(string.Format("demProcessed failed: units are {0}", units));
+                    return false;
+                }
                 this._gv.cellArea = XYSizes.Item1 * XYSizes.Item2 * factor * factor;
                 // hillshade
                 //Delineation.addHillshade(demFile, root, demLayer, this._gv);
@@ -515,7 +515,7 @@ namespace ArcSWATPlus
                 string streamFile;
                 (streamFile, found) = proj.readEntry(title, "delin/net", "");
                 FeatureLayer streamLayer = null;
-                if (this._gv.useGridModel || !this._gv.existingWshed) {
+                if (this._gv.useGridModel || this._gv.isHUC || this._gv.isHAWQS || !this._gv.existingWshed) {
                     if (!found || string.IsNullOrEmpty(streamFile) || !System.IO.File.Exists(streamFile)) {
                         Utils.loginfo("demProcessed failed: no stream reaches shapefile");
                         return false;
@@ -589,15 +589,10 @@ namespace ArcSWATPlus
                         if (!System.IO.File.Exists(burnFile)) {
                             Utils.loginfo("demProcessed failed: no burn file");
                             return false;
-                        } else {
-                            this._gv.slopeFile = @base + "slope.tif";
                         }
-                    } else {
-                        this._gv.slopeFile = @base + "slp.tif";
                     }
-                } else {
-                    this._gv.slopeFile = @base + "slp.tif";
                 }
+                this._gv.slopeFile = @base + "slp.tif";
                 // GRASS slope file should be based on original DEM
                 if (this._gv.fromGRASS && this._gv.slopeFile.EndsWith("_burnedslp.tif")) {
                     var unburnedslp = this._gv.slopeFile.Replace("_burnedslp.tif", "slp.tif");
@@ -709,7 +704,7 @@ namespace ArcSWATPlus
                                     return false;
                                 }
                             }
-                        } else {
+                        } else if (!(this._gv.isHUC || this._gv.isHAWQS)) { // which use channelBasins file with lakes already removed
                             Utils.loginfo("demProcessed failed: no channel basins without lakes raster");
                             return false;
                         }
@@ -885,6 +880,9 @@ namespace ArcSWATPlus
             try {
                 this.delin = null;
                 this.hrus = null;
+                if (this.vis is not null && this.vis.conn is not null) {
+                    this.vis.conn.Close();
+                }
                 this.vis = null;
                 this.export = null;
                 if (this._gv is not null && this._gv.db is not null) {

@@ -436,14 +436,14 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.numElevBands = 0;
             // TauDEM
             this.taudem = new TauDEMUtils(this);
-            //# Topology object
-            this.topo = new Topology(isBatch, isHUC, isHAWQS);
             var projFile = Project.Current.Name;
             var projPath = Project.Current.Path;
             //# Project name
             // Project.Current.Name finishes with .aprx, which we need to remove
             int posn = projFile.LastIndexOf(".");
             this.projName = projFile.Substring(0, posn);
+            //# Topology object
+            this.topo = new Topology(isBatch, isHUC, isHAWQS, this.projName);
             //# Project directory
             this.projDir = Path.GetDirectoryName(projPath);
             // project geodatabase

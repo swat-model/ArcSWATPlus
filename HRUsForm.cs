@@ -821,7 +821,9 @@ namespace ArcSWATPlus
             (this._db.waterLanduse, _) = proj.readNumEntry("", "landuse/water", -1);
             string plantTable;
             (plantTable, found) = proj.readEntry("", "landuse/plant", "");
-            if (found && plantTable != "") {
+            if (this._gv.isBatch && (this._gv.isHUC || this._gv.isHAWQS)) {
+                plantTable = "plant_HAWQS";
+            } else if (found && plantTable != "") {
                 index = this.selectPlantTable.FindString(plantTable);
                 if (index >= 0) {
                     this.selectPlantTable.SelectedIndex = index;
@@ -832,7 +834,9 @@ namespace ArcSWATPlus
             this._db.plantTable = plantTable;
             string urbanTable;
             (urbanTable, found) = proj.readEntry("", "landuse/urban", "");
-            if (found && urbanTable != "") {
+            if (this._gv.isBatch && (this._gv.isHUC || this._gv.isHAWQS)) {
+                plantTable = "urban_HAWQS";
+            } else if (found && urbanTable != "") {
                 index = this.selectUrbanTable.FindString(urbanTable);
                 if (index >= 0) {
                     this.selectUrbanTable.SelectedIndex = index;

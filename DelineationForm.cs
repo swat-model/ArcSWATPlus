@@ -4329,22 +4329,31 @@ namespace ArcSWATPlus
             } else {
                 this._gv.burnFile = "";
             }
-            (streamFile, found) = proj.readEntry(title, "delin/net", "");
-            FeatureLayer streamLayer = null;
-            if (found && !string.IsNullOrEmpty(streamFile) && System.IO.File.Exists(streamFile)) {
-                streamLayer = (await Utils.getLayerByFilename(streamFile, FileTypes._STREAMS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
-            } else {
-                layer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._STREAMS));
-                if (layer is not null) {
-                    possFile = await Utils.layerFilename(layer);
-                    if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._STREAMS)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
-                        streamLayer = layer as FeatureLayer;
-                        streamFile = possFile;
+            if (this._gv.useGridModel || this._gv.isHUC || this._gv.isHAWQS || !this._gv.existingWshed) {
+                (streamFile, found) = proj.readEntry(title, "delin/net", "");
+                FeatureLayer streamLayer = null;
+                if (this._gv.useGridModel) {
+                    ft = this._gv.existingWshed ? FileTypes._DRAINSTREAMS : FileTypes._GRIDSTREAMS;
+                } else {
+                    ft = FileTypes._STREAMS;
+                }
+                if (found && !string.IsNullOrEmpty(streamFile) && System.IO.File.Exists(streamFile)) {
+                    streamLayer = (await Utils.getLayerByFilename(streamFile, FileTypes._STREAMS, this._gv, null, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer;
+                } else {
+                    layer = Utils.getLayerByLegend(FileTypes.legend(FileTypes._STREAMS));
+                    if (layer is not null) {
+                        possFile = await Utils.layerFilename(layer);
+                        if (System.IO.File.Exists(possFile) && Utils.question(string.Format("Use {0} as {1} file?", possFile, FileTypes.legend(FileTypes._STREAMS)), this._gv.isBatch, true) == MessageBoxResult.Yes) {
+                            streamLayer = layer as FeatureLayer;
+                            streamFile = possFile;
+                        }
                     }
                 }
-            }
-            if (streamLayer is not null) {
-                this._gv.streamFile = streamFile;
+                if (streamLayer is not null) {
+                    this._gv.streamFile = streamFile;
+                } else {
+                    this._gv.streamFile = "";
+                }
             } else {
                 this._gv.streamFile = "";
             }
@@ -4368,13 +4377,6 @@ namespace ArcSWATPlus
                 if (channelLayer is not null) {
                     this.selectStreams.Text = channelFile;
                     this._gv.channelFile = channelFile;
-                } else {
-                    this._gv.channelFile = "";
-                    if (this._gv.isHAWQS && this._gv.streamFile != "") {
-                        // use streams file for channels
-                        this.selectStreams.Text = this._gv.streamFile;
-                        this._gv.channelFile = this._gv.streamFile;
-                    }
                 }
             }
             bool useOutlets;

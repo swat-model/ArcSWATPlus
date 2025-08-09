@@ -13,6 +13,7 @@ using System.Diagnostics;
 using System.Data.SQLite;
 using System.IO;
 using Path = System.IO.Path;
+using File = System.IO.File;
 using System.Text.RegularExpressions;
 
 using ArcGIS.Core.Internal.CIM;
@@ -29,6 +30,7 @@ using System.Windows.Forms;
 using System.Resources;
 using System.Windows.Shapes;
 using ArcGIS.Core.Data.UtilityNetwork.Trace;
+using static System.Net.WebRequestMethods;
 
 namespace ArcSWATPlus {
 
@@ -118,6 +120,10 @@ namespace ArcSWATPlus {
         public Dictionary<int, int> SSURGOsoils;
 
         public int SSURGOUndefined;
+
+        public bool SSURGOUndefinedMapValueReported;
+
+        public bool SSURGOUndefinedKeyReported;
 
         public int upslopeWetlandCrop;
 
@@ -306,6 +312,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
             //# nodata value from soil map to replace undefined SSURGO soils (only used with HUC and HAWQS)
             this.SSURGOUndefined = -1;
+            // flag to reduce undefined SSURGO map values (only used with HUC and HAWQS)
+            this.SSURGOUndefinedMapValueReported = false;
+            // flag to reduce undefined SSURGO lkeys (only used with HUC and HAWQS)
+            this.SSURGOUndefinedKeyReported = false;
             //# regular expression for checking if SSURGO soils are water (only used with HUC and HAWQS)
             this.waterPattern = @"\bwaters?\b";
             //# flag indicating, if useSTATSGO is true, that muid+seqn is being used
@@ -338,9 +348,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             this.routingSources = new HashSet<(int, string)>();
             //# routing targets
             this.routingSinks = new HashSet<(int, string)>();
-            if (this.isHUC) {
-                this.writeSubmapping();
-            }
+            // no longer used
+            //if (this.isHUC) {
+            //    this.writeSubmapping();
+            //}
         }
 
         //  sqlite3 connection to project database and reference database
@@ -541,8 +552,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         // Generate error message if key not in gis_keys for this table.
         public virtual void checkKeyInTable(string table, int key) {
-            // ignore for HUC projects
-            if (this.isHUC) {
+            // ignore for HUC and HAWQS projects
+            if (this.isHUC || this.isHAWQS) {
                 return;
             }
             HashSet<int> keys = new HashSet<int>();

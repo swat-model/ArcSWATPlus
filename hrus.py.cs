@@ -1,51 +1,46 @@
 
 
 
-using OSGeo.GDAL;
-
-using System.Collections.Generic;
-
-using System.Diagnostics;
-
-using System;
-
-
-using System.IO;
-using Path = System.IO.Path;
-
-using System.Linq;
-
-using System.Windows;
-
-using System.Windows.Forms;
-
-using System.Threading.Tasks;
-
-using System.Collections;
-using ArcGIS.Desktop.Internal.Mapping;
-using ArcGIS.Desktop.Framework.Threading.Tasks;
-using OSGeo.OGR;
-using ArcGIS.Core.Geometry;
-using ArcGIS.Core.CIM;
-using ArcGIS.Desktop.Mapping;
-using System.Runtime.CompilerServices;
-using ArcGIS.Desktop.Internal.Mapping.CommonControls;
-using ArcGIS.Desktop.Layouts;
-using System.Printing.IndexedProperties;
-using System.Windows.Media.Animation;
 using ArcGIS.Core.Arcade;
-using ArcGIS.Desktop.Core.Geoprocessing;
-using ArcGIS.Core.Internal.CIM;
-using System.Xml.Linq;
-using ArcGIS.Desktop.Internal.Mapping.Labeling.Ribbon;
-using ArcGIS.Core.Data.UtilityNetwork.Trace;
-using System.Security.Permissions;
-using System.IO.Compression;
+using ArcGIS.Core.CIM;
 using ArcGIS.Core.Data.Analyst3D;
-using System.Data.SQLite;
-using System.Transactions;
+using ArcGIS.Core.Data.UtilityNetwork.Trace;
+using ArcGIS.Core.Geometry;
+using ArcGIS.Core.Internal.CIM;
+using ArcGIS.Desktop.Core.Geoprocessing;
+using ArcGIS.Desktop.Framework.Threading.Tasks;
+using ArcGIS.Desktop.Internal.GeoProcessing;
+using ArcGIS.Desktop.Internal.Mapping;
+using ArcGIS.Desktop.Internal.Mapping.CommonControls;
+using ArcGIS.Desktop.Internal.Mapping.Labeling.Ribbon;
+using ArcGIS.Desktop.Layouts;
+using ArcGIS.Desktop.Mapping;
+using OSGeo.GDAL;
+using OSGeo.OGR;
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Data.Entity.Core.Common.CommandTrees;
+using System.Data.SQLite;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Printing.IndexedProperties;
+using System.Runtime.CompilerServices;
+using System.Security.Permissions;
+using System.Security.Policy;
+using System.Threading.Tasks;
+using System.Transactions;
+using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Forms;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
+using System.Windows.Shapes;
+using System.Xml.Linq;
+using Path = System.IO.Path;
 
 namespace ArcSWATPlus
 {
@@ -166,7 +161,9 @@ namespace ArcSWATPlus
             //# threshold (% of lsu area) for water landuse to form a reservoir
             this.reservoirThreshold = 0;
             //# default nodata value used for crop and soil maps with no defined noData value (which would otherwise be None)
-            this.defaultNoData = -32768;
+            // and for crop and soil maps with nodata values larger in absolute size
+            // this value is assumed in the code to be negative
+            this.defaultNoData = 1 - (int)Math.Pow(2, 31);
         }
 
         // Update progress label with message; emit message for display in testing.
@@ -430,16 +427,37 @@ namespace ArcSWATPlus
                 }
             }
             double cropNoData;
+            Func<double?, bool> cropIsNoDataFun = null;
             cropBand.GetNoDataValue(out cropNoData, out hasval);
             if (hasval == 0) {
-                // guard against floats that cannot be converted to int
                 cropNoData = this.defaultNoData;
+            // guard against floats that cannot be converted to int
+            } else if (cropNoData < this.defaultNoData) {   // large negative
+                cropNoData = this.defaultNoData;
+                cropIsNoDataFun = x => x is null || Double.IsNaN((double)x) || x <= this.defaultNoData;
+            } else if (cropNoData > 0 - this.defaultNoData) { // large positive
+                cropNoData = this.defaultNoData;
+                cropIsNoDataFun = x => x is null || Double.IsNaN((double)x) || x >= 0 - this.defaultNoData;
+            } else {
+                cropIsNoDataFun = x => x is null || Double.IsNaN((double)x) || x == cropNoData;
             }
             double soilNoData;
+            Func<double?, bool> soilIsNoDataFun = null;
             soilBand.GetNoDataValue(out soilNoData, out hasval);
             if (hasval == 0) {
-                // guard against floats that cannot be converted to int
                 soilNoData = this.defaultNoData;
+            // guard against floats that cannot be converted to int
+            } else if (soilNoData < this.defaultNoData) {   // large negative
+                soilNoData = this.defaultNoData;
+                soilIsNoDataFun = x => x is null || Double.IsNaN((double)x) || x <= this.defaultNoData;
+            } else if (soilNoData > 0 - this.defaultNoData) { // large positive
+                soilNoData = this.defaultNoData;
+                soilIsNoDataFun = x => x is null || Double.IsNaN((double)x) || x >= 0 - this.defaultNoData;
+            } else {
+                soilIsNoDataFun = x => x is null || Double.IsNaN((double)x) || x == soilNoData;
+            }
+            if (this._gv.isHUC || this._gv.isHAWQS) {
+                this._gv.db.SSURGOUndefined = (int)soilNoData;
             }
             double slopeNoData;
             slopeBand.GetNoDataValue(out slopeNoData, out hasval);
@@ -903,7 +921,7 @@ namespace ArcSWATPlus
                                 }
                             }
                             // no data read from map is Nan if no noData value defined 
-                            if (double.IsNaN(crop) || crop <= cropNoData && cropNoData < 0) {
+                            if (cropIsNoDataFun(crop)) {
                                 // use <= since may have been set to defaultNoData
                                 landuseNoDataCount += 1;
                                 // when using grid model small amounts of
@@ -925,7 +943,7 @@ namespace ArcSWATPlus
                             } else {
                                 soil = (int)soilNoData;
                             }
-                            if (Double.IsNaN(soil) || soil <= soilNoData && soilNoData < 0) {
+                            if (soilIsNoDataFun(soil)) {
                                 soilIsNoData = true;
                                 // when using grid model small amounts of
                                 // no data for crop, soil or slope could lose subbasin
@@ -954,14 +972,17 @@ namespace ArcSWATPlus
                             } else {
                                 slopeValue = slopeNoData;
                             }
-                            if (slopeValue != slopeNoData) {
-                                slope = this._db.slopeIndex(slopeValue * 100);
-                            } else {
-                                // when using grid model small amounts of
-                                // no data for crop, soil or slope could lose subbasin
-                                slopeValue = 0.005;
-                                slope = 0;
+                            // slopes will be nodata in pits
+                            if (slopeValue == slopeNoData) {
+                                slopeValue = Parameters._DEFAULTSLOPE;
                             }
+                            if (crop != cropNoData) {
+                                cropCode = this._gv.db.getLanduseCode(crop);
+                                if (Parameters._WATERLANDUSES.Contains(cropCode)) {
+                                    slopeValue = Math.Min(slopeValue, Parameters._WATERMAXSLOPE);
+                                }
+                            }
+                            slope = this._db.slopeIndex(slopeValue * 100);
                             var distSt = diag;
                             var distCh = halfDiag;
                             if (!this._gv.existingWshed) {
@@ -1185,8 +1206,7 @@ namespace ArcSWATPlus
                                 cropCol = cropColFun(col, x);
                                 if (0 <= cropCol && cropCol < cropNumberCols && (0 <= cropRow && cropRow < cropNumberRows)) {
                                     crop = cropData[cropCol];
-                                    if (double.IsNaN(crop) || crop <= cropNoData && cropNoData < 0) {
-                                        // may have been set to defaultNoData
+                                    if (cropIsNoDataFun(crop)) {
                                         crop = (int)cropNoData;
                                     }
                                 } else {
@@ -1213,8 +1233,7 @@ namespace ArcSWATPlus
                             soilCol = soilColFun(col, x);
                             if (0 <= soilCol && soilCol < soilNumberCols && (0 <= soilRow && soilRow < soilNumberRows)) {
                                 soil = soilData[soilCol];
-                                if (double.IsNaN(soil) || soil <= soilNoData && soilNoData < 0) {
-                                    // may have been set to defaultNoData
+                                if (soilIsNoDataFun(soil)) {
                                     soil = (int)soilNoData;
                                 }
                             } else {
@@ -1300,7 +1319,12 @@ namespace ArcSWATPlus
                                 data = new BasinData(this._db.waterLanduse, farDistance, 0);
                                 this.basins[subbasin] = data;
                             }
-                            data.addCell(chLink, landscape, crop, soil, slope, this._gv.cellArea, elev, slopeValue, distSt, distCh, x, y, this._gv);
+                            try {
+                                data.addCell(chLink, landscape, crop, soil, slope, this._gv.cellArea, elev, slopeValue, distSt, distCh, x, y, this._gv);
+                            }
+                            catch {
+                                Utils.error(string.Format("Cannot add cell for link {0} landscape {1} crop {2} soil {3} slope {4}", chLink, landscape, crop, soil, slope), this._gv.isBatch);
+                            }
                             this.basins[subbasin] = data;
                             if (!Utils.areClose(elevation, elevationNoData, rel_tol: 1E-06)) {
                                 index = Convert.ToInt32(elevation - this.minElev);
@@ -1389,7 +1413,10 @@ namespace ArcSWATPlus
             if (landusePercent < 95) {
                 Utils.information(string.Format("WARNING: only {0:F1} percent of the watershed has defined landuse values.\n If this percentage is zero check your landuse map has the same projection as your DEM.", landusePercent), this._gv.isBatch);
             }
-            var soilMapPercent = 100.0 * (soilDefinedCount + soilUndefinedCount) / (soilDefinedCount + soilUndefinedCount + soilNoDataCount);
+            double soilMapPercent = 0;
+            if (soilDefinedCount + soilUndefinedCount + soilNoDataCount > 0) {
+                soilMapPercent = 100.0 * (soilDefinedCount + soilUndefinedCount) / (soilDefinedCount + soilUndefinedCount + soilNoDataCount);
+            }
             Utils.loginfo(string.Format("Soil cover percent: {0:F1}", soilMapPercent));
             if (soilDefinedCount + soilUndefinedCount > 0) {
                 soilDefinedPercent = 100.0 * (soilDefinedCount) / (soilDefinedCount + soilUndefinedCount);
@@ -1467,7 +1494,7 @@ namespace ArcSWATPlus
             if (!this._gv.useGridModel) {
                 basinDs = null;
             }
-            this.saveAreas(true, redistributeNodata: !(under95 && this._gv.isHUC));
+            this.saveAreas(true, redistributeNodata: !(under95 && (this._gv.isHUC || this._gv.isHAWQS)));
             this._dlg.progress("Writing HRU data to database ...");
             if (!this._db.createBasinsDataTables()) {
                 return false;
@@ -1496,7 +1523,8 @@ namespace ArcSWATPlus
                             }
                             var msg3 = string.Format("channel {0} (LINKNO {2}) in subbasin {1} (and perhaps others)", SWATChannel, SWATBasin, channel);
                             Utils.error(msg1 + msg2 + msg3, this._gv.isBatch);
-                            return false;
+                            // allow batch, HUC and HAWQS runs to continue
+                            return this._gv.isBatch || this._gv.isHUC || this._gv.isHAWQS;
                         }
                     }
                 }
@@ -2069,7 +2097,9 @@ namespace ArcSWATPlus
             Utils.copyShapefile(sourceShapefile, baseName, direc);
             using (var lsusDs = Ogr.Open(this._gv.fullLSUsFile, 1)) {
                 lsusLayer = lsusDs.GetLayerByIndex(0);
-                lsusLayer.CreateField(new FieldDefn(Topology._LSUID, FieldType.OFTInteger), 1);
+                if (!(this._gv.isHUC || this._gv.isHAWQS)) { // HUC wshed files have LSUID field
+                    lsusLayer.CreateField(new FieldDefn(Topology._LSUID, FieldType.OFTInteger), 1);
+                }
                 var lsusFields = lsusLayer.GetLayerDefn();
                 // If grid model we should have subbasin, if not grid we should have channel
                 var subIndx = lsusFields.GetFieldIndex(Topology._SUBBASIN);
@@ -2179,8 +2209,7 @@ namespace ArcSWATPlus
                     } else {
                         var chBasin = f.GetFieldAsInteger(polyIndx);
                         SWATChannel = f.GetFieldAsInteger(chIndx);
-                        // area can be zero if LSU within lake
-                        if (SWATChannel == 0 || area == 0) {
+                        if (SWATChannel == 0) {
                             ListFuns.insertIntoSortedLongList(f.GetFID(), toDelete, true);
                             continue;
                         }
@@ -2201,11 +2230,23 @@ namespace ArcSWATPlus
                         var subbasinCells = basinData.subbasinCellCount();
                         // use original lsus
                         var lsus = basinData.lsus;
-                        if (!lsus.ContainsKey(channel)) {
-                            // too small?
-                            if (this._gv.useGridModel) {
-                                area = f.GetGeometryRef().Area() * areaFactor / 10000.0;
+                        if (this._gv.useGridModel) {
+                            area = f.GetGeometryRef().Area() * areaFactor / 10000.0;
+                        } else {
+                            Dictionary<int, LSUData> channelData;
+                            if (!basinData.getLsus().TryGetValue(channel, out channelData)) {
+                                channelData = null;
                             }
+                            area = 0;
+                            if (channelData is not null) {
+                                foreach ((int landscape, LSUData data) in channelData) {
+                                    area += data.area;
+                                }
+                            }
+                        }
+
+                        if (!lsus.ContainsKey(channel) || area == 0) {
+                            // too small?  within lake?
                             Utils.loginfo(string.Format("Ignoring LSU for link {0} with area {1}", channel, area));
                             ListFuns.insertIntoSortedLongList(f.GetFID(), toDelete, true);
                             continue;
@@ -2359,13 +2400,36 @@ namespace ArcSWATPlus
         // Create area maps for each subbasin.
         public virtual void saveAreas(bool isOriginal, bool redistributeNodata = true) {
             IEnumerable<int> chLinksByLakes;
+            if (this._gv.playaFile != "") {
+                // if using playas do not want to absorb water into nearby lakes, as some playas will disappear
+                chLinksByLakes = new List<int>();
+            }
             if (this._gv.useGridModel) {
                 chLinksByLakes = this._gv.topo.chLinkIntoLake.Keys.Concat(this._gv.topo.chLinkInsideLake.Keys).Concat(this._gv.topo.chLinkFromLake.Keys);
             } else {
                 chLinksByLakes = this._gv.topo.chLinkIntoLake.Keys.Concat(this._gv.topo.chLinkInsideLake.Keys);
             }
-            foreach (var data in this.basins.Values) {
-                data.setAreas(isOriginal, chLinksByLakes, this._gv.db.waterLanduse, redistributeNodata: redistributeNodata);
+            foreach (var (basin, data) in this.basins) {
+                if (isOriginal && redistributeNodata && (this._gv.isHUC || this._gv.isHAWQS)) {  // don't redistribute water in wetlands for HUC or HAWQS
+                    foreach (var (chLink, channelData) in data.getLsus()) {
+                        foreach (var (lscape, lsuData) in channelData) {
+                            var areaToRedistribute = lsuData.area - lsuData.cropSoilSlopeArea;
+                            if (lsuData.area > areaToRedistribute && areaToRedistribute > 0) {
+                                var redistributeFactor = lsuData.area / (lsuData.area - areaToRedistribute);
+                                if (redistributeFactor > 2) {
+                                    var SWATChannel = this._gv.topo.channelToSWATChannel[chLink];
+                                    Utils.loginfo(string.Format("Channel {0} has redistribute factor of {1:.2F}", SWATChannel, redistributeFactor));
+                                }
+                                lsuData.redistribute(redistributeFactor);
+                            }
+                            lsuData.setCropAreas(isOriginal);
+                            lsuData.setSoilAreas(isOriginal);
+                            lsuData.setSlopeAreas(isOriginal);
+                        }
+                    }
+                } else {
+                    data.setAreas(isOriginal, chLinksByLakes, this._gv.db.waterLanduse, redistributeNodata: redistributeNodata);
+                }
             }
         }
 
@@ -3284,7 +3348,7 @@ namespace ArcSWATPlus
                 foreach (var (channel, channelData) in basinData.getLsus()) {
                     foreach (var (landscape, lsuData) in channelData) {
                         var exemptWater = lsuData.waterBody is not null && !lsuData.waterBody.isUnknown();
-                        if (exemptWater && Math.Abs(lsuData.cropSoilSlopeArea - lsuData.waterBody.originalArea) < this._gv.cellArea) {
+                        if (exemptWater && Math.Round(Math.Abs(lsuData.cropSoilSlopeArea - lsuData.waterBody.originalArea)) < Math.Round(this._gv.cellArea)) {
                             // all reservoir or pond
                             lsuData.hruMap = new Dictionary<int, CellData>();
                             lsuData.cropSoilSlopeNumbers = new Dictionary<int, Dictionary<int, Dictionary<int, int>>>();
@@ -3318,7 +3382,8 @@ namespace ArcSWATPlus
             removals = removals.OrderBy(sortFun).ToList();
             // remove HRUs
             // if some are exempt and target is small, can try to remove more than all in removals, so check for this
-            var numToRemove = Math.Min(this.countHRUs() - this.targetVal, removals.Count);
+            // also make sure not negative since HRU count may have been reduced by addReservoirs
+            var numToRemove = Math.Max(0, Math.Min(this.countHRUs() - this.targetVal, removals.Count));
             Utils.loginfo(string.Format("targetVal1: {0}", this.targetVal));
             Utils.loginfo(string.Format("HRUs count: {0}", this.countHRUs()));
             Utils.loginfo(string.Format("Possible removals: {0}", removals.Count));
@@ -3610,8 +3675,9 @@ namespace ArcSWATPlus
                     nextBand = minimum + this.minElev + thisWidth;
                 } else {
                     bandWidth = (maximum - minimum) / this._gv.numElevBands;
+                    double midPoint = minimum + this.minElev + (bandWidth - 1) / 2.0;
                     bands = new List<(double, double, double)> {
-                        (minimum + this.minElev, 0, 0)
+                        (minimum + this.minElev, midPoint, 0)
                     };
                     nextBand = minimum + this.minElev + bandWidth;
                 }
@@ -3635,8 +3701,8 @@ namespace ArcSWATPlus
                         bands.Add((nextBand, nextMidPoint, percent));
                         nextBand = Math.Min(nextBand + bandWidth, maximum + 1 + this.minElev);
                     } else {
-                        var (el, frac, v) = bands[^1];
-                        bands[^1] = (el, frac + percent, v);
+                        var (el, mid, frac) = bands[^1];
+                        bands[^1] = (el, mid, frac + percent);
                     }
                 }
                 fw.Write(string.Format("{0:G}", elev).PadLeft(20));
@@ -4000,7 +4066,18 @@ namespace ArcSWATPlus
                         continue;
                     }
                 }
-                var basinData = this.basins[basin];
+                BasinData basinData;
+                if (!this.basins.TryGetValue(basin, out basinData)) {
+                    basinData = null;
+                }
+                if (basinData is null) {
+                    if (this._gv.isHUC || this._gv.isHAWQS) {
+                        Utils.information(string.Format("WARNING: Subbasin {0} has no data", SWATBasin), this._gv.isBatch);
+                    } else {
+                        Utils.information(string.Format("Subbasin {0} has no data", SWATBasin), this._gv.isBatch);
+                    }
+                    break;
+                }
                 var subHa = basinData.subbasinArea() / 10000.0;
                 //assert subHa > 0, 'SWAT basin {0} seems to be empty', SWATBasin)
                 // basinHa earlier asserted to be positive
@@ -4037,7 +4114,7 @@ namespace ArcSWATPlus
                             Utils.loginfo(msg);
                         } else {
                             Utils.error(msg, this._gv.isBatch);
-                            noLanduseReported = true;
+                            noLanduseReported = !this._gv.isBatch;
                         }
                     }
                 } else {
@@ -4055,7 +4132,7 @@ namespace ArcSWATPlus
                         Utils.loginfo(msg);
                     } else {
                         Utils.error(msg, this._gv.isBatch);
-                        noSoilReported = true;
+                        noSoilReported = !this._gv.isBatch;
                     }
                 }
                 this.printSoilAreas(basinData.soilAreas(false), originalSoilAreas, basinHa, subHa, fw);
@@ -4520,6 +4597,7 @@ namespace ArcSWATPlus
                 return false;
             }
             // map featureId to attributes to be used for updating non-merged features
+
             var fidsToDelete = new List<long>();
             var mergers = new Dictionary<long, (OSGeo.OGR.Feature, List<OSGeo.OGR.Feature>)>();
             layer.ResetReading();
@@ -4572,7 +4650,7 @@ namespace ArcSWATPlus
                     newFeature.SetField(percentLSUIndx, percentLSU);
                     newFeature.SetGeometry(geom.Clone());
                     mergers[fid] = (newFeature, feats);
-                    ListFuns.insertIntoSortedLongList(fid, fidsToDelete, true);
+                    //ListFuns.insertIntoSortedLongList(fid, fidsToDelete, true);
                 } else {
                     long fid1;
                     if (!fidsToBeMerged.TryGetValue(fid, out fid1)) {
@@ -4990,8 +5068,10 @@ namespace ArcSWATPlus
                     }
                 } else if (!File.Exists(this._gv.valleyDepthsFile)) {
                     if (this._gv.useLandscapes) {
-                        // should be valley depths file unless using a buffer for floodplain
-                        if (!System.IO.Path.GetFileName(this._gv.floodFile).StartsWith("bufferflood")) {
+                        // should be a valley depths file unless using a buffer for floodplain
+                        // or imported floodplain file, which will not contain 'flood'
+                        string floodFilename = Path.GetFileName(this._gv.floodFile);
+                        if (!floodFilename.StartsWith("bufferflood") && floodFilename.Contains("flood")) {
                             Utils.error(string.Format("Cannot find valley depths raster {0}", this._gv.valleyDepthsFile), this._gv.isBatch);
                             return false;
                         }
@@ -5219,6 +5299,8 @@ namespace ArcSWATPlus
             OSGeo.OGR.Layer subsLayer;
             string subsFile;
 
+            // Add new integer 64 field to shapefile; set field to fun applied to value in old integer field.
+            // Return the new field's index.  Needs to be 64 bit for HAWQS projects."""
             int addNewField(
                 OSGeo.OGR.Layer layer,
                 string fileName,
@@ -5229,7 +5311,7 @@ namespace ArcSWATPlus
                 var defn = layer.GetLayerDefn();
                 var newIndex = defn.GetFieldIndex(newFieldname);
                 if (newIndex < 0) {
-                    layer.CreateField(new FieldDefn(newFieldname, FieldType.OFTInteger), 1);
+                    layer.CreateField(new FieldDefn(newFieldname, FieldType.OFTInteger64), 1);
                     defn = layer.GetLayerDefn();
                     newIndex = defn.GetFieldIndex(newFieldname);
                 }
@@ -5248,13 +5330,65 @@ namespace ArcSWATPlus
                 return newIndex;
             }
 
-            int findOutlet(int basin, Dictionary<int, int> downBasins) {
-                int downBasin;
-                if (!downBasins.TryGetValue(basin, out downBasin)) { downBasin = -1; }
-                if (downBasin <0) { 
-                    return basin;
-                } else {
-                    return findOutlet(downBasin, downBasins);
+            //// downBasins maps basin to downstream basin or -1 if none.  Return final basin starting from basin
+            //(int, int) findOutlet(int basin, Dictionary<int, int> downBasins) {
+            //    int steps = 0;
+            //    while (basin >= 0 && steps < 1E6) {
+            //        int downBasin;
+            //        if (!downBasins.TryGetValue(basin, out downBasin)) { downBasin = -1; }
+            //        if (downBasin < 0) {
+            //            return (basin, steps);
+            //        } else {
+            //            basin = downBasin;
+            //            steps += 1;
+            //        }
+            //    }
+            //    return (-1, steps);
+            //}
+
+            void makeOutbasins(Dictionary<int, int> downSubbasins, Dictionary<int, int> outbasins) {
+                var path = new List<int>();
+                int maxx = downSubbasins.Count;
+                //TUtils.loginfo(string.Format("Downsubbasins: {0}", downSubbasins)
+                foreach (var basin in downSubbasins.Keys) {
+                    var nxt = basin;
+                    while (path.Count <= maxx) {
+                        int outBasin;
+                        if (!outbasins.TryGetValue(nxt, out outBasin)) { outBasin = -1; }
+                        if (outBasin >= 0) {
+                            foreach (var p in path) {
+                                outbasins[p] = outBasin;
+                            }
+                            path = new List<int>();
+                            break;
+                        }
+                        path.Add(nxt);
+                        int dsBasin;
+                        if (!downSubbasins.TryGetValue(nxt, out dsBasin)) { dsBasin = -1; }
+                        if (dsBasin < 0) {
+                            foreach (var p in path) {
+                                outbasins[p] = nxt;
+                            }
+                            path = new List<int>();
+                            break;
+                        }
+                        nxt = dsBasin;
+                    }
+                    if (path.Count > maxx) {
+                        Utils.error(string.Format("Failed to find outlet for basin {0} on path {1}", basin, path), this._gv.isBatch);
+                        var l = path.Count;
+                        var last = path[l - 1];
+                        var i = l - 2;
+                        while (i >= 0) {
+                            if (last == path[i]) {
+                                Utils.error(string.Format("Path has loop length {0}", l - i), this._gv.isBatch);
+                                return;
+                            }
+                            i -= 1;
+                        }
+                        Utils.error("Path has no loop", this._gv.isBatch);
+                        return;
+                    }
                 }
             }
 
@@ -5569,10 +5703,18 @@ namespace ArcSWATPlus
             // to make deepAquiferId when watershed outlet is in lake and there is no outlet SWATBasin
             var baseDeepAquiferId = Enumerable.Max(this._gv.topo.SWATBasinToSubbasin.Keys);
             var outlets = new HashSet<int>();
+            // make map basin to outbasin
+            var outbasins = new Dictionary<int, int>();
+            makeOutbasins(this._gv.topo.downSubbasins, outbasins);
             foreach (var basin in this._gv.topo.downSubbasins.Keys) {
                 if (!this._gv.topo.subbasinToSWATBasin.TryGetValue(basin, out SWATBasin)) { SWATBasin = 0; }
                 if (SWATBasin > 0) {
-                    var outBasin = findOutlet(basin, this._gv.topo.downSubbasins);
+                    int outBasin;
+                    if (!outbasins.TryGetValue(basin, out outBasin)) { outBasin = -1; }
+                    if (outBasin < 0) {
+                        Utils.error(string.Format("Cannot find watershed outlet for subbasin {0}", SWATBasin), this._gv.isBatch);
+                        continue;
+                    }
                     outlets.Add(outBasin);
                     // check if outlet in lake
                     int lakeId;
@@ -5758,10 +5900,13 @@ namespace ArcSWATPlus
             foreach (var (lakeId, lakeData) in this._gv.topo.lakesData) {
                 var lCat = lakeData.waterRole == WaterRole._RESERVOIR ? "RES" : lakeData.waterRole == WaterRole._POND ? "PND" : lakeData.waterRole == WaterRole._WETLAND ? "WETL" : null;
                 if (lCat is null) {
-                    continue;
+                    continue; // don't include playas
                 }
-                int lsuId = 0;
+                int lsuId = 0; // no LSU for a reservoir, pond or wetland lake
                 var subbasin = lakeData.outPoint.Item1;
+                if ((this._gv.isHUC || this._gv.isHAWQS) && subbasin < 0) {
+                    continue; // lakes file is larger than watershed for HUC12 models
+                }
                 // out point may have no subbasin if internal to lake
                 int SWATBasin;
                 if (!this._gv.topo.subbasinToSWATBasin.TryGetValue(subbasin, out SWATBasin)) { SWATBasin = 0; }
@@ -6082,6 +6227,10 @@ namespace ArcSWATPlus
         public virtual double totalLakesArea() {
             var result = 0.0;
             foreach (var lakeData in this._gv.topo.lakesData.Values) {
+                int subbasin = lakeData.outPoint.Item1;
+                if ((this._gv.isHUC || this._gv.isHAWQS) && subbasin < 0) {
+                    continue;  // lakes file is larger than watershed for HUC12 models
+                }
                 if (new HashSet<WaterRole> {
                     WaterRole._RESERVOIR,
                     WaterRole._POND,
@@ -6097,6 +6246,10 @@ namespace ArcSWATPlus
         public virtual Dictionary<int, (double, string)> getLakeAreas() {
             var result = new Dictionary<int, (double, string)>();
             foreach (var (lakeId, lakeData) in this._gv.topo.lakesData) {
+                int subbasin = lakeData.outPoint.Item1;
+                if ((this._gv.isHUC || this._gv.isHAWQS) && subbasin < 0) {
+                    continue;  // lakes file is larger than watershed for HUC12 models
+                }
                 if (lakeData.waterRole == WaterRole._RESERVOIR) {
                     result[lakeId] = (lakeData.area, "reservoir");
                 } else if (lakeData.waterRole == WaterRole._POND) {
@@ -6115,6 +6268,10 @@ namespace ArcSWATPlus
             var numWetland = 0;
             var numPlaya = 0;
             foreach (var lakedata in this._gv.topo.lakesData.Values) {
+                int subbasin = lakedata.outPoint.Item1;
+                if ((this._gv.isHUC || this._gv.isHAWQS) && subbasin < 0) {
+                    continue;  // lakes file is larger than watershed for HUC12 models
+                }
                 if (lakedata.waterRole == WaterRole._RESERVOIR) {
                     numRes += 1;
                 } else if (lakedata.waterRole == WaterRole._POND) {

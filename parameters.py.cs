@@ -8,6 +8,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Forms;
 using ArcGIS.Desktop.Core;
+using System.Runtime.InteropServices;
 
 namespace ArcSWATPlus
 {
@@ -29,11 +30,12 @@ namespace ArcSWATPlus
 
         public string SWATPlusDir;
 
-        public static string _HOMEDIR = 
-            (Environment.OSVersion.Platform == PlatformID.Unix ||
-            Environment.OSVersion.Platform == PlatformID.MacOSX)
-                ? Environment.GetEnvironmentVariable("HOME")
-                : Environment.ExpandEnvironmentVariables("%HOMEDRIVE%%HOMEPATH%");
+        public static bool _ISWIN = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+        public static string _HOMEDIR =
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ?
+            Environment.ExpandEnvironmentVariables("%HOMEDRIVE%%HOMEPATH%") :
+            Environment.ExpandEnvironmentVariables("HOME");
 
         public static string _SWATPLUSDEFAULTDIR = _HOMEDIR + @"\SWATPlus";
 
@@ -143,6 +145,8 @@ namespace ArcSWATPlus
 
         public static string _AREA = "Area";
 
+        public static string _AREASQKM = "AREASQKM";
+
         public static string _PERCENTSUB = "%Subbasin";
 
         public static string _PERCENTLSU = "%Landscape";
@@ -233,6 +237,9 @@ namespace ArcSWATPlus
         public static double _WATERMAXSLOPE = 0.001;
 
         public static double _MAXPENWIDTH = 4.0; // for QGIS this is 2
+
+        //  percentage of flow for major when there is a bifurcation: HUC and HAWQS models only
+        public static int _MAJORPERCENT = 60;
 
         public Parameters(GlobalVars gv) {
             this.SWATPlusDir = Parameters._SWATPLUSDEFAULTDIR;
