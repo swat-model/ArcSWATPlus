@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ArcGIS defaultAssembly="ArcSWATPlus3.6.dll"
+        defaultNamespace="ArcSWATPlus"
+        xmlns="http://schemas.esri.com/DADF/Registry"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://schemas.esri.com/DADF/Registry file:///C:/Program%20Files/ArcGIS/Pro/bin/ArcGIS.Desktop.Framework.xsd">
+
+  <AddInInfo id="{30101c56-0002-4c2c-bc1f-f83d04fefb23}" version="1.1.0" desktopVersion="3.6">
+    <Name>ArcSWATPlus3.6</Name>   
+    <Description>Develop models for SWAT+.  ArcGIS Pro 3.6 version.</Description>
+    <Image>Install/swatplus32.png</Image>
+    <Author>Chris George</Author>
+    <Company>AgriLife</Company>
+    <Date>10/25/2023 2:38:44 PM</Date>
+    <Subject>Geoprocessing</Subject>
+    <!-- Note subject can be one or more of these topics:
+                    Content, Framework, Editing, Geodatabase, Geometry, Geoprocessing, Layouts, Map Authoring, Map Exploration -->
+  </AddInInfo>
+
+  <modules>
+    <insertModule id="ArcSWATPlus_Module" className="Module1" autoLoad="false" caption="Module1">
+      <!-- uncomment to have the control hosted on a separate tab-->
+      <tabs>
+        <tab id="ArcSWATPlus_Tab1" caption="ArcSWAT+"  keytip="X">
+          <group refID="ArcSWATPlus_Group1"/>
+        </tab>
+      </tabs>
+              
+      <groups>
+        <!-- comment this out if you have no controls on the Addin tab to avoid
+              an empty group-->
+        <group id="ArcSWATPlus_Group1" caption="ArcSWAT+ for ArcGIS Pro 3.6" appearsOnAddInTab="false"  keytip="X1">
+          <!-- host controls within groups -->
+			<button refID="ArcSWATPlus_StartButton" size="large" />
+        </group>
+      </groups>
+      
+      <controls>
+        <!-- add your controls here -->
+		  <button id="ArcSWATPlus_StartButton" caption="Start ArcSWAT+" className="StartButton" loadOnClick="true" smallImage="Install/swatplus16.png" largeImage="Install/swatplus32.png" keytip="X2">
+			  <tooltip heading="Start ArcSWAT+">
+				  Start the ArcSWAT+ plugin<disabledText />
+			  </tooltip>
+		  </button>
+		  <tool id="ArcSWATPlus_PointTool" caption="Draw Point" className="PointTool" categoryRefID="esri_embeddableControls" loadOnClick="true" smallImage="pack://application:,,,/ArcGIS.Desktop.Resources;component/Images/GenericButtonRed16.png" largeImage="pack://application:,,,/ArcGIS.Desktop.Resources;component/Images/GenericButtonRed32.png" condition="esri_mapping_mapPane" keytip="X3">
+			  <tooltip heading="Draw point">
+				  Left click to make point<disabledText />
+			  </tooltip>
+		  </tool>
+      </controls> 
+      
+    </insertModule>
+  </modules>
+</ArcGIS>
