@@ -33,7 +33,7 @@
 	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	</Content>
     <Content Include="Config.daml">
-	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  <CopyToOutputDirectory>Never</CopyToOutputDirectory>
 	</Content>
   </ItemGroup>
   <ItemGroup>
@@ -183,10 +183,8 @@
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="Esri.ArcGISPro.Extensions30" Version="3.3.3.52636" />
-    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.13.0" />
-    <PackageReference Include="Magick.NET.Core" Version="14.13.0" />
-    <PackageReference Include="MaxRev.Gdal.Core" Version="3.13.0.527" />
-    <PackageReference Include="MaxRev.Gdal.WindowsRuntime.Minimal" Version="3.13.0.527" />
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.13.1" />
+    <PackageReference Include="Magick.NET.Core" Version="14.13.1" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.8" />
     <PackageReference Include="System.Data.SQLite" Version="2.0.3" />
   </ItemGroup>

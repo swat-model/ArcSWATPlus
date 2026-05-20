@@ -183,8 +183,8 @@
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="Esri.ArcGISPro.Extensions30" Version="3.4.1.55405" />
-    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.13.0" />
-    <PackageReference Include="Magick.NET.Core" Version="14.13.0" />
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.13.1" />
+    <PackageReference Include="Magick.NET.Core" Version="14.13.1" />
     <PackageReference Include="MaxRev.Gdal.Core" Version="3.13.0.527" />
     <PackageReference Include="MaxRev.Gdal.WindowsRuntime.Minimal" Version="3.13.0.527" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.8" />

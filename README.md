@@ -11,10 +11,11 @@ There is a folder ArcSWATPlus which contains
 2. A folder *Common* containing the source and other files which are common to all the projects.  They are referenced by link instead of being copied into the projects, so that editing one will change all projects.  *StartButton.cs* is an exception: see below.
 3. A folder *ArcSWATPlusM.N* for each of the projects.
 
-In the project folders there is the *ArcSWATPlusM.N.csproj* project file and a *Config.daml* file.  ArcSWATPlus3.6 also contains a *StartButton.cs* file since it needs to be different from the Common/StartButton.cs file.: it does not use the MaxRev nuget packages for GDAL but instead a new ESRI package *gdal_csharp-pro-3.6.3.0-patch* for that task.  This ESRI package is currently experimental and has not been officially released.
+In the project folders there is the *ArcSWATPlusM.N.csproj* project file and a *Config.daml* file.  ArcSWATPlus3.6 also contains a *StartButton.cs* file since it needs to be different from the Common/StartButton.cs file.: it does not use the MaxRev nuget packages for GDAL but instead a new ESRI package *Esri.ArcGISPro.Gdal* for that task.
+
 The project files are identical except that:
 1.  The version of *Esri.ArcGISPro.Extensions30* must match the *M.N* values for the project in the major.minor positions
-2.  Version 3.6 references *gdal_csharp-pro-3.6.3.0-patch*, and earlier versions instead reference *MaxRev.Gdal.Core* and *MaxRev.Gdal.WindowsRuntime.Minimal*
+2.  Version 3.6 references *Esri.ArcGISPro.Gdal*, and earlier versions instead reference *MaxRev.Gdal.Core* and *MaxRev.Gdal.WindowsRuntime.Minimal*
 3.  Version 3.6 has no link to *Common/StartButton.cs*.
 
 The *Config.daml* files are identical except that:
@@ -23,7 +24,7 @@ The *Config.daml* files are identical except that:
 3.  The AddInInfo desktopVersion is set to "M.N" to match the major.minor values for the version of ArcGIS Pro it is to be used with.
 4.  *M.N* appears in the AssemblyVersion, in the AddInInfo Name and Description, and in the ArcSWATPlus_Group1 caption.
 
-Building a project should generate a .esriAddinX file in bin/x64/Debug/net8.0-windows7.0.  If it does not, change the Copy to Output Directory property of Config.daml to *Do not copy*, build the project, then change the property back to *Copy if newer* and build again.  The file is required in the add-in for the version number to be read from it, but this setting can interfere with the build.
+Building a project should generate a .esriAddinX file in bin/x64/(Debug|Release)/net8.0-windows7.0.  If it does not, change the Copy to Output Directory property of Config.daml to *Do not copy*, build the project, then change the property back to *Copy always* and build again.  The file is required in the add-in for the version number to be read from it, but this setting can interfere with the build.
 
 ##Running ArcSWATPlus##
 
