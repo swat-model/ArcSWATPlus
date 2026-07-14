@@ -86,6 +86,8 @@ namespace ArcSWATPlus
 
         public string dbRefTemplate;
 
+        public string defaultDir;
+
         public object delineatePos;
 
         public string delinStreamFile;
@@ -181,6 +183,8 @@ namespace ArcSWATPlus
         public string pFile;
 
         public string playaFile;
+
+        public int playaCount;
 
         public string plotsDir;
 
@@ -314,9 +318,9 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.SWATPlusDir = SWATPlusDir;
             this.dbPath = Utils.join(SWATPlusDir, Parameters._DBDIR);
             //# Path of template project database
-            this.dbProjTemplate = isHAWQS ? Utils.join(this.dbPath, Parameters._DBPROJHAWQS) : Utils.join(this.dbPath, Parameters._DBPROJ);
+            this.dbProjTemplate = (isHUC || isHAWQS) ? Utils.join(this.dbPath, Parameters._DBPROJHAWQS) : Utils.join(this.dbPath, Parameters._DBPROJ);
             //# Path of template reference database
-            this.dbRefTemplate = isHAWQS ? Utils.join(this.dbPath, Parameters._DBREFHAWQS) : Utils.join(this.dbPath, Parameters._DBREF);
+            this.dbRefTemplate = Utils.join(this.dbPath, Parameters._DBREF);
             //# Directory of TauDEM executables, version 5.3.9
             this.TauDEMDir = TauDEMUtils.findTauDEMDir(SWATPlusDir, isBatch);
             //# Path of mpiexec
@@ -400,6 +404,8 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.floodFile = "";
             //# path of raster generated from playa lakes
             this.playaFile = "";
+            // count of playas in HUC and HAWQS models
+            this.playaCount = 0;
             //# Nodata value for DEM
             this.elevationNoData = 0.0;
             //# DEM horizontal block size
@@ -472,6 +478,8 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.rastersDir = "";
             //# Scenarios directory
             this.scenariosDir = "";
+            // Default directory
+            this.defaultDir = "";
             //# TxtInOut directory
             this.txtInOutDir = "";
             //# Results directory
@@ -497,7 +505,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             this.isHUC = isHUC;
             //# flag for HAWQS projects
             this.isHAWQS = isHAWQS;
-            //# log file for message output for HUC projects
+            //# log file for message output for HUC and HAWQS projects
             this.logFile = logFile;
             //# Path of project database
             this.db = new DBUtils(this.projDir, this.projName, this.dbProjTemplate, this.dbRefTemplate, this.isHUC, this.isHAWQS, this.logFile, this.isBatch);
@@ -589,11 +597,11 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             Directory.CreateDirectory(this.floodDir);
             this.scenariosDir = Utils.join(this.projDir, "Scenarios");
             Directory.CreateDirectory(this.scenariosDir);
-            var defaultDir = Utils.join(this.scenariosDir, "Default");
-            Directory.CreateDirectory(defaultDir);
-            this.txtInOutDir = Utils.join(defaultDir, "TxtInOut");
+            this.defaultDir = Utils.join(this.scenariosDir, "Default");
+            Directory.CreateDirectory(this.defaultDir);
+            this.txtInOutDir = Utils.join(this.defaultDir, "TxtInOut");
             Directory.CreateDirectory(txtInOutDir);
-            this.resultsDir = Utils.join(defaultDir, Parameters._RESULTS);
+            this.resultsDir = Utils.join(this.defaultDir, Parameters._RESULTS);
             Directory.CreateDirectory(this.resultsDir);
             this.plotsDir = Utils.join(this.resultsDir, Parameters._PLOTS);
             Directory.CreateDirectory(this.plotsDir);
@@ -667,7 +675,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                             cmd.CommandText = DBUtils._SPLITHRUSINSERTSQL;
                             this.db.execCmdQuery(cmd, new object[3] { entry.Key, entry1.Key, entry1.Value });
                         }
-                    }
+                    } 
                     //conn.commit();
                     //if (!(this.isHUC || this.isHAWQS || this.forTNC)) {
                     //    this.db.hashDbTable(exemptTable);
@@ -824,8 +832,8 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                 return editor;
             }
             Utils.information(string.Format(@"Cannot find {0} in {1}.  
-Have you installed SWAT+ as a different directory from C:\SWAT\SWATPlus?
-If so use the ArcSWAT+ Parameters form to set the correct location.", Parameters._SWATEDITOR, editorDir), this.isBatch);
+Have you installed SWAT+ as a different directory from {2}?
+If so use the ArcSWAT+ Parameters form to set the correct location.", Parameters._SWATEDITOR, editorDir, Parameters._SWATPLUSDEFAULTDIR), this.isBatch);
             return null;
         }
 
@@ -859,6 +867,13 @@ If so use the ArcSWAT+ Parameters form to set the correct location.", Parameters
         // Clear list of open rasters.
         public virtual void clearOpenRasters() {
             this.openRasters.Clear();
+        }
+
+        public virtual void error(string msg, bool isBatch, bool reportErrors = true, string logFile = null) {
+            if (logFile is null) {
+                logFile = this.logFile;
+            }
+            Utils.error(msg, isBatch, reportErrors, logFile);
         }
     }
 }

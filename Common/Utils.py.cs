@@ -16,6 +16,7 @@ using ArcGIS.Desktop.Internal.Catalog;
 using ArcGIS.Desktop.Internal.Catalog.PropertyPages.ParcelDataset;
 using ArcGIS.Desktop.Internal.Core.Conda;
 using ArcGIS.Desktop.Internal.Mapping.CommonControls;
+using ArcGIS.Desktop.Internal.Mapping.Ribbon;
 using ArcGIS.Desktop.Internal.Mapping.Voxel.Controls.Transparency;
 using ArcGIS.Desktop.Mapping;
 using ArcSWATPlus;
@@ -129,6 +130,8 @@ namespace ArcSWATPlus
         public static string _HRUSLEGEND = "HRUs";
 
         public static string _AQUIFERSLEGEND = "Aquifers";
+
+        public static string _GWFLOWCELLSLEGEND = "GWFlow cells";
 
         public static int _NOLANDSCAPE = 0;
 
@@ -1338,7 +1341,7 @@ namespace ArcSWATPlus
                         }
                     // may not have got projection information, so if any copy it
                     Utils.copyPrj(inFileName, outFileName);
-                } else { // we are jut dealing with files
+                } else { // we are just dealing with files
                     var inInfo = new FileInfo(inFileName);
                     inDir = inInfo.DirectoryName;
                     var inFile = inInfo.Name;
@@ -1365,7 +1368,7 @@ namespace ArcSWATPlus
                     outFileName = inFileName;
                 	}
                 }
-                if (ft == FileTypes._CSV || ft == FileTypes._CHANNELBASINSRASTER) {
+                if (ft == FileTypes._CSV || ft == FileTypes._CHANNELBASINSRASTER || ft == FileTypes._AQUIFERTHICKNESS) {
                     // not to be loaded into ArcGIS
                     return (outFileName, null);
                 }
@@ -2231,6 +2234,7 @@ public class ListFuns
         public static int _OUTLETSHUC = 37;
         public static int _ACTHRUS = 38;
         public static int _ACTLSUS = 39;
+        public static int _GWFLOWCELLS = 40;
         public static int _OTHER = 99;
 
         // Return filter for open file dialog according to file type.
@@ -2246,11 +2250,11 @@ public class ListFuns
                 } else if (ft == FileTypes._STREAMS || ft == FileTypes._STREAMREACHES || ft == FileTypes._BURN ||
                      ft == FileTypes._GRIDSTREAMS || ft == FileTypes._DRAINSTREAMS || ft == FileTypes._CHANNELS) {
                     filtr = "esri_browseDialogFilters_featureClasses_line";
-                } else if (ft == FileTypes._SUBBASINS || ft == FileTypes._EXISTINGSUBBASINS ||
+                } else if (ft == FileTypes._SUBBASINS || ft == FileTypes._EXISTINGSUBBASINS || ft == FileTypes._AQUIFERS ||
                         ft == FileTypes._WATERSHED || ft == FileTypes._EXISTINGWATERSHED || ft == FileTypes._GRID ||
                         ft == FileTypes._LSUS || ft == FileTypes._LAKES || ft == FileTypes._BUFFERSHAPE ||
                         ft == FileTypes._HRUS || ft == FileTypes._ACTHRUS || ft == FileTypes._ACTLSUS ||
-                        ft == FileTypes._PERMEABILITY || ft == FileTypes._TILEDRAINS) {
+                        ft == FileTypes._PERMEABILITY || ft == FileTypes._TILEDRAINS || ft == FileTypes._GWFLOWCELLS) {
                     filtr = "esri_browseDialogFilters_featureClasses_polygon";
                 } else if (ft == FileTypes._CSV) {
                     filtr = "CSV files|*.csv|All files|*.*";
@@ -2361,6 +2365,8 @@ public class ListFuns
                 return Utils._ACTLSUSLEGEND;
             } else if (ft == FileTypes._AQUIFERS) {
                 return Utils._AQUIFERSLEGEND;
+            } else if (ft == FileTypes._GWFLOWCELLS) {
+                return Utils._GWFLOWCELLSLEGEND;
             }
             return "";
         }
@@ -2447,9 +2453,11 @@ public class ListFuns
             } else if (ft == FileTypes._SUBBASINS || ft == FileTypes._EXISTINGSUBBASINS) {
                 return "Select watershed shapefile";
             } else if (ft == FileTypes._LANDUSES) {
-                return "Select landuses file";
+                return "Select landuses raster";
             } else if (ft == FileTypes._SOILS) {
-                return "Select soils file";
+                return "Select soils raster";
+            } else if (ft == FileTypes._AQUIFERTHICKNESS) {
+                return "Select aquifer thickness raster";
             } else if (ft == FileTypes._SLOPEBANDS || ft == FileTypes._CHANNELREACHES || ft == FileTypes._WATERSHED || ft == FileTypes._EXISTINGWATERSHED || ft == FileTypes._HILLSHADE || ft == FileTypes._GRID) {
                 return "";
             }
@@ -2480,6 +2488,8 @@ public class ListFuns
                 }
             } else if (ft == FileTypes._AQUIFERS) {
                 return ("Aquifer", "\"Aquifer: \" + Text($feature.Aquifer);");
+            } else if (ft == FileTypes._GWFLOWCELLS) {
+                return ("Cell", "\"Cell: \" + Text($feature.cell_id);");
             } else {
                 return ("", "");
             }
@@ -2931,6 +2941,19 @@ public class ListFuns
             });
         }
 
+        // symbology for gwflow grid file
+        public async static Task colourCells(FeatureLayer featureLayer, GlobalVars gv) {
+            // collect symbols from arcSWAT3Style
+            CIMSymbolReference cellRef = null;
+            await QueuedTask.Run(() => {
+                var cell = ((SymbolStyleItem)gv.arcSWATPlusStyle.LookupItem(StyleItemType.PolygonSymbol, "Cell")).Symbol as CIMPolygonSymbol;
+                cellRef = cell.MakeSymbolReference();
+                CIMSimpleRenderer renderer = featureLayer.GetRenderer() as CIMSimpleRenderer;
+                renderer.Symbol = cellRef;
+                featureLayer.SetRenderer(renderer);
+            });
+        }
+
         // Layer colouring function for landuse grid.
 
         public async static Task colourLanduses(RasterLayer layer, GlobalVars gv) {
@@ -3137,6 +3160,8 @@ public class ListFuns
             } else if (ft == FileTypes._GRID) {
                 await colourGrid(featureLayer, gv);
                 return;
+            } else if (ft == FileTypes._GWFLOWCELLS) {
+                await colourCells(featureLayer, gv);
             }
 
             Tuple<StyleItemType, string> pair = getTypeAndName(ft);
@@ -3243,7 +3268,7 @@ public class ListFuns
     }
     public class CursorWait : IDisposable
     {
-        public CursorWait(bool appStarting = false, bool applicationCursor = false)
+        public CursorWait(bool appStarting = false, bool applicationCursor = true)
         {
             // Wait
             Cursor.Current = appStarting ? Cursors.AppStarting : Cursors.WaitCursor;

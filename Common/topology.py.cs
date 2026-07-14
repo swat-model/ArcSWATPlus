@@ -20,6 +20,7 @@ using System.Data.SQLite;
 
 //using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
 using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 using System.Drawing;
 using System.IO;
 using System.IO.Compression;
@@ -106,6 +107,8 @@ namespace ArcSWATPlus {
 
         public Dictionary<int, double> drainAreas;
 
+        public Dictionary<int, int> channelOrders;
+
         public int dsChannelIndex;
 
         public double dx;
@@ -132,6 +135,8 @@ namespace ArcSWATPlus {
 
         public HashSet<int> lostDsNodeIds;
 
+        public List<int> routedPoints;
+
         public Dictionary<int, double> maxFlowLengths;
 
         public Dictionary<int, double[]> nearsources;
@@ -142,7 +147,7 @@ namespace ArcSWATPlus {
 
         public bool outletAtStart;
 
-        public Dictionary<int, (int, double[], HashSet<int>)> outlets;
+        public Dictionary<int, (int, double[], List<int>)> outlets;
 
         public Dictionary<int, HashSet<(int, double[], List<int>)>> outlets2;
 
@@ -159,6 +164,8 @@ namespace ArcSWATPlus {
         public Dictionary<int, int> subbasinToStream;
 
         public Dictionary<int, int> subbasinToSWATBasin;
+
+        public Dictionary<int, int> subbasinsInLakes;
 
         public Dictionary<int, int> SWATBasinToSubbasin;
 
@@ -372,8 +379,10 @@ namespace ArcSWATPlus {
             //# WSNO does not obey SWAT rules for element numbers (> 0) 
             // so we invent and store SWATBasin numbers
             // also SWAT basins may not be empty
-            // not complete: zero areas/stream lengths excluded
+            // not complete: zero areas/stream lengths excluded, and subbasins totally inside lakes
             this.subbasinToSWATBasin = new Dictionary<int, int>();
+            // map like subbasinToSWATBasin but for subbasins totally in lakes (not used with grid models)
+            this.subbasinsInLakes = new Dictionary<int, int>();
             //#inverse map to make it easy to output in numeric order of SWAT Basins
             this.SWATBasinToSubbasin = new Dictionary<int, int>();
             //# original channel links may have zero numbers and may have zero lengths
@@ -416,7 +425,9 @@ namespace ArcSWATPlus {
             // complete
             this.channelSlopes = new Dictionary<int, double>();
             //# array of total area draining to downstream end of channel in square metres
-            this.drainAreas = new Dictionary<int, double>(); 
+            this.drainAreas = new Dictionary<int, double>();
+            // channel orders if channel shapefile has an order field
+            this.channelOrders = new Dictionary<int, int>();
             //# array of Strahler order of channels
             this.strahler = null;
             //# map of lake id to ids of points added to split channels entering lakes
@@ -469,7 +480,7 @@ namespace ArcSWATPlus {
             //# DEM extent
             this.demExtent = null;
             //# map from subbasin to outlet pointId, point, and channel(s) draining to it
-            this.outlets = new Dictionary<int, (int, double[], HashSet<int>)>();
+            this.outlets = new Dictionary<int, (int, double[], List<int>)>();
             // map from subbasin to set of (pointId, point and channel(s)) draining into it
             // these outlets are the consequence in HUC and HAWQS models of a bifurcation in which the minor stream is in another HUC12
             this.outlets2 = new Dictionary<int, HashSet<(int, double[], List<int>)>>();
@@ -507,6 +518,8 @@ namespace ArcSWATPlus {
             this.chunkCount = 1;
             //# dsNodeIds that cannot be retained when making grids as they would be in same grid cell as another point
             this.lostDsNodeIds = new HashSet<int>();
+            // points routed in gis_routing
+            this.routedPoints = new List<int>();
         }
 
         // Set DEM size parameters and stream orientation, and store source and outlet points for stream reaches.
@@ -861,7 +874,13 @@ namespace ArcSWATPlus {
                         this.downChannels2[chLink] = (dsChLink2, dsNode2);
                         if (dsNode2 >= 0) {
                             try {
-                                subbasin = this.chBasinToSubbasin[chBasin];
+                                if (!this.chBasinToSubbasin.TryGetValue(chBasin, out subbasin)) {
+                                    if (!this.chLinkInsideLake.ContainsKey(chLink)) {
+                                        Utils.error(string.Format("Failed to find subbasin for channel {0}", channel), this.isBatch);
+                                    } else {
+                                        subbasin = channel.GetFieldAsInteger(Topology._BASINNO);
+                                    }
+                                }
                                 OSGeo.OGR.Feature point;
                                 var exp = string.Format("{0} = {1}", Topology._ID, dsNode2);
                                 outletLayer.SetAttributeFilter(exp);
@@ -906,6 +925,9 @@ namespace ArcSWATPlus {
                     }
                     if (this.isHUC || this.isHAWQS) {
                         this.drainAreas[chLink] = channel.GetFieldAsDouble(totDAIndex) * 1000000.0;
+                    }
+                    if (orderIndex >= 0) {
+                        this.channelOrders[chLink] = channel.GetFieldAsInteger(orderIndex);
                     }
                 } while (channel != null);
                 var time2 = DateTime.Now;
@@ -1118,11 +1140,15 @@ namespace ArcSWATPlus {
                         feature = subbasinsLayer.GetNextFeature();
                         if (feature is null) { break; }
                         subbasin = feature.GetFieldAsInteger(polyIndex);
-                        if (!this.upstreamFromInlets.Contains(subbasin) && (useGridModel || this.chBasinToSubbasin.Values.Contains(subbasin))) {
-                            // else was removed by chBasin being within a lake
+                        if (!this.upstreamFromInlets.Contains(subbasin)) {
                             SWATBasin += 1;
-                            this.subbasinToSWATBasin[subbasin] = SWATBasin;
-                            this.SWATBasinToSubbasin[SWATBasin] = subbasin;
+                            if (!useGridModel && !this.chBasinToSubbasin.Values.Contains(subbasin)) {
+                                // removed by being totally within a lake
+                                this.subbasinsInLakes[subbasin] = SWATBasin;
+                            } else {
+                                this.subbasinToSWATBasin[subbasin] = SWATBasin;
+                                this.SWATBasinToSubbasin[SWATBasin] = subbasin;
+                            }
                         }
                     } while (feature != null);
                 }
@@ -1263,6 +1289,7 @@ namespace ArcSWATPlus {
             if (lakeResIndex < 0) {
                 Utils.information(string.Format("No RES field in lakes shapefile {0}: assuming lakes are reservoirs", gv.lakeFile), this.isBatch, reportErrors: reportErrors);
             }
+            var lakeVolumeIndex = this.isHUC || this.isHAWQS ? lakesDefn.GetFieldIndex("LakeVolume") : -1;
             var channelsDefn = channelsLayer.GetLayerDefn();
             var channelLinkIndex = channelsDefn.GetFieldIndex(Topology._LINKNO);
             var DSLINKNO = this.isHUC || this.isHAWQS ? Topology._DSLINKNO1 : Topology._DSLINKNO;
@@ -1284,7 +1311,7 @@ namespace ArcSWATPlus {
             this.chLinkInsideLake = new Dictionary<int, int>();
             this.chLinkFromLake = new Dictionary<int, int>();
             var areaFactor = gv.horizontalFactor * gv.horizontalFactor;
-            // add spatial index to subbsains and chBasins (advised for using erase)
+            // add spatial index to subbasins and chBasins (advised for using erase)
             var parms = Geoprocessing.MakeValueArray(gv.subsNoLakesFile);
             var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
             await Geoprocessing.ExecuteToolAsync("AddSpatialIndex_management", parms, environment, null, null, GPExecuteToolFlags.None);
@@ -1480,7 +1507,7 @@ namespace ArcSWATPlus {
                 if (lakeResIndex < 0) {
                     waterRole = WaterRole._RESERVOIR;
                 } else if (this.isHUC || this.isHAWQS) {
-                    waterRole = (WaterRole)(lake.GetFieldAsString(lakeResIndex) == "Reservoir" ? 1 : 2);
+                    waterRole = (lake.GetFieldAsString(lakeResIndex) == "Reservoir" || lake.GetFieldAsDouble(lakeVolumeIndex) >= Parameters._RESERVOIRVOLUME ? WaterRole._RESERVOIR : WaterRole._POND);
                 } else {
                     waterRole = (WaterRole)lake.GetFieldAsInteger(lakeResIndex);
                 }
@@ -1667,7 +1694,7 @@ namespace ArcSWATPlus {
                                 if (replace) {
                                     // don't use WSNO as route to subbasin as channel basin may have been deleted
                                     // wsno = channel[channelWSNOIndex]
-                                    // subbasin = self.chBasinToSubbasin[wsno]
+                                    // subbasin = this.chBasinToSubbasin[wsno]
                                     subbasin = channel.GetFieldAsInteger(channelBasinIndex);
                                     lakeData.outPoint = (subbasin, dsNode, outlet, outflowData.lowerZ);
                                     lakeData.outChLink = dsLink;
@@ -1805,28 +1832,36 @@ namespace ArcSWATPlus {
                         if (chBasinFeature.GetFieldAsInteger(chBasinsPolyIndex) == outBasin) {
                             var areaHa = chBasinFeature.GetFieldAsDouble(chBasinsAreaIndex);
                             if (areaHa < threshold) {
-                                // move outlet channel inside lake
-                                lakeData.lakeChLinks.Add(outLink);
-                                lakeData.outChLink = dsOutLink;
-                                this.chLinkFromLake.Remove(outLink);
-                                this.chLinkInsideLake[outLink] = lakeId;
-                                // mark it as within as well as being the outlet (already set)
-                                chBasinFeature.SetField(channelLakeWithinIndex, lakeId);
-                                chBasinsLayer.SetFeature(chBasinFeature);
-                                // check if this point now inside the lake is a subbasin outlet
-                                subbasin = this.chBasinToSubbasin[outBasin];
-                                (_, _, var outChannels) = this.outlets[subbasin];
-                                if (outChannels.Contains(outLink)) {
-                                    // subbasin outlet has moved inside the lake
-                                    this.outletsInLake[subbasin] = lakeId;
+                                // check for within minimum distance (to guard against long narrow channel basin)
+                                var length = channel.GetGeometryRef().Length();
+                                if (length < Parameters._LAKEOUTLETCHANNELLENGTH * this.dx * gv.horizontalFactor) {
+                                    // move outlet channel inside lake
+                                    lakeData.lakeChLinks.Add(outLink);
+                                    lakeData.outChLink = dsOutLink;
+                                    this.chLinkFromLake.Remove(outLink);
+                                    this.chLinkInsideLake[outLink] = lakeId;
+                                    // mark it as within and not the outlet
+                                    channel.SetField(channelLakeWithinIndex, lakeId);
+                                    channel.SetField(channelLakeOutIndex, 0);
+                                    channelsLayer.SetFeature(channel);
+                                    // check if this point now inside the lake is a subbasin outlet
+                                    subbasin = this.chBasinToSubbasin[outBasin];
+                                    (_, _, var outChannels) = this.outlets[subbasin];
+                                    if (outChannels.Contains(outLink)) {
+                                        // subbasin outlet has moved inside the lake
+                                        this.outletsInLake[subbasin] = lakeId;
+                                    }
+                                    Utils.loginfo(string.Format("Channel link {0} channel basin {1} moved inside lake {2}", outLink, outBasin, lakeId));
+                                    // remove the channel's point source
+                                    this.chPointSources.Remove(outLink);
+                                    if (dsOutLink >= 0) {
+                                        this.chLinkFromLake[dsOutLink] = lakeId;
+                                        OSGeo.OGR.Feature dsChannel = Utils.getOgrFeatureByValue(channelsLayer, Topology._LINKNO, dsOutLink);
+                                        dsChannel.SetField(channelLakeOutIndex, lakeId);
+                                        channelsLayer.SetFeature(dsChannel);
+                                    }
+                                    break;
                                 }
-                                Utils.loginfo(string.Format("Channel link {0} channel basin {1} moved inside lake {2}", outLink, outBasin, lakeId));
-                                // remove the channel's point source
-                                this.chPointSources.Remove(outLink);
-                                if (dsOutLink >= 0) {
-                                    this.chLinkFromLake[dsOutLink] = lakeId;
-                                }
-                                break;
                             }
                         }
                     } while (chBasinFeature is not null);
@@ -1837,10 +1872,7 @@ namespace ArcSWATPlus {
                     errorCount += 1;
                 }
                 if (lakeData.outChLink >= 0) {
-                    long chId = -1;
-                    // find the channel's id
                     channel = Utils.getOgrFeatureByValue(channelsLayer, Topology._LINKNO, lakeData.outChLink);
-                    chId = channel.GetFID();
                     channel.SetField(channelLakeMainIndex, lakeId);
                     channelsLayer.SetFeature(channel);
                 }
@@ -1904,9 +1936,9 @@ namespace ArcSWATPlus {
 
             //     def isOutlet(self, pointId: int, outletsLayer: QgsVectorLayer) -> bool:
             //         """Return true if outletsLayer contains an outlet point with id pointId."""
-            //         idIndex = self.getIndex(outletsLayer, Topology._ID, ignoreMissing=True)
-            //         inletIndex = self.getIndex(outletsLayer, Topology._INLET, ignoreMissing=True)
-            //         resIndex = self.getIndex(outletsLayer, Topology._RES, ignoreMissing=True)
+            //         idIndex = this.getIndex(outletsLayer, Topology._ID, ignoreMissing=True)
+            //         inletIndex = this.getIndex(outletsLayer, Topology._INLET, ignoreMissing=True)
+            //         resIndex = this.getIndex(outletsLayer, Topology._RES, ignoreMissing=True)
             //         if idIndex < 0 or inletIndex < 0 or resIndex < 0:
             //             return False
             //         exp = QgsExpression('"{0}" = {1}', Topology._ID, pointId))
@@ -2268,7 +2300,7 @@ namespace ArcSWATPlus {
                 if (lakeResIndex < 0) {
                     waterRole = WaterRole._RESERVOIR;
                 } else if (this.isHUC || this.isHAWQS) {
-                    waterRole = (WaterRole)(lake.GetFieldAsString(lakeResIndex) == "Reservoir" ? 1 : 2);
+                    waterRole = lake.GetFieldAsString(lakeResIndex) == "Reservoir" ? WaterRole._RESERVOIR : WaterRole._POND;
                 } else { 
                     waterRole = (WaterRole)lake.GetFieldAsInteger(lakeResIndex);
                 }
@@ -2386,7 +2418,7 @@ namespace ArcSWATPlus {
                     }
                 }
             } while (channel is not null);
-            // define lake elevation
+            // define lake elevation, and fix lakes with no out channel
             foreach (var (lakeId, datal) in this.lakesData) {
                 if (datal.waterRole == WaterRole._PLAYA) {
                     datal.elevation = Topology.valueAtPoint(datal.centroid, demLayer.GetRaster());
@@ -2761,8 +2793,8 @@ namespace ArcSWATPlus {
         //     ups = us.TryGetValue(link, None)
         //     if ups is not None:
         //         for up in ups:
-        //             self.upstreamFromInlets.Add(up)
-        //             self.addUpstreamLinks(up, us)
+        //             this.upstreamFromInlets.Add(up)
+        //             this.addUpstreamLinks(up, us)
         //===========================================================================
         // Get drain areas from channelLayer file's DS_Cont_Ar attribute.
         public virtual void setDrainageFromChannels(OSGeo.OGR.Layer channelLayer, int drainAreaIndex) {
@@ -2820,7 +2852,7 @@ namespace ArcSWATPlus {
         }
 
         // Check drainage as defined by downChannels map is not circular: attempt to fix if so.  Also calculate drainage in 
-        //         self.drainAreas if needDrainage is true.  If so, assume it is initialised with area of grid cell.
+        //         this.drainAreas if needDrainage is true.  If so, assume it is initialised with area of grid cell.
         //         
         //         Only used in grid models.
         //         Changes the channel and the grid shapefiles, plus the downChannels and downSubbasins mappings, plus the upchannel map us if not None.
@@ -3010,6 +3042,81 @@ namespace ArcSWATPlus {
                 var channelLink = reach.GetFieldAsInteger(this.channelIndex);
                 this.strahler[channelLink] = reach.GetFieldAsInteger(orderIndex);
             } while (reach is not null);
+        }
+
+        // Get Strahler order from channel file's order attribute, but override coastline setting of -9
+        // with best upstream link order
+
+        public virtual void setStrahlerFromHUCChannels() {
+
+            // Return Strahler order from links upstream from channelLink.
+            int channelOrder(int channelLink) {
+                var best = -1;  // less than any valid order 
+                var count = 0;
+                List<int> chLinks = new List<int>();
+                foreach (var (link, dsLink) in this.downChannels) {
+                    if (dsLink == channelLink) {
+                        chLinks.Add(link);
+                    }
+                }
+                if (chLinks.Count == 0) {
+                    // we have the order (1) for this link, so store it
+                    this.strahler[channelLink] = 1;
+                    return 1;
+                }
+                foreach (var chLink in chLinks) {
+                    int order = this.channelOrders[chLink];
+                    if (order < 0) {
+                        // check if previously calculated
+                        int order2;
+                        if (!this.strahler.TryGetValue(chLink, out order2)) {
+                            order2 = -1;
+                        }
+                        if (order2 > 0) {
+                            order = order2;
+                        } else {
+                            // need to look further upstream
+                            order = channelOrder(chLink);
+                        }
+                    }
+                    if (order > best) {
+                        best = order;
+                        count = 1;
+
+                    } else {
+                        if (order == best && order > 0 && count == 1) {
+                            best += 1;
+                            count += 1;
+                        }
+                    }
+                }
+                // we have the order for this link, so store it
+                if (best > 0) {   // should always be true
+                    this.strahler[channelLink] = best;
+                }
+                return best;
+            }
+
+            foreach (var (channelLink, order) in this.channelOrders) {
+                if (order > 0) {
+                    this.strahler[channelLink] = order;
+                    continue;
+                }
+                // try this.strahler in case already assigned
+                int order2;
+                if (!this.strahler.TryGetValue(channelLink, out order2)) {
+                    order2 = -1;
+                }
+                if (order2 > 0) {
+                    continue;
+                }
+                // order is negative: will be -9 for coastline
+                // replace with strahler of incoming channel orders
+                var order3 = channelOrder(channelLink);
+                if (order3 < 0) {
+                    Utils.error(string.Format("Failed to find Strahler order for channel with link {0}", channelLink), this.isBatch);
+                }
+            }
         }
 
         // Set Strahler orders using upstream map from each outlet.
@@ -3464,8 +3571,7 @@ namespace ArcSWATPlus {
                 polygon = subbasinsLayer.GetNextFeature();
                 if (polygon is null) { break; }
                 var subbasin = polygon.GetFieldAsInteger(polyIndex);
-                if (this.upstreamFromInlets.Contains(subbasin) || !(useGridModel || this.chBasinToSubbasin.Values.Contains(subbasin))) {
-                    // removed by chBasin being within a lake
+                if (this.upstreamFromInlets.Contains(subbasin)) {
                     continue;
                 }
                 var SWATBasin = polygon.GetFieldAsInteger(subbasinIndex);
@@ -3475,8 +3581,13 @@ namespace ArcSWATPlus {
                 if (SWATBasins.Contains(SWATBasin)) {
                     return false;
                 }
-                this.subbasinToSWATBasin[subbasin] = SWATBasin;
-                this.SWATBasinToSubbasin[SWATBasin] = subbasin;
+                if (!(useGridModel || this.chBasinToSubbasin.Values.Contains(subbasin))) {
+                    // removed by chBasin being within a lake
+                    this.subbasinsInLakes[subbasin] = SWATBasin;
+                } else {
+                    this.subbasinToSWATBasin[subbasin] = SWATBasin;
+                    this.SWATBasinToSubbasin[SWATBasin] = subbasin;
+                }
                 SWATBasins.Add(SWATBasin);
             } while (polygon is not null);
             return this.subbasinToSWATBasin.Count > 0; // else danger of no SWATBasins
@@ -4125,7 +4236,10 @@ namespace ArcSWATPlus {
                 return;
             }
             var chBasin = this.chLinkToChBasin[chLink];
-            var subbasin = this.chBasinToSubbasin[chBasin];
+            int subbasin;
+            if (!this.chBasinToSubbasin.TryGetValue(chBasin, out subbasin)) {
+                subbasin = 0;
+            }
             var dsLink = this.downChannels[chLink];
             int dsChBasin;
             if (this.chLinkToChBasin.TryGetValue(dsLink, out dsChBasin)) {
@@ -4315,19 +4429,23 @@ namespace ArcSWATPlus {
                         continue;
                     }
                     int chLink = lake.outChLink;
-                    // unnecessary as will be in self.outlets
+                    // unnecessary as will be in this.outlets
                     //if not useGridModel and chLink == -1:
                     //    # main outlet was moved inside lake, but reservoir point will still be routed to it
                     //    # so Add its definition
-                    //    (outletId, outPt, _) = self.outlets[subbasin]
-                    //    self.addPoint(curs, subbasin, outletId, outPt, elev, 'O')
+                    //    (outletId, outPt, _) = this.outlets[subbasin]
+                    //    this.addPoint(curs, subbasin, outletId, outPt, elev, 'O')
                     this.addPoint(subbasin, pointId, pt, elev, "W");
                     waterAdded.Add(pointId);
                     // inlets to lake.  These are outlets from streams in grid models, so not necessary
                     if (!useGridModel) {
                         foreach (var (inchLink, (inpointId, inpt, inelev)) in lake.inChLinks) {
                             var inchBasin = this.chLinkToChBasin[inchLink];
-                            var insubbasin = this.chBasinToSubbasin[inchBasin];
+                            //  if subbasin subsumed within lake, may not exist, so just default to 0
+                            int insubbasin;
+                            if (!this.chBasinToSubbasin.TryGetValue(inchBasin, out insubbasin)) {
+                                insubbasin = 0;
+                            }
                             this.addPoint(insubbasin, inpointId, inpt, inelev, "O");
                         }
                     }
@@ -4381,12 +4499,12 @@ namespace ArcSWATPlus {
                     elev = 0;
                 }
                 this.addPoint(subbasin, pointId, pt, elev, "W");
-                //             for subbasin, (pointId, pt) in self.extraReservoirs.iteritems():
-                //                 if subbasin in self.upstreamFromInlets: 
+                //             for subbasin, (pointId, pt) in this.extraReservoirs.iteritems():
+                //                 if subbasin in this.upstreamFromInlets: 
                 //                 # shouldn't happen, but users can be stupid
                 //                     continue
                 //                 elev = Topology.valueAtPoint(pt, demLayer)
-                //                 self.addPoint(curs, subbasin, pointId, pt, elev, 'R')
+                //                 this.addPoint(curs, subbasin, pointId, pt, elev, 'R')
             }
         }
 
@@ -4439,7 +4557,7 @@ namespace ArcSWATPlus {
         //     # since they are attached to their downstream basins
         //     if not data:
         //         return
-        //     SWATBasin = self.subbasinToSWATBasin.TryGetValue(data.ru, 0)
+        //     SWATBasin = this.subbasinToSWATBasin.TryGetValue(data.ru, 0)
         //     if SWATBasin == 0:
         //         return
         //     lsu = 0
@@ -4452,35 +4570,35 @@ namespace ArcSWATPlus {
         //         pt = MapPointBuilderEx.CreateMapPoint(data.lowerX, data.lowerY)
         //         elev = data.lowerZ
         //         if typ == 'P': # point source
-        //             resId = self.linkToReservoir.TryGetValue(link, 0)
+        //             resId = this.linkToReservoir.TryGetValue(link, 0)
         //             if resId > 0: 
         //                 # point source drains to reservoir
         //                 drainId = resId
         //                 drainCat = 'P'
         //             else:
         //                 # point source drains to link outlet
-        //                 drainId = self.linkToOutlet[link]
+        //                 drainId = this.linkToOutlet[link]
         //                 drainCat = 'P'
         //         elif typ == 'R': # reservoir: drains to link outlet
-        //             drainId = self.linkToOutlet[link]
+        //             drainId = this.linkToOutlet[link]
         //             drainCat = 'P'
         //         else:
         //             assert typ == 'O', u'Unknown point type: ' + typ
         //             # outlet: drains to reach of downstream basin (if any)
-        //             dsLink = self.downLinks[link]
+        //             dsLink = this.downLinks[link]
         //             dsSWATBasin = 0
         //             while dsLink >= 0 and dsSWATBasin == 0:
-        //                 dsBasin = self.linkToBasin[dsLink]
-        //                 dsSWATBasin = self.subbasinToSWATBasin.TryGetValue(dsBasin, 0)
+        //                 dsBasin = this.linkToBasin[dsLink]
+        //                 dsSWATBasin = this.subbasinToSWATBasin.TryGetValue(dsBasin, 0)
         //                 if dsSWATBasin == 0:
-        //                     dsLink = self.downLinks[dsLink]
+        //                     dsLink = this.downLinks[dsLink]
         //             if dsSWATBasin > 0:
         //                 drainId = dsSWATBasin
         //                 drainCat = 'R'
         //             else:
         //                 drainId = -1
         //                 drainCat = 'X'
-        //     ptll = self.pointToLatLong(pt)
+        //     ptll = this.pointToLatLong(pt)
         //     sql = "INSERT INTO " + table + " VALUES(?,?,?,?,?,?,?,?,?)"
         //     cursor.execute(sql, (pointId, SWATBasin, lsu, typ, \
         //                    pt.X, pt.Y, ptll.Y, ptll.X, elev))
@@ -4679,8 +4797,8 @@ namespace ArcSWATPlus {
                 var time1 = DateTime.Now;
                 using (var rivs1Ds = Ogr.Open(rivs1File, 1)) {
                     var rivs1Layer = rivs1Ds.GetLayerByIndex(0);
-                    // Add fields from channels table to rivs1File if less than RIV1SUBS1MAX features; otherwise takes too long.
-                    var addToRiv1 = rivs1Layer.GetFeatureCount(1) <= Parameters._RIVS1SUBS1MAX;
+                    // for non HUC or HAWQS models add fields from channels table to rivs1File if less than RIV1SUBS1MAX features; otherwise takes too long.
+                    var addToRiv1 = this.isHUC || this.isHAWQS || rivs1Layer.GetFeatureCount(1) <= Parameters._RIVS1SUBS1MAX;
                     if (addToRiv1) {
                         // remove fields apart from LINKNO, Channel, ChannelR, channelR2 and Subbasin
                         Topology.removeFields(rivs1Layer, new List<string> {
@@ -4719,7 +4837,9 @@ namespace ArcSWATPlus {
                         lakeOutIdx = rivs1Defn.GetFieldIndex(Topology._LAKEOUT);
                         var clearSQL = "DROP TABLE IF EXISTS " + table;
                         db.execNonQuery(clearSQL, null, transaction);
+                        db.clearKeys(table);
                         db.execNonQuery(DBUtils._CHANNELSCREATESQL, null, transaction);
+                        db.clearKeys(table);
                         var toDelete = new List<long>();
                         try {
                             rivs1Layer.ResetReading();
@@ -4820,8 +4940,12 @@ namespace ArcSWATPlus {
                                 if (rid == 0 && pid == 0) {
                                     // Utils.loginfo(string.Format("Adding channel {0} SWATChannel {1} to gis_channels", channel, SWATChannel));
                                     // otherwise omit from gis_channels channels which have become reservoirs or ponds
-                                    db.execNonQuery(sql, new object[] { SWATChannel, SWATBasin, drainAreaHa, order, length, slopePercent, channelWidth, channelDepth, minEl, maxEl, midLat, midLong }, transaction);
-                                    this.db.addKey(table, SWATChannel);
+                                    if (this.db.hasKey(table, SWATChannel)) {
+                                        Utils.error(string.Format("Trying to add duplicate channel {0}({2}) to {1}", SWATChannel, table, channel), this.isBatch);
+                                    } else {
+                                        db.execNonQuery(sql, new object[] { SWATChannel, SWATBasin, drainAreaHa, order, length, slopePercent, channelWidth, channelDepth, minEl, maxEl, midLat, midLong }, transaction);
+                                        this.db.addKey(table, SWATChannel);
+                                    }
                                 }
                                 reach.SetField(areaCIdx, drainAreaHa);
                                 reach.SetField(orderIdx, order);
@@ -5143,7 +5267,7 @@ namespace ArcSWATPlus {
                 channelToPtSrc = new Dictionary<int, (int, double[])>();
                 foreach (var (channel0, ptsrcPair) in this.chLinkToPtSrc) {
                     channelToPtSrc[channel0] = ptsrcPair;
-                    //Utils.loginfo('Channel {0} merged to {1} has point source {2}', channel, self.finalTarget(channel, mergedChannels), ptsrc.Item1))
+                    //Utils.loginfo('Channel {0} merged to {1} has point source {2}', channel, this.finalTarget(channel, mergedChannels), ptsrc.Item1))
                     // Add point sources at stream sources
                 }
             }
@@ -5170,7 +5294,7 @@ namespace ArcSWATPlus {
                         }
                     }
                     try {
-                        var routedPoints = new List<int>();
+                        this.routedPoints = new List<int>();
                         var routedWater = new List<int>();
                         var routedChannels = new List<int>();
                         //                 routedSubbasins = []
@@ -5190,7 +5314,7 @@ namespace ArcSWATPlus {
                                     ptsrc = pair0.Item2;
                                 }
                                 if (ptsrc is not null) {
-                                    if (!routedPoints.Contains(ptsrcId)) {
+                                    if (!this.routedPoints.Contains(ptsrcId)) {
                                         int finalChannel = this.finalTarget(channel, mergedChannels);
                                         (int, WaterRole) val;
                                         if (channelToWater.TryGetValue(finalChannel, out val)) {
@@ -5203,7 +5327,7 @@ namespace ArcSWATPlus {
                                                 var finalSWATChannel = this.channelToSWATChannel[finalChannel];
                                                 this.db.addToRouting(ptsrcId, ptCat, finalSWATChannel, chCat, Topology._TOTAL, 100, cmd);
                                             }
-                                            routedPoints.Add(ptsrcId);
+                                            this.routedPoints.Add(ptsrcId);
                                         }
                                     }
                                 }
@@ -5225,8 +5349,18 @@ namespace ArcSWATPlus {
                             }
                             bool haveBifurcation = dsChannel2 >= 0 || dsNodeId2 >= 0;
                             int mainPercent = haveBifurcation ? Parameters._MAJORPERCENT : 100;
-                            // if channel is lake outflow
-                            // if main outflow, route lake to outlet and outlet to channel
+                            //  possible that channel is within a lake, and so may not exist
+                            //  if so we will save the source into the channel and later route it to the channel's sink
+                            int withinLakeId;
+                            if (!this.chLinkInsideLake.TryGetValue(channel, out withinLakeId)) {
+                                withinLakeId = -1;
+                            }
+                            var noChannel = withinLakeId > 0;
+                            int source = -1;
+                            string sourceCat = null;
+                            int flowPercent = 0;
+                            // possible that channel is within a lake, and so may not exist
+                            // if so we will save the source into the channel and later route it to the channel's sink
                             // else route 0% of lake to channel
                             int outLakeId;
                             if (!this.chLinkFromLake.TryGetValue(channel, out outLakeId)) { outLakeId = -1; }
@@ -5237,7 +5371,7 @@ namespace ArcSWATPlus {
                                     // main outlet
                                     int outletId = lakeData.outPoint.Item2;
                                     this.db.addToRouting(outLakeId, wCat, outletId, ptCat, Topology._TOTAL, 100, cmd);
-                                    if (!routedPoints.Contains(outletId)) {
+                                    if (!this.routedPoints.Contains(outletId)) {
                                         if (gv.useGridModel) {
                                             int downChannel;
                                             if (!this.downChannels.TryGetValue(channel, out downChannel)) {
@@ -5246,17 +5380,36 @@ namespace ArcSWATPlus {
                                             if (downChannel < 0) {
                                                 // we have an internal lake exit: route outlet id to watershed exit
                                                 this.db.addToRouting(outletId, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
+                                                this.routedPoints.Add(outletId);
                                             } else {
-                                                this.db.addToRouting(outletId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
+                                                if (noChannel) { //  save source for now: cannot route to channel
+                                                    (source, sourceCat, flowPercent) = (outletId, ptCat, 100);
+                                                } else {
+                                                    this.db.addToRouting(outletId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
+                                                    this.routedPoints.Add(outletId);
+                                                }
                                             }
                                         } else {
                                             this.db.addToRouting(outletId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
+                                            this.routedPoints.Add(outletId);
                                         }
                                     }
-                                    routedPoints.Add(outletId);
                                 } else {
                                     // other outlet
-                                    this.db.addToRouting(outLakeId, wCat, SWATChannel, chCat, Topology._TOTAL, 0, cmd);
+                                    if (noChannel) { // save source for now: cannot route to channel
+                                        (source, sourceCat, flowPercent) = (outLakeId, ptCat, 0);
+                                    } else {
+                                        this.db.addToRouting(outLakeId, wCat, SWATChannel, chCat, Topology._TOTAL, 0, cmd);
+                                    }
+                                }
+                            } else {
+                                // check for channel which is another outlet: may not be in this.chLinkFromLake
+                                if (noChannel) {
+                                    LakeData withinLakeData = this.lakesData[withinLakeId];
+                                    if (withinLakeData.otherOutChLinks.Contains(channel)) {
+                                        wCat = withinLakeData.waterRole == WaterRole._RESERVOIR ? resCat : withinLakeData.waterRole == WaterRole._POND ? pondCat : wetlandCat;
+                                        (source, sourceCat, flowPercent) = (withinLakeId, wCat, 0);
+                                    }
                                 }
                             }
                             // check if channel routes into lake
@@ -5264,14 +5417,16 @@ namespace ArcSWATPlus {
                             if (!this.chLinkIntoLake.TryGetValue(channel, out inLakeId)) { inLakeId = -1; }
                             if (inLakeId >= 0) {
                                 // route its point source to the channel
-                                (int, double[]) pair2;
-                                if (channelToPtSrc.TryGetValue(channel, out pair2)) {
-                                    ptsrcId = pair2.Item1;
-                                    ptsrc = pair2.Item2;
-                                    if (ptsrc is not null) {
-                                        if (!routedPoints.Contains(ptsrcId)) {
-                                            this.db.addToRouting(ptsrcId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
-                                            routedPoints.Add(ptsrcId);
+                                if (!noChannel) {
+                                    (int, double[]) pair2;
+                                    if (channelToPtSrc.TryGetValue(channel, out pair2)) {
+                                        ptsrcId = pair2.Item1;
+                                        ptsrc = pair2.Item2;
+                                        if (ptsrc is not null) {
+                                            if (!this.routedPoints.Contains(ptsrcId)) {
+                                                this.db.addToRouting(ptsrcId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
+                                                this.routedPoints.Add(ptsrcId);
+                                            }
                                         }
                                     }
                                 }
@@ -5280,30 +5435,57 @@ namespace ArcSWATPlus {
                                 int outletId = lakeData.inChLinks[channel].Item1;
                                 wCat = lakeData.waterRole == WaterRole._RESERVOIR ? resCat : lakeData.waterRole == WaterRole._POND ? pondCat : wetlandCat;
                                 if (!routedChannels.Contains(SWATChannel)) {
-                                    this.db.addToRouting(SWATChannel, chCat, outletId, ptCat, Topology._TOTAL, mainPercent, cmd);
-                                    routedChannels.Add(SWATChannel);
+                                    if (noChannel) {
+                                        if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                            this.db.addToRouting(source, sourceCat, outletId, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : mainPercent, cmd);
+                                            if (!haveBifurcation && sourceCat == ptCat) {
+                                                this.routedPoints.Add(source);
+                                            }
+                                        }
+                                    } else {
+                                        this.db.addToRouting(SWATChannel, chCat, outletId, ptCat, Topology._TOTAL, mainPercent, cmd);
+                                        routedChannels.Add(SWATChannel);
+                                    }
                                     if (dsSWATChannel2 > 0) {
-                                        this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
-                                    } else if (dsNodeId2 > 0) {
-                                        this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
-                                        if (!routedPoints.Contains(dsNodeId2)) {
-                                            this.db.addToRouting(dsNodeId2, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
-                                            routedPoints.Add(dsNodeId2);
-                                        }
-                                    }
-                                    if (!routedPoints.Contains(outletId)) {
-                                        var (subbasin2, _, _, _) = lakeData.outPoint;
-                                        if ((gv.isHUC || gv.isHAWQS) && subbasin2 < 0) {
-                                            // lakes file is larger than watershed for HUC models and this lake must be outside watershed
-                                            this.db.addToRouting(outletId, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsSWATChannel2, chCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
                                         } else {
-                                            this.db.addToRouting(outletId, ptCat, inLakeId, wCat, Topology._TOTAL, 100, cmd);
+                                            this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
                                         }
-                                        routedPoints.Add(outletId);
+                                    } else if (dsNodeId2 > 0) {
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsNodeId2, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                            if (!this.routedPoints.Contains(dsNodeId2)) {
+                                                this.db.addToRouting(dsNodeId2, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
+                                                this.routedPoints.Add(dsNodeId2);
+                                            }
+                                        }
                                     }
-                                    if (!gv.useGridModel) {
-                                        continue; // since we know it is into the lake and so cannot have a downstream channel or be a subbasin outlet
+                                }
+                                if (!this.routedPoints.Contains(outletId)) {
+                                    var (subbasin2, _, _, _) = lakeData.outPoint;
+                                    if ((gv.isHUC || gv.isHAWQS) && subbasin2 < 0) {
+                                        // lakes file is larger than watershed for HUC models and this lake must be outside watershed
+                                        this.db.addToRouting(outletId, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
+                                    } else {
+                                        this.db.addToRouting(outletId, ptCat, inLakeId, wCat, Topology._TOTAL, 100, cmd);
                                     }
+                                    this.routedPoints.Add(outletId);
+                                }
+                                if (!gv.useGridModel) {
+                                    continue; // since we know it is into the lake and so cannot have a downstream channel or be a subbasin outlet
                                 }
                             }
                             int subbasin = -1;
@@ -5322,7 +5504,11 @@ namespace ArcSWATPlus {
                             if (!this.subbasinToSWATBasin.TryGetValue(subbasin, out SWATBasin)) {
                                 SWATBasin = 0;
                             }
-                            if (SWATBasin == 0) {
+                            if (noChannel) {
+                                if (source < 0) { // not a lake outlet
+                                    continue;
+                                }
+                            } else if (SWATBasin == 0) {
                                 continue;
                             }
                             // if channel is inside lake ignore it unless a lake outflow
@@ -5348,18 +5534,22 @@ namespace ArcSWATPlus {
                                 inletId = reslt.Item1;
                                 inletPt = reslt.Item2;
                             }
-                            if (inletPt is not null) {
+                            if (inletPt is not null && (!this.routedPoints.Contains(inletId))) {
                                 // route inlet to channel or water
                                 if (wid >= 0) {
                                     this.db.addToRouting(inletId, ptCat, wid, wCat, Topology._TOTAL, 100, cmd);
                                 } else {
                                     this.db.addToRouting(inletId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
                                 }
+                                this.routedPoints.Add(inletId);
                             }
                             pointId = -1;
-                            (var ptId, _, var outletChannels) = this.outlets[subbasin];
-                            if (outletChannels.Contains(channel)) {
-                                pointId = ptId;
+                            (int, double[], List<int>) outlet;
+                            if (!this.outlets.TryGetValue(subbasin, out outlet)) {
+                                outlet.Item3 = new List<int>();
+                            }
+                            if (outlet.Item3.Contains(channel)) {
+                                pointId = outlet.Item1;
                             } else if (this.isHUC || this.isHAWQS) {  // subbasins can have multiple channel outlets
                                 (int, double[]) pair3;
                                 if (!this.chOutlets.TryGetValue(channel, out pair3)) {
@@ -5368,10 +5558,10 @@ namespace ArcSWATPlus {
                                 pointId = pair3.Item1;
                             }
                             // check for downstream channels within lake even though this channel is not marked as into lake
-                            // this happens with HAWQS models
+                            // this happens with HUC and HAWQS models
                             var inLakeId1 = -1;
                             var inLakeId2 = -1;
-                            if (this.isHAWQS) {
+                            if (this.isHUC || this.isHAWQS) {
                                 if (!this.chLinkInsideLake.TryGetValue(dsChannel, out inLakeId1)) {
                                     inLakeId1 = -1;
                                 }
@@ -5387,32 +5577,68 @@ namespace ArcSWATPlus {
                                 }
                                 (ptsrcId, ptsrc) = pair3;
                                 if (ptsrc is not null) {
-                                    if (!routedPoints.Contains(ptsrcId)) {
+                                    if (!this.routedPoints.Contains(ptsrcId)) {
                                         this.db.addToRouting(ptsrcId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
-                                        routedPoints.Add(ptsrcId);
+                                        this.routedPoints.Add(ptsrcId);
                                     }
                                 }
                                 // route channel to its outlet(s)
                                 if (!routedChannels.Contains(SWATChannel)) {
-                                    this.db.addToRouting(SWATChannel, chCat, pointId, ptCat, Topology._TOTAL, mainPercent, cmd);
-                                    routedChannels.Add(SWATChannel);
+                                    if (noChannel) {
+                                        if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                            this.db.addToRouting(source, sourceCat, pointId, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : mainPercent, cmd);
+                                            if (!haveBifurcation && sourceCat == ptCat) {
+                                                this.routedPoints.Add(source);
+                                            }
+                                        }
+                                    } else {
+                                        this.db.addToRouting(SWATChannel, chCat, pointId, ptCat, Topology._TOTAL, mainPercent, cmd);
+                                        routedChannels.Add(SWATChannel);
+                                    }
                                     if (inLakeId1 > 0) {
                                         var lakeData = this.lakesData[inLakeId1];
                                         wCat = lakeData.waterRole == (WaterRole)1 ? resCat : lakeData.waterRole == (WaterRole)2 ? pondCat : wetlandCat;
                                         this.db.addToRouting(pointId, ptCat, inLakeId1, wCat, Topology._TOTAL, 100, cmd);
-                                        routedPoints.Add(pointId);
+                                        this.routedPoints.Add(pointId);
                                     }
                                     if (inLakeId2 > 0) {
                                         var lakeData = this.lakesData[inLakeId2];
                                         wCat = lakeData.waterRole == (WaterRole)1 ? resCat : lakeData.waterRole == (WaterRole)2 ? pondCat : wetlandCat;
-                                        this.db.addToRouting(SWATChannel, chCat, inLakeId2, wCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, inLakeId2, wCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, inLakeId2, wCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        }
                                     } else if (dsSWATChannel2 > 0) {
-                                        this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsSWATChannel2, chCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        }
                                     } else if (dsNodeId2 > 0) {
-                                        this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
-                                        if (!routedPoints.Contains(dsNodeId2)) {
-                                            this.db.addToRouting(dsNodeId2, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
-                                            routedPoints.Add(dsNodeId2);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsNodeId2, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                            if (!this.routedPoints.Contains(dsNodeId2)) {
+                                                this.db.addToRouting(dsNodeId2, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
+                                                this.routedPoints.Add(dsNodeId2);
+                                            }
                                         }
                                     }
                                 }
@@ -5437,13 +5663,13 @@ namespace ArcSWATPlus {
                                 }
                                 if (ptsrc is not null) {
                                     // route it to the outlet channel, unless already routed
-                                    if (!routedPoints.Contains(ptsrcId)) {
+                                    if (!this.routedPoints.Contains(ptsrcId)) {
                                         if (wid < 0) {
                                             this.db.addToRouting(ptsrcId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
                                         } else {
                                             this.db.addToRouting(ptsrcId, ptCat, wid, wCat, Topology._TOTAL, 100, cmd);
                                         }
-                                        routedPoints.Add(ptsrcId);
+                                        this.routedPoints.Add(ptsrcId);
                                     }
                                 }
                                 if (wid >= 0) {
@@ -5457,6 +5683,7 @@ namespace ArcSWATPlus {
                                         widDown = temp1.Item1;
                                     }
                                     if (!routedWater.Contains(wid) && wid != widDown) {
+                                        int ptId;
                                         int waterId;
                                         (int, double[], WaterRole) temp2;
                                         if (!this.chLinkToWater.TryGetValue(channel, out temp2)) {
@@ -5483,18 +5710,95 @@ namespace ArcSWATPlus {
                                             Utils.error(string.Format("Cannot find water point for channel {0}", SWATChannel), gv.isBatch);
                                         } else {
                                             this.db.addToRouting(wid, wCat, ptId, ptCat, Topology._TOTAL, 100, cmd);
-                                            if (!routedPoints.Contains(ptId)) {
+                                            if (!this.routedPoints.Contains(ptId)) {
                                                 this.db.addToRouting(ptId, ptCat, pointId, ptCat, Topology._TOTAL, 100, cmd);
-                                                routedPoints.Add(ptId);
+                                                this.routedPoints.Add(ptId);
                                             }
                                             routedWater.Add(wid);
                                         }
                                     }
                                 } else if (!routedChannels.Contains(SWATChannel)) {
-                                    this.db.addToRouting(SWATChannel, chCat, pointId, ptCat, Topology._TOTAL, 100, cmd);
-                                    routedChannels.Add(SWATChannel);
+                                    // need to check if there is a minor channel and if so whether it exits to the same subbasin
+                                    if (dsSWATChannel2 > 0) {
+                                        int dsSubbasin1 = -1;
+                                        int dsSubbasin2 = -1;
+                                        if (gv.useGridModel) {
+                                            dsSubbasin1 = this.chLinkToChBasin[dsChannel];
+                                            dsSubbasin2 = this.chLinkToChBasin[dsChannel2];
+                                        } else {
+                                            int dsChBasin1;
+                                            if (!this.chLinkToChBasin.TryGetValue(dsChannel, out dsChBasin1)) { dsChBasin1 = -1; }
+                                            if (!this.chBasinToSubbasin.TryGetValue(dsChBasin1, out dsSubbasin1)) { dsSubbasin1 = -1; }
+                                            int dsChBasin2;
+                                            if (!this.chLinkToChBasin.TryGetValue(dsChannel2, out dsChBasin2)) { dsChBasin2 = -1; }
+                                            if (!this.chBasinToSubbasin.TryGetValue(dsChBasin2, out dsSubbasin2)) { dsSubbasin2 = -1; }
+                                        }
+                                        // if the downstream subbasins are the same, route 100% to the subbasin outlet and then split between the channels
+                                        if (dsSubbasin1 == dsSubbasin2) {
+                                            if (noChannel) {
+                                                if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                    this.db.addToRouting(source, sourceCat, pointId, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100, cmd);
+                                                    if (sourceCat == ptCat) {
+                                                        this.routedPoints.Add(source);
+                                                    }
+                                                }
+                                            } else {
+                                                this.db.addToRouting(SWATChannel, chCat, pointId, ptCat, Topology._TOTAL, 100, cmd);
+                                                routedChannels.Add(SWATChannel);
+                                            }
+                                            if (!this.routedPoints.Contains(pointId)) {
+                                                this.db.addToRouting(pointId, ptCat, dsSWATChannel, chCat, Topology._TOTAL, mainPercent, cmd);
+                                                this.db.addToRouting(pointId, ptCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                                this.routedPoints.Add(pointId);
+                                            }
+                                        } else {
+                                            if (noChannel) {
+                                                if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                    this.db.addToRouting(source, sourceCat, pointId, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : mainPercent, cmd);
+                                                    this.db.addToRouting(source, sourceCat, dsSWATChannel2, chCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                    if (sourceCat == ptCat) {
+                                                        this.routedPoints.Add(source);
+                                                    }
+                                                }
+                                            } else {
+                                                this.db.addToRouting(SWATChannel, chCat, pointId, ptCat, Topology._TOTAL, mainPercent, cmd);
+                                                routedChannels.Add(SWATChannel);
+                                                this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                            }
+                                        }
+                                    } else {
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, pointId, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : mainPercent, cmd);
+                                                if (!haveBifurcation && sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, pointId, ptCat, Topology._TOTAL, mainPercent, cmd);
+                                            routedChannels.Add(SWATChannel);
+                                        }
+                                        if (dsNodeId2 > 0) {
+                                            if (noChannel) {
+                                                if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                    this.db.addToRouting(source, sourceCat, dsNodeId2, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                    if (sourceCat == ptCat) {
+                                                        this.routedPoints.Add(source);
+                                                    }
+                                                }
+                                            } else {
+                                                this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                            }
+                                            if (!this.routedPoints.Contains(dsNodeId2)) {
+                                                this.db.addToRouting(dsNodeId2, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
+                                                this.routedPoints.Add(dsNodeId2);
+                                            }
+                                        }
+                                    }
                                 }
-                                if (!routedPoints.Contains(pointId)) {
+
+
+                                if (!this.routedPoints.Contains(pointId)) {
                                     if (dsSWATChannel > 0) {
                                         int widDown;
                                         WaterRole roleDown;
@@ -5516,7 +5820,7 @@ namespace ArcSWATPlus {
                                         // watershed outlet: mark point as category X
                                         this.db.addToRouting(pointId, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
                                     }
-                                    routedPoints.Add(pointId);
+                                    this.routedPoints.Add(pointId);
                                 }
                             } else {
                                 // channel and downstream channel within a subbasin: 
@@ -5536,6 +5840,7 @@ namespace ArcSWATPlus {
                                 if (wid >= 0) {
                                     if (!routedWater.Contains(wid)) {
                                         int waterId;
+                                        int ptId;
                                         if (widDown >= 0) {
                                             // if wid == widDown wid is only a part water body
                                             // and we will eventually route the one downstream
@@ -5565,10 +5870,10 @@ namespace ArcSWATPlus {
                                                     Utils.error(string.Format("Cannot find water point for channel {0}", SWATChannel), gv.isBatch);
                                                 } else {
                                                     this.db.addToRouting(wid, wCat, ptId, ptCat, Topology._TOTAL, 100, cmd);
-                                                    if (!routedPoints.Contains(ptId)) {
+                                                    if (!this.routedPoints.Contains(ptId)) {
                                                         wCat = roleDown == WaterRole._RESERVOIR ? resCat : roleDown == WaterRole._POND ? pondCat : wetlandCat;
                                                         this.db.addToRouting(ptId, ptCat, widDown, wCat, Topology._TOTAL, 100, cmd);
-                                                        routedPoints.Add(ptId);
+                                                        this.routedPoints.Add(ptId);
                                                     }
                                                     routedWater.Add(wid);
                                                 }
@@ -5599,9 +5904,9 @@ namespace ArcSWATPlus {
                                                 Utils.error(string.Format("Cannot find water point for channel {0}", SWATChannel), gv.isBatch);
                                             } else {
                                                 this.db.addToRouting(wid, wCat, ptId, ptCat, Topology._TOTAL, 100, cmd);
-                                                if (!routedPoints.Contains(ptId)) {
+                                                if (!this.routedPoints.Contains(ptId)) {
                                                     this.db.addToRouting(ptId, ptCat, dsSWATChannel, chCat, Topology._TOTAL, 100, cmd);
-                                                    routedPoints.Add(ptId);
+                                                    this.routedPoints.Add(ptId);
                                                 }
                                                 routedWater.Add(wid);
                                             }
@@ -5613,21 +5918,58 @@ namespace ArcSWATPlus {
                                         // is included in outputs
                                         this.pointId += 1;
                                         extraPoints.Add((channel, this.pointId));
-                                        this.db.addToRouting(SWATChannel, chCat, this.pointId, ptCat, Topology._TOTAL, mainPercent, cmd);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, this.pointId, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : mainPercent, cmd);
+                                                if (!haveBifurcation && sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, this.pointId, ptCat, Topology._TOTAL, mainPercent, cmd);
+                                            routedChannels.Add(SWATChannel);
+                                        }
                                         wCat = roleDown == WaterRole._RESERVOIR ? resCat : roleDown == WaterRole._POND ? pondCat : wetlandCat;
                                         this.db.addToRouting(this.pointId, ptCat, widDown, wCat, Topology._TOTAL, 100, cmd);
-                                        routedPoints.Add(this.pointId);
+                                        this.routedPoints.Add(this.pointId);
                                     } else {
-                                        this.db.addToRouting(SWATChannel, chCat, dsSWATChannel, chCat, Topology._TOTAL, mainPercent, cmd);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsSWATChannel, chCat, Topology._TOTAL, flowPercent == 0 ? 0 : mainPercent, cmd);
+                                                if (!haveBifurcation && sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, dsSWATChannel, chCat, Topology._TOTAL, mainPercent, cmd);
+                                            routedChannels.Add(SWATChannel);
+                                        }
                                     }
-                                    routedChannels.Add(SWATChannel);
                                     if (dsSWATChannel2 > 0) {
-                                        this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsSWATChannel2, chCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, dsSWATChannel2, chCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        }
                                     } else if (dsNodeId2 > 0) {
-                                        this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
-                                        if (!routedPoints.Contains(dsNodeId2)) {
+                                        if (noChannel) {
+                                            if (sourceCat != ptCat || !this.routedPoints.Contains(source)) {
+                                                this.db.addToRouting(source, sourceCat, dsNodeId2, ptCat, Topology._TOTAL, flowPercent == 0 ? 0 : 100 - mainPercent, cmd);
+                                                if (sourceCat == ptCat) {
+                                                    this.routedPoints.Add(source);
+                                                }
+                                            }
+                                        } else {
+                                            this.db.addToRouting(SWATChannel, chCat, dsNodeId2, ptCat, Topology._TOTAL, 100 - mainPercent, cmd);
+                                        }
+                                        if (!this.routedPoints.Contains(dsNodeId2)) {
                                             this.db.addToRouting(dsNodeId2, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
-                                            routedPoints.Add(dsNodeId2);
+                                            this.routedPoints.Add(dsNodeId2);
                                         }
                                     }
                                 }
@@ -5642,13 +5984,13 @@ namespace ArcSWATPlus {
                                 ptsrc = temp.Item2;
                             }
                             if (ptsrc is not null) {
-                                if (!routedPoints.Contains(ptsrcId)) {
+                                if (!this.routedPoints.Contains(ptsrcId)) {
                                     if (wid > 0) {
                                         this.db.addToRouting(ptsrcId, ptCat, wid, wCat, Topology._TOTAL, 100, cmd);
                                     } else {
                                         this.db.addToRouting(ptsrcId, ptCat, SWATChannel, chCat, Topology._TOTAL, 100, cmd);
                                     }
-                                    routedPoints.Add(ptsrcId);
+                                    this.routedPoints.Add(ptsrcId);
                                 }
                             }
                         }
@@ -5667,13 +6009,13 @@ namespace ArcSWATPlus {
                                 wCat = lakeData.waterRole == WaterRole._RESERVOIR ? resCat : lakeData.waterRole == WaterRole._POND ? pondCat : wetlandCat;
                                 // route the lake to its lake outlet, the lake outlet to the main outlet, and mark main outlet as category X 
                                 this.db.addToRouting(lakeId, wCat, lakeOutletId, ptCat, Topology._TOTAL, 100, cmd);
-                                if (!routedPoints.Contains(lakeOutletId)) {
+                                if (!this.routedPoints.Contains(lakeOutletId)) {
                                     this.db.addToRouting(lakeOutletId, ptCat, outletId, ptCat, Topology._TOTAL, 100, cmd);
-                                    routedPoints.Add(lakeOutletId);
+                                    this.routedPoints.Add(lakeOutletId);
                                 }
-                                if (!routedPoints.Contains(outletId)) {
+                                if (!this.routedPoints.Contains(outletId)) {
                                     this.db.addToRouting(outletId, ptCat, 0, xCat, Topology._TOTAL, 100, cmd);
-                                    routedPoints.Add(outletId);
+                                    this.routedPoints.Add(outletId);
                                 }
                             }
                         }
@@ -5685,7 +6027,11 @@ namespace ArcSWATPlus {
                                 SWATBasin = 0;
                             }
                             if (SWATBasin == 0) {
-                                continue;
+                                // check for subbasin in lake
+                                if (!this.subbasinsInLakes.TryGetValue(subbasin, out SWATBasin)) { SWATBasin = 0; }
+                                if (SWATBasin == 0) {
+                                    continue;
+                                }
                             }
                             // with grid models chLinks is always a singleton list
                             if (gv.useGridModel) {
@@ -5715,7 +6061,10 @@ namespace ArcSWATPlus {
                         // route subbasin to downstream subbasin
                         foreach (var (subbasin, downSubbasin) in this.downSubbasins) {
                             int SWATBasin;
-                            if (!this.subbasinToSWATBasin.TryGetValue(subbasin, out SWATBasin)) { continue; }
+                            if (!this.subbasinToSWATBasin.TryGetValue(subbasin, out SWATBasin)) { SWATBasin = 0; }
+                            if (SWATBasin == 0) {
+                                if (!this.subbasinsInLakes.TryGetValue(subbasin, out SWATBasin)) { continue; }
+                            }
                             bool routed = false;
                             if (gv.useGridModel) {
                                 int chLink;
@@ -5948,7 +6297,7 @@ namespace ArcSWATPlus {
         //        Utils.copyPrj(file1, outFile);
         //        return true;
         //    } else {
-        //        // Utils.error(u'Calculator  failed', self._gv.isBatch)
+        //        // Utils.error(u'Calculator  failed', this._gv.isBatch)
         //        return false;
         //    }
         //}
@@ -6015,7 +6364,7 @@ namespace ArcSWATPlus {
         //        Utils.copyPrj(file1, outFile);
         //        return true;
         //    } else {
-        //        // Utils.error(u'Calculator  failed', self._gv.isBatch)
+        //        // Utils.error(u'Calculator  failed', this._gv.isBatch)
         //        return false;
         //    }
         //}
@@ -6098,7 +6447,7 @@ namespace ArcSWATPlus {
         //        Utils.copyPrj(baseFile, outFile);
         //        return true;
         //    } else {
-        //        // Utils.error(u'Calculator  failed', self._gv.isBatch)
+        //        // Utils.error(u'Calculator  failed', this._gv.isBatch)
         //        return false;
         //    }
         //}
@@ -6434,12 +6783,12 @@ namespace ArcSWATPlus {
         //    return index;
             //     def makePointInLine(self, reach: QgsFeature, percent: float) -> MapPointBuilderEx.CreateMapPoint:
             //         """Return a point percent along line from outlet end to next point."""
-            //         if self.outletAtStart:
-            //             line = Topology.reachFirstLine(reach.GetGeometryRef(), self.xThreshold, self.yThreshold)
+            //         if this.outletAtStart:
+            //             line = Topology.reachFirstLine(reach.GetGeometryRef(), this.xThreshold, this.yThreshold)
             //             pt1 = line[0]
             //             pt2 = line[1]
             //         else:
-            //             line = Topology.reachLastLine(reach.GetGeometryRef(), self.xThreshold, self.yThreshold)
+            //             line = Topology.reachLastLine(reach.GetGeometryRef(), this.xThreshold, this.yThreshold)
             //             length = len(line)
             //             pt1 = line[length-1]
             //             pt2 = line[length-2]
@@ -6574,25 +6923,29 @@ namespace ArcSWATPlus {
         //          streamFile is used with HUC models.""".
         public virtual bool saveOutletsAndSources(OSGeo.OGR.Layer channelLayer, OSGeo.OGR.Layer outletLayer, string streamFile, bool useGridModel) {
 
-            bool reachableFrom(int a, int b, Dictionary<int, int> mapp, int maxSteps) {
+            bool reachableFrom(int a, int b, Dictionary<int, int> mapp) {
 
-                // Test if a is reachable from b by stepping (upo to maxSteps) through mapp.
+                // Test if a is reachable from b by stepping through mapp.
                 if (a == b) {
                     return true;
                 }
-                int c;
-                if (!mapp.TryGetValue(b, out c)) {
-                    return false;
+                HashSet<int> visited = new();
+                int nxt = b;
+                while (true) {
+                    visited.Add(nxt);
+                    int c;
+                    if (!mapp.TryGetValue(nxt, out c)) { return false; }
+                    if (c == a) { return true; }
+                    if (visited.Contains(c)) {
+                        Utils.error(string.Format("{0} has a circular downstream relation involving subbasin {1}", streamFile, c), true);
+                        return false;
+                    }
+                    nxt = c;
                 }
-                if (maxSteps <= 0) {
-                    Utils.error(string.Format("{0} has a circular downstream relation involving subbasin {1}", streamFile, c), true);
-                    return false;
-                }
-                return reachableFrom(a, c, mapp, maxSteps - 1);
             }
 
+            //Test if the downChannels map has any circularity
             void checkDownChannels(Dictionary<int, int> downChannels) {
-                //Test if the downChannels map has any circularity
 
                 List<int> path = new List<int>();
                 int maxx = downChannels.Count;
@@ -6759,10 +7112,24 @@ namespace ArcSWATPlus {
                     outletDefn = outletLayer.GetLayerDefn();
                     ptIdIndex = outletDefn.GetFieldIndex(Topology._POINTID);
                 }
-                // set pointId to Math.Max id value in outletLayer
+                // points may be missing from outletLayer in HUC and HAWQS models, so first use channels layer to set initial value of this.pointId
+                if (isHUCOrHAWQS) {
+                    var dsNode1Index = channelDefn.GetFieldIndex(Topology._DSNODEID1);
+                    var dsNode2Index = channelDefn.GetFieldIndex(Topology._DSNODEID2);
+                    channelLayer.ResetReading();
+                    OSGeo.OGR.Feature channel;
+                    do {
+                        channel = channelLayer.GetNextFeature();
+                        if (channel is null) { break; }
+                        var ptId1 = channel.GetFieldAsInteger(dsNode1Index);
+                        var ptId2 = channel.GetFieldAsInteger(dsNode2Index);
+                        this.pointId = Math.Max(this.pointId, Math.Max(ptId1, ptId2));
+                    } while (channel is not null);
+                }
+                // set pointId to max id value in outletLayer
                 // and waterBodyId to Math.Max reservoir or pond id
                 // copy original id to PointId field, unless zero, when change to Math.Max id + 1
-                long zeroIndex = -1;
+                long zeroIndex = -1;  //  feature id of point with zero id
                 outletLayer.ResetReading();
                 OSGeo.OGR.Feature point;
                 do {
@@ -6948,9 +7315,8 @@ namespace ArcSWATPlus {
                             // this confirms outlet found
                         } else { }
                         // also possible for intermediate(s) to cause confusion as long as path does not go backwards
-                        int maxSteps = this.downSubbasins.Count;
-                        if (!reachableFrom(subbasin, dsSubbasin, this.downSubbasins, maxSteps) &&
-                                reachableFrom(dsSubbasin, subbasin, this.downSubbasins, maxSteps)) {
+                        if (!reachableFrom(subbasin, dsSubbasin, this.downSubbasins) &&
+                                reachableFrom(dsSubbasin, subbasin, this.downSubbasins)) {
                             //can take it as outlet found
                         } else {
                             continue;  //a false outlet caused by a minor channel
@@ -6960,19 +7326,19 @@ namespace ArcSWATPlus {
                     }
                     // collect the basin's outlet location:
                     var (outletId, outletPt) = this.chOutlets[chLink];
-                    (int, double[], HashSet<int>) existOutlets;
+                    (int, double[], List<int>) existOutlets;
                     if (!this.outlets.TryGetValue(subbasin, out existOutlets)) {
                         if (this.isHUC || this.isHAWQS) {
                             var streamOutlet = subOutlets[subbasin];
                             if (Topology.coincidentPoints(outletPt, streamOutlet, this.xThreshold, this.yThreshold)) {
-                                this.outlets[subbasin] = (outletId, outletPt, new HashSet<int> { chLink });
+                                this.outlets[subbasin] = (outletId, outletPt, new List<int> { chLink });
                             } else {
                                 // it's a subbasin channel outlet but not the main one
                                 // it's better to use it than risk not having any
-                                this.outlets[subbasin] = (outletId, outletPt, new HashSet<int> { chLink });
+                                this.outlets[subbasin] = (outletId, outletPt, new List<int> { chLink });
                             }
                         } else {
-                            this.outlets[subbasin] = (outletId, outletPt, new HashSet<int> { chLink });
+                            this.outlets[subbasin] = (outletId, outletPt, new List<int> { chLink });
                         }
                     } else {
                         var (outletId0, outletPt0, chLinks) = existOutlets;
@@ -6989,8 +7355,8 @@ namespace ArcSWATPlus {
                         }
                     }
                     if (!useGridModel) {
-                        //                     self.extraResPoints[subbasin] = chResPoints[chLink]
-                        //                     self.extraPtSrcPoints[subbasin] = chSources[chLink]
+                        //                     this.extraResPoints[subbasin] = chResPoints[chLink]
+                        //                     this.extraPtSrcPoints[subbasin] = chSources[chLink]
                         int inletId;
                         double[] inletPt;
                         (int, double[]) temp;
@@ -7019,7 +7385,7 @@ namespace ArcSWATPlus {
                                 // search for a channel outlet coincident with streamOutlet
                                 var (outletId, outletPt) = this.chOutlets[chLink];
                                 // save it even if not coincident with streamOutlet, so must find something
-                                this.outlets[sub] = (outletId, outletPt, new HashSet<int> { chLink });
+                                this.outlets[sub] = (outletId, outletPt, new List<int> { chLink });
                                 if (Topology.coincidentPoints(outletPt, streamOutlet, this.xThreshold, this.yThreshold)) {
                                     break;
                                 }

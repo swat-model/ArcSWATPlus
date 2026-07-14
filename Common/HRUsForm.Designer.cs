@@ -25,1300 +25,1774 @@
         /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent() {
-            this.HRUsTab = new System.Windows.Forms.TabControl();
-            this.tabPage1 = new System.Windows.Forms.TabPage();
-            this.progressLabel1 = new System.Windows.Forms.Label();
-            this.progressBar = new System.Windows.Forms.ProgressBar();
-            this.readButton = new System.Windows.Forms.Button();
-            this.fullHRUsLabel = new System.Windows.Forms.Label();
-            this.channelsLabel = new System.Windows.Forms.Label();
-            this.subbasinsLabel = new System.Windows.Forms.Label();
-            this.generateFullHRUs = new System.Windows.Forms.CheckBox();
-            this.readChoiceGroup = new System.Windows.Forms.GroupBox();
-            this.remerge = new System.Windows.Forms.RadioButton();
-            this.readFromPrevious = new System.Windows.Forms.RadioButton();
-            this.readFromMaps = new System.Windows.Forms.RadioButton();
-            this.shortChannelGroup = new System.Windows.Forms.GroupBox();
-            this.channelMergeVal = new System.Windows.Forms.TextBox();
-            this.channelMergeSlider = new System.Windows.Forms.TrackBar();
-            this.channelAreaButton = new System.Windows.Forms.RadioButton();
-            this.channelPercentButton = new System.Windows.Forms.RadioButton();
-            this.floodplainCombo = new System.Windows.Forms.ComboBox();
-            this.optionGroup = new System.Windows.Forms.GroupBox();
-            this.elevBandsButton = new System.Windows.Forms.Button();
-            this.groupBox1 = new System.Windows.Forms.GroupBox();
-            this.label10 = new System.Windows.Forms.Label();
-            this.reservoirThreshold = new System.Windows.Forms.NumericUpDown();
-            this.slopeGroup = new System.Windows.Forms.GroupBox();
-            this.label9 = new System.Windows.Forms.Label();
-            this.clearButton = new System.Windows.Forms.Button();
-            this.insertButton = new System.Windows.Forms.Button();
-            this.slopeBrowser = new System.Windows.Forms.TextBox();
-            this.slopeBand = new System.Windows.Forms.TextBox();
-            this.tableGroup = new System.Windows.Forms.GroupBox();
-            this.selectUrbanTableLabel = new System.Windows.Forms.Label();
-            this.selectPlantTableLabel = new System.Windows.Forms.Label();
-            this.selectUsersoilTableLabel = new System.Windows.Forms.Label();
-            this.soilTableLabel = new System.Windows.Forms.Label();
-            this.landuseTableLabel = new System.Windows.Forms.Label();
-            this.selectSoilTable = new System.Windows.Forms.ComboBox();
-            this.selectUsersoilTable = new System.Windows.Forms.ComboBox();
-            this.selectPlantTable = new System.Windows.Forms.ComboBox();
-            this.selectUrbanTable = new System.Windows.Forms.ComboBox();
-            this.selectLanduseTable = new System.Windows.Forms.ComboBox();
-            this.soilGroup = new System.Windows.Forms.GroupBox();
-            this.SSURGOButton = new System.Windows.Forms.RadioButton();
-            this.STATSGOButton = new System.Windows.Forms.RadioButton();
-            this.usersoilButton = new System.Windows.Forms.RadioButton();
-            this.label3 = new System.Windows.Forms.Label();
-            this.dbLabel = new System.Windows.Forms.Label();
-            this.label1 = new System.Windows.Forms.Label();
-            this.selectSoilButton = new System.Windows.Forms.Button();
-            this.selectPlantSoilDatabaseButton = new System.Windows.Forms.Button();
-            this.plantSoilDatabase = new System.Windows.Forms.TextBox();
-            this.selectSoil = new System.Windows.Forms.TextBox();
-            this.selectLanduseButton = new System.Windows.Forms.Button();
-            this.selectLanduse = new System.Windows.Forms.TextBox();
-            this.tabPage2 = new System.Windows.Forms.TabPage();
-            this.progressLabel2 = new System.Windows.Forms.Label();
-            this.createButton = new System.Windows.Forms.Button();
-            this.targetGroup = new System.Windows.Forms.GroupBox();
-            this.targetVal = new System.Windows.Forms.TextBox();
-            this.targetMax = new System.Windows.Forms.Label();
-            this.targetLabel = new System.Windows.Forms.Label();
-            this.targetMin = new System.Windows.Forms.Label();
-            this.targetSlider = new System.Windows.Forms.TrackBar();
-            this.gwGroupBox = new System.Windows.Forms.GroupBox();
-            this.gwflowButton = new System.Windows.Forms.RadioButton();
-            this.SWATAquifersButton1 = new System.Windows.Forms.RadioButton();
-            this.areaGroup = new System.Windows.Forms.GroupBox();
-            this.areaVal = new System.Windows.Forms.TextBox();
-            this.areaMax = new System.Windows.Forms.Label();
-            this.areaLabel = new System.Windows.Forms.Label();
-            this.areaMin = new System.Windows.Forms.Label();
-            this.areaSlider = new System.Windows.Forms.TrackBar();
-            this.landuseSoilSlopeGroup = new System.Windows.Forms.GroupBox();
-            this.slopeVal = new System.Windows.Forms.TextBox();
-            this.slopeMax = new System.Windows.Forms.Label();
-            this.slopeLabel = new System.Windows.Forms.Label();
-            this.slopeMin = new System.Windows.Forms.Label();
-            this.slopeSlider = new System.Windows.Forms.TrackBar();
-            this.soilButton = new System.Windows.Forms.Button();
-            this.soilVal = new System.Windows.Forms.TextBox();
-            this.soilMax = new System.Windows.Forms.Label();
-            this.soilLabel = new System.Windows.Forms.Label();
-            this.soilMin = new System.Windows.Forms.Label();
-            this.soilSlider = new System.Windows.Forms.TrackBar();
-            this.landuseButton = new System.Windows.Forms.Button();
-            this.landuseVal = new System.Windows.Forms.TextBox();
-            this.landuseMax = new System.Windows.Forms.Label();
-            this.landuseLabel = new System.Windows.Forms.Label();
-            this.landuseMin = new System.Windows.Forms.Label();
-            this.landuseSlider = new System.Windows.Forms.TrackBar();
-            this.areaPercentChoiceGroup = new System.Windows.Forms.GroupBox();
-            this.areaButton = new System.Windows.Forms.RadioButton();
-            this.percentButton = new System.Windows.Forms.RadioButton();
-            this.hruChoiceGroup = new System.Windows.Forms.GroupBox();
-            this.dominantLanduseButton = new System.Windows.Forms.RadioButton();
-            this.filterAreaButton = new System.Windows.Forms.RadioButton();
-            this.filterLanduseButton = new System.Windows.Forms.RadioButton();
-            this.dominantHRUButton = new System.Windows.Forms.RadioButton();
-            this.targetButton = new System.Windows.Forms.RadioButton();
-            this.optionGroup_2 = new System.Windows.Forms.GroupBox();
-            this.exemptButton = new System.Windows.Forms.Button();
-            this.splitButton = new System.Windows.Forms.Button();
-            this.cancelButton = new System.Windows.Forms.Button();
-            this.HRUsTab.SuspendLayout();
-            this.tabPage1.SuspendLayout();
-            this.readChoiceGroup.SuspendLayout();
-            this.shortChannelGroup.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.channelMergeSlider)).BeginInit();
-            this.optionGroup.SuspendLayout();
-            this.groupBox1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.reservoirThreshold)).BeginInit();
-            this.slopeGroup.SuspendLayout();
-            this.tableGroup.SuspendLayout();
-            this.soilGroup.SuspendLayout();
-            this.tabPage2.SuspendLayout();
-            this.targetGroup.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.targetSlider)).BeginInit();
-            this.gwGroupBox.SuspendLayout();
-            this.areaGroup.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.areaSlider)).BeginInit();
-            this.landuseSoilSlopeGroup.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.slopeSlider)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.soilSlider)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.landuseSlider)).BeginInit();
-            this.areaPercentChoiceGroup.SuspendLayout();
-            this.hruChoiceGroup.SuspendLayout();
-            this.optionGroup_2.SuspendLayout();
-            this.SuspendLayout();
+            HRUsTab = new System.Windows.Forms.TabControl();
+            tabPage1 = new System.Windows.Forms.TabPage();
+            progressLabel1 = new System.Windows.Forms.Label();
+            progressBar1 = new System.Windows.Forms.ProgressBar();
+            readButton = new System.Windows.Forms.Button();
+            fullHRUsLabel = new System.Windows.Forms.Label();
+            channelsLabel = new System.Windows.Forms.Label();
+            subbasinsLabel = new System.Windows.Forms.Label();
+            generateFullHRUs = new System.Windows.Forms.CheckBox();
+            readChoiceGroup = new System.Windows.Forms.GroupBox();
+            remerge = new System.Windows.Forms.RadioButton();
+            readFromPrevious = new System.Windows.Forms.RadioButton();
+            readFromMaps = new System.Windows.Forms.RadioButton();
+            shortChannelGroup = new System.Windows.Forms.GroupBox();
+            channelMergeVal = new System.Windows.Forms.TextBox();
+            channelMergeSlider = new System.Windows.Forms.TrackBar();
+            channelAreaButton = new System.Windows.Forms.RadioButton();
+            channelPercentButton = new System.Windows.Forms.RadioButton();
+            floodplainCombo = new System.Windows.Forms.ComboBox();
+            optionGroup = new System.Windows.Forms.GroupBox();
+            elevBandsButton = new System.Windows.Forms.Button();
+            groupBox1 = new System.Windows.Forms.GroupBox();
+            label10 = new System.Windows.Forms.Label();
+            reservoirThreshold = new System.Windows.Forms.NumericUpDown();
+            slopeGroup = new System.Windows.Forms.GroupBox();
+            label9 = new System.Windows.Forms.Label();
+            clearButton = new System.Windows.Forms.Button();
+            insertButton = new System.Windows.Forms.Button();
+            slopeBrowser = new System.Windows.Forms.TextBox();
+            slopeBand = new System.Windows.Forms.TextBox();
+            tableGroup = new System.Windows.Forms.GroupBox();
+            selectUrbanTableLabel = new System.Windows.Forms.Label();
+            selectPlantTableLabel = new System.Windows.Forms.Label();
+            selectUsersoilTableLabel = new System.Windows.Forms.Label();
+            soilTableLabel = new System.Windows.Forms.Label();
+            landuseTableLabel = new System.Windows.Forms.Label();
+            selectSoilTable = new System.Windows.Forms.ComboBox();
+            selectUsersoilTable = new System.Windows.Forms.ComboBox();
+            selectPlantTable = new System.Windows.Forms.ComboBox();
+            selectUrbanTable = new System.Windows.Forms.ComboBox();
+            selectLanduseTable = new System.Windows.Forms.ComboBox();
+            soilGroup = new System.Windows.Forms.GroupBox();
+            SSURGOButton = new System.Windows.Forms.RadioButton();
+            STATSGOButton = new System.Windows.Forms.RadioButton();
+            usersoilButton = new System.Windows.Forms.RadioButton();
+            label3 = new System.Windows.Forms.Label();
+            dbLabel = new System.Windows.Forms.Label();
+            label1 = new System.Windows.Forms.Label();
+            selectSoilButton = new System.Windows.Forms.Button();
+            selectPlantSoilDatabaseButton = new System.Windows.Forms.Button();
+            plantSoilDatabase = new System.Windows.Forms.TextBox();
+            selectSoil = new System.Windows.Forms.TextBox();
+            selectLanduseButton = new System.Windows.Forms.Button();
+            selectLanduse = new System.Windows.Forms.TextBox();
+            tabPage2 = new System.Windows.Forms.TabPage();
+            gwflowHruWidget = new System.Windows.Forms.GroupBox();
+            gridGroup = new System.Windows.Forms.GroupBox();
+            progressBar2 = new System.Windows.Forms.ProgressBar();
+            generateGridButton = new System.Windows.Forms.Button();
+            structuredWidget = new System.Windows.Forms.Panel();
+            cellEstimateLabel = new System.Windows.Forms.Label();
+            alignGrids = new System.Windows.Forms.CheckBox();
+            unstructuredWidget = new System.Windows.Forms.Panel();
+            transitionSlider = new System.Windows.Forms.TrackBar();
+            gradualLabel = new System.Windows.Forms.Label();
+            transitionSpin = new System.Windows.Forms.NumericUpDown();
+            abruptLabel = new System.Windows.Forms.Label();
+            transitionRateLabel = new System.Windows.Forms.Label();
+            refineWells = new System.Windows.Forms.CheckBox();
+            refineTopography = new System.Windows.Forms.CheckBox();
+            refineStreams = new System.Windows.Forms.CheckBox();
+            refineBoundary = new System.Windows.Forms.CheckBox();
+            refineBasedOnLabel = new System.Windows.Forms.Label();
+            refineLevels = new System.Windows.Forms.NumericUpDown();
+            refineLevelsLabel = new System.Windows.Forms.Label();
+            maxCellSize = new System.Windows.Forms.NumericUpDown();
+            maxCellSizeLabel = new System.Windows.Forms.Label();
+            minSizeLabel = new System.Windows.Forms.Label();
+            elevTolerance = new System.Windows.Forms.NumericUpDown();
+            elevTolLabel = new System.Windows.Forms.Label();
+            cellSize = new System.Windows.Forms.NumericUpDown();
+            cellSizeLabel = new System.Windows.Forms.Label();
+            typeRow = new System.Windows.Forms.Panel();
+            unstructuredRadio = new System.Windows.Forms.RadioButton();
+            structuredRadio = new System.Windows.Forms.RadioButton();
+            tileDrainsButton = new System.Windows.Forms.Button();
+            tileDrains = new System.Windows.Forms.TextBox();
+            useTileDrains = new System.Windows.Forms.CheckBox();
+            aquiferPermeabilityButton = new System.Windows.Forms.Button();
+            aquiferPermeability = new System.Windows.Forms.TextBox();
+            aquiferPermeabilityLabel = new System.Windows.Forms.Label();
+            aquiferThicknessButton = new System.Windows.Forms.Button();
+            aquiferThickness = new System.Windows.Forms.TextBox();
+            aquiferThicknessLabel = new System.Windows.Forms.Label();
+            progressLabel2 = new System.Windows.Forms.Label();
+            targetGroup = new System.Windows.Forms.GroupBox();
+            targetVal = new System.Windows.Forms.TextBox();
+            targetMax = new System.Windows.Forms.Label();
+            targetLabel = new System.Windows.Forms.Label();
+            targetMin = new System.Windows.Forms.Label();
+            targetSlider = new System.Windows.Forms.TrackBar();
+            gwGroupBox = new System.Windows.Forms.GroupBox();
+            gwflowButton = new System.Windows.Forms.RadioButton();
+            SWATAquifersButton = new System.Windows.Forms.RadioButton();
+            areaGroup = new System.Windows.Forms.GroupBox();
+            areaVal = new System.Windows.Forms.TextBox();
+            areaMax = new System.Windows.Forms.Label();
+            areaLabel = new System.Windows.Forms.Label();
+            areaMin = new System.Windows.Forms.Label();
+            areaSlider = new System.Windows.Forms.TrackBar();
+            createButton = new System.Windows.Forms.Button();
+            landuseSoilSlopeGroup = new System.Windows.Forms.GroupBox();
+            slopeVal = new System.Windows.Forms.TextBox();
+            slopeMax = new System.Windows.Forms.Label();
+            slopeLabel = new System.Windows.Forms.Label();
+            slopeMin = new System.Windows.Forms.Label();
+            slopeSlider = new System.Windows.Forms.TrackBar();
+            soilButton = new System.Windows.Forms.Button();
+            soilVal = new System.Windows.Forms.TextBox();
+            soilMax = new System.Windows.Forms.Label();
+            soilLabel = new System.Windows.Forms.Label();
+            soilMin = new System.Windows.Forms.Label();
+            soilSlider = new System.Windows.Forms.TrackBar();
+            landuseButton = new System.Windows.Forms.Button();
+            landuseVal = new System.Windows.Forms.TextBox();
+            landuseMax = new System.Windows.Forms.Label();
+            landuseLabel = new System.Windows.Forms.Label();
+            landuseMin = new System.Windows.Forms.Label();
+            landuseSlider = new System.Windows.Forms.TrackBar();
+            areaPercentChoiceGroup = new System.Windows.Forms.GroupBox();
+            areaButton = new System.Windows.Forms.RadioButton();
+            percentButton = new System.Windows.Forms.RadioButton();
+            hruChoiceGroup = new System.Windows.Forms.GroupBox();
+            dominantLanduseButton = new System.Windows.Forms.RadioButton();
+            filterAreaButton = new System.Windows.Forms.RadioButton();
+            filterLanduseButton = new System.Windows.Forms.RadioButton();
+            dominantHRUButton = new System.Windows.Forms.RadioButton();
+            targetButton = new System.Windows.Forms.RadioButton();
+            optionGroup_2 = new System.Windows.Forms.GroupBox();
+            exemptButton = new System.Windows.Forms.Button();
+            splitButton = new System.Windows.Forms.Button();
+            cancelButton = new System.Windows.Forms.Button();
+            HRUsTab.SuspendLayout();
+            tabPage1.SuspendLayout();
+            readChoiceGroup.SuspendLayout();
+            shortChannelGroup.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)channelMergeSlider).BeginInit();
+            optionGroup.SuspendLayout();
+            groupBox1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)reservoirThreshold).BeginInit();
+            slopeGroup.SuspendLayout();
+            tableGroup.SuspendLayout();
+            soilGroup.SuspendLayout();
+            tabPage2.SuspendLayout();
+            gwflowHruWidget.SuspendLayout();
+            gridGroup.SuspendLayout();
+            structuredWidget.SuspendLayout();
+            unstructuredWidget.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)transitionSlider).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)transitionSpin).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)refineLevels).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)maxCellSize).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)elevTolerance).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)cellSize).BeginInit();
+            typeRow.SuspendLayout();
+            targetGroup.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)targetSlider).BeginInit();
+            gwGroupBox.SuspendLayout();
+            areaGroup.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)areaSlider).BeginInit();
+            landuseSoilSlopeGroup.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)slopeSlider).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)soilSlider).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)landuseSlider).BeginInit();
+            areaPercentChoiceGroup.SuspendLayout();
+            hruChoiceGroup.SuspendLayout();
+            optionGroup_2.SuspendLayout();
+            SuspendLayout();
             // 
             // HRUsTab
             // 
-            this.HRUsTab.Controls.Add(this.tabPage1);
-            this.HRUsTab.Controls.Add(this.tabPage2);
-            this.HRUsTab.Location = new System.Drawing.Point(10, 10);
-            this.HRUsTab.Name = "HRUsTab";
-            this.HRUsTab.SelectedIndex = 0;
-            this.HRUsTab.Size = new System.Drawing.Size(549, 642);
-            this.HRUsTab.TabIndex = 0;
-            this.HRUsTab.SelectedIndexChanged += new System.EventHandler(this.HRUsTab_SelectedIndexChanged);
+            HRUsTab.Controls.Add(tabPage1);
+            HRUsTab.Controls.Add(tabPage2);
+            HRUsTab.Location = new System.Drawing.Point(10, 10);
+            HRUsTab.Name = "HRUsTab";
+            HRUsTab.SelectedIndex = 0;
+            HRUsTab.Size = new System.Drawing.Size(549, 779);
+            HRUsTab.TabIndex = 0;
+            HRUsTab.SelectedIndexChanged += HRUsTab_SelectedIndexChanged;
             // 
             // tabPage1
             // 
-            this.tabPage1.Controls.Add(this.progressLabel1);
-            this.tabPage1.Controls.Add(this.progressBar);
-            this.tabPage1.Controls.Add(this.readButton);
-            this.tabPage1.Controls.Add(this.fullHRUsLabel);
-            this.tabPage1.Controls.Add(this.channelsLabel);
-            this.tabPage1.Controls.Add(this.subbasinsLabel);
-            this.tabPage1.Controls.Add(this.generateFullHRUs);
-            this.tabPage1.Controls.Add(this.readChoiceGroup);
-            this.tabPage1.Controls.Add(this.shortChannelGroup);
-            this.tabPage1.Controls.Add(this.floodplainCombo);
-            this.tabPage1.Controls.Add(this.optionGroup);
-            this.tabPage1.Controls.Add(this.groupBox1);
-            this.tabPage1.Controls.Add(this.slopeGroup);
-            this.tabPage1.Controls.Add(this.tableGroup);
-            this.tabPage1.Controls.Add(this.soilGroup);
-            this.tabPage1.Controls.Add(this.label3);
-            this.tabPage1.Controls.Add(this.dbLabel);
-            this.tabPage1.Controls.Add(this.label1);
-            this.tabPage1.Controls.Add(this.selectSoilButton);
-            this.tabPage1.Controls.Add(this.selectPlantSoilDatabaseButton);
-            this.tabPage1.Controls.Add(this.plantSoilDatabase);
-            this.tabPage1.Controls.Add(this.selectSoil);
-            this.tabPage1.Controls.Add(this.selectLanduseButton);
-            this.tabPage1.Controls.Add(this.selectLanduse);
-            this.tabPage1.Location = new System.Drawing.Point(4, 24);
-            this.tabPage1.Name = "tabPage1";
-            this.tabPage1.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage1.Size = new System.Drawing.Size(541, 614);
-            this.tabPage1.TabIndex = 0;
-            this.tabPage1.Text = "Landuse and Soil";
-            this.tabPage1.UseVisualStyleBackColor = true;
+            tabPage1.Controls.Add(progressLabel1);
+            tabPage1.Controls.Add(progressBar1);
+            tabPage1.Controls.Add(readButton);
+            tabPage1.Controls.Add(fullHRUsLabel);
+            tabPage1.Controls.Add(channelsLabel);
+            tabPage1.Controls.Add(subbasinsLabel);
+            tabPage1.Controls.Add(generateFullHRUs);
+            tabPage1.Controls.Add(readChoiceGroup);
+            tabPage1.Controls.Add(shortChannelGroup);
+            tabPage1.Controls.Add(floodplainCombo);
+            tabPage1.Controls.Add(optionGroup);
+            tabPage1.Controls.Add(groupBox1);
+            tabPage1.Controls.Add(slopeGroup);
+            tabPage1.Controls.Add(tableGroup);
+            tabPage1.Controls.Add(soilGroup);
+            tabPage1.Controls.Add(label3);
+            tabPage1.Controls.Add(dbLabel);
+            tabPage1.Controls.Add(label1);
+            tabPage1.Controls.Add(selectSoilButton);
+            tabPage1.Controls.Add(selectPlantSoilDatabaseButton);
+            tabPage1.Controls.Add(plantSoilDatabase);
+            tabPage1.Controls.Add(selectSoil);
+            tabPage1.Controls.Add(selectLanduseButton);
+            tabPage1.Controls.Add(selectLanduse);
+            tabPage1.Location = new System.Drawing.Point(4, 24);
+            tabPage1.Name = "tabPage1";
+            tabPage1.Padding = new System.Windows.Forms.Padding(3);
+            tabPage1.Size = new System.Drawing.Size(541, 751);
+            tabPage1.TabIndex = 0;
+            tabPage1.Text = "Landuse and Soil";
+            tabPage1.UseVisualStyleBackColor = true;
             // 
             // progressLabel1
             // 
-            this.progressLabel1.AutoSize = true;
-            this.progressLabel1.Location = new System.Drawing.Point(14, 588);
-            this.progressLabel1.Name = "progressLabel1";
-            this.progressLabel1.Size = new System.Drawing.Size(72, 15);
-            this.progressLabel1.TabIndex = 23;
-            this.progressLabel1.Text = "dummy text";
+            progressLabel1.AutoSize = true;
+            progressLabel1.Location = new System.Drawing.Point(15, 726);
+            progressLabel1.Name = "progressLabel1";
+            progressLabel1.Size = new System.Drawing.Size(72, 15);
+            progressLabel1.TabIndex = 23;
+            progressLabel1.Text = "dummy text";
             // 
-            // progressBar
+            // progressBar1
             // 
-            this.progressBar.Location = new System.Drawing.Point(164, 585);
-            this.progressBar.Name = "progressBar";
-            this.progressBar.Size = new System.Drawing.Size(255, 23);
-            this.progressBar.TabIndex = 22;
+            progressBar1.Location = new System.Drawing.Point(164, 722);
+            progressBar1.Name = "progressBar1";
+            progressBar1.Size = new System.Drawing.Size(255, 23);
+            progressBar1.TabIndex = 22;
             // 
             // readButton
             // 
-            this.readButton.Location = new System.Drawing.Point(440, 584);
-            this.readButton.Name = "readButton";
-            this.readButton.Size = new System.Drawing.Size(75, 23);
-            this.readButton.TabIndex = 21;
-            this.readButton.Text = "Read";
-            this.readButton.UseVisualStyleBackColor = true;
-            this.readButton.Click += new System.EventHandler(this.readButton_Click);
+            readButton.Location = new System.Drawing.Point(444, 722);
+            readButton.Name = "readButton";
+            readButton.Size = new System.Drawing.Size(75, 23);
+            readButton.TabIndex = 21;
+            readButton.Text = "Read";
+            readButton.UseVisualStyleBackColor = true;
+            readButton.Click += readButton_Click;
             // 
             // fullHRUsLabel
             // 
-            this.fullHRUsLabel.AutoSize = true;
-            this.fullHRUsLabel.Location = new System.Drawing.Point(351, 556);
-            this.fullHRUsLabel.Name = "fullHRUsLabel";
-            this.fullHRUsLabel.Size = new System.Drawing.Size(98, 15);
-            this.fullHRUsLabel.TabIndex = 20;
-            this.fullHRUsLabel.Text = "Full HRUs count: ";
+            fullHRUsLabel.AutoSize = true;
+            fullHRUsLabel.Location = new System.Drawing.Point(351, 556);
+            fullHRUsLabel.Name = "fullHRUsLabel";
+            fullHRUsLabel.Size = new System.Drawing.Size(98, 15);
+            fullHRUsLabel.TabIndex = 20;
+            fullHRUsLabel.Text = "Full HRUs count: ";
             // 
             // channelsLabel
             // 
-            this.channelsLabel.AutoSize = true;
-            this.channelsLabel.Location = new System.Drawing.Point(351, 536);
-            this.channelsLabel.Name = "channelsLabel";
-            this.channelsLabel.Size = new System.Drawing.Size(96, 15);
-            this.channelsLabel.TabIndex = 19;
-            this.channelsLabel.Text = "Channels count: ";
+            channelsLabel.AutoSize = true;
+            channelsLabel.Location = new System.Drawing.Point(351, 536);
+            channelsLabel.Name = "channelsLabel";
+            channelsLabel.Size = new System.Drawing.Size(96, 15);
+            channelsLabel.TabIndex = 19;
+            channelsLabel.Text = "Channels count: ";
             // 
             // subbasinsLabel
             // 
-            this.subbasinsLabel.AutoSize = true;
-            this.subbasinsLabel.Location = new System.Drawing.Point(351, 516);
-            this.subbasinsLabel.Name = "subbasinsLabel";
-            this.subbasinsLabel.Size = new System.Drawing.Size(97, 15);
-            this.subbasinsLabel.TabIndex = 18;
-            this.subbasinsLabel.Text = "Subbasins count:";
+            subbasinsLabel.AutoSize = true;
+            subbasinsLabel.Location = new System.Drawing.Point(351, 516);
+            subbasinsLabel.Name = "subbasinsLabel";
+            subbasinsLabel.Size = new System.Drawing.Size(97, 15);
+            subbasinsLabel.TabIndex = 18;
+            subbasinsLabel.Text = "Subbasins count:";
             // 
             // generateFullHRUs
             // 
-            this.generateFullHRUs.AutoSize = true;
-            this.generateFullHRUs.Location = new System.Drawing.Point(353, 472);
-            this.generateFullHRUs.Name = "generateFullHRUs";
-            this.generateFullHRUs.Size = new System.Drawing.Size(124, 34);
-            this.generateFullHRUs.TabIndex = 17;
-            this.generateFullHRUs.Text = "Generate FullHRUs\r\nshapefile\r\n";
-            this.generateFullHRUs.UseVisualStyleBackColor = true;
+            generateFullHRUs.AutoSize = true;
+            generateFullHRUs.Location = new System.Drawing.Point(353, 472);
+            generateFullHRUs.Name = "generateFullHRUs";
+            generateFullHRUs.Size = new System.Drawing.Size(124, 34);
+            generateFullHRUs.TabIndex = 17;
+            generateFullHRUs.Text = "Generate FullHRUs\r\nshapefile\r\n";
+            generateFullHRUs.UseVisualStyleBackColor = true;
             // 
             // readChoiceGroup
             // 
-            this.readChoiceGroup.Controls.Add(this.remerge);
-            this.readChoiceGroup.Controls.Add(this.readFromPrevious);
-            this.readChoiceGroup.Controls.Add(this.readFromMaps);
-            this.readChoiceGroup.Location = new System.Drawing.Point(155, 472);
-            this.readChoiceGroup.Name = "readChoiceGroup";
-            this.readChoiceGroup.Size = new System.Drawing.Size(179, 93);
-            this.readChoiceGroup.TabIndex = 16;
-            this.readChoiceGroup.TabStop = false;
-            this.readChoiceGroup.Text = "Read choice";
+            readChoiceGroup.Controls.Add(remerge);
+            readChoiceGroup.Controls.Add(readFromPrevious);
+            readChoiceGroup.Controls.Add(readFromMaps);
+            readChoiceGroup.Location = new System.Drawing.Point(155, 472);
+            readChoiceGroup.Name = "readChoiceGroup";
+            readChoiceGroup.Size = new System.Drawing.Size(179, 93);
+            readChoiceGroup.TabIndex = 16;
+            readChoiceGroup.TabStop = false;
+            readChoiceGroup.Text = "Read choice";
             // 
             // remerge
             // 
-            this.remerge.AutoSize = true;
-            this.remerge.Location = new System.Drawing.Point(9, 63);
-            this.remerge.Name = "remerge";
-            this.remerge.Size = new System.Drawing.Size(157, 19);
-            this.remerge.TabIndex = 2;
-            this.remerge.TabStop = true;
-            this.remerge.Text = "Re-merge short channels";
-            this.remerge.UseVisualStyleBackColor = true;
+            remerge.AutoSize = true;
+            remerge.Location = new System.Drawing.Point(9, 63);
+            remerge.Name = "remerge";
+            remerge.Size = new System.Drawing.Size(157, 19);
+            remerge.TabIndex = 2;
+            remerge.TabStop = true;
+            remerge.Text = "Re-merge short channels";
+            remerge.UseVisualStyleBackColor = true;
             // 
             // readFromPrevious
             // 
-            this.readFromPrevious.AutoSize = true;
-            this.readFromPrevious.Location = new System.Drawing.Point(9, 42);
-            this.readFromPrevious.Name = "readFromPrevious";
-            this.readFromPrevious.Size = new System.Drawing.Size(149, 19);
-            this.readFromPrevious.TabIndex = 1;
-            this.readFromPrevious.TabStop = true;
-            this.readFromPrevious.Text = "Read from previous run";
-            this.readFromPrevious.UseVisualStyleBackColor = true;
-            this.readFromPrevious.CheckedChanged += new System.EventHandler(this.readFromPrevious_CheckedChanged);
+            readFromPrevious.AutoSize = true;
+            readFromPrevious.Location = new System.Drawing.Point(9, 42);
+            readFromPrevious.Name = "readFromPrevious";
+            readFromPrevious.Size = new System.Drawing.Size(149, 19);
+            readFromPrevious.TabIndex = 1;
+            readFromPrevious.TabStop = true;
+            readFromPrevious.Text = "Read from previous run";
+            readFromPrevious.UseVisualStyleBackColor = true;
+            readFromPrevious.CheckedChanged += readFromPrevious_CheckedChanged;
             // 
             // readFromMaps
             // 
-            this.readFromMaps.AutoSize = true;
-            this.readFromMaps.Location = new System.Drawing.Point(9, 21);
-            this.readFromMaps.Name = "readFromMaps";
-            this.readFromMaps.Size = new System.Drawing.Size(112, 19);
-            this.readFromMaps.TabIndex = 0;
-            this.readFromMaps.TabStop = true;
-            this.readFromMaps.Text = "Read from maps";
-            this.readFromMaps.UseVisualStyleBackColor = true;
-            this.readFromMaps.CheckedChanged += new System.EventHandler(this.readFromMaps_CheckedChanged);
+            readFromMaps.AutoSize = true;
+            readFromMaps.Location = new System.Drawing.Point(9, 21);
+            readFromMaps.Name = "readFromMaps";
+            readFromMaps.Size = new System.Drawing.Size(112, 19);
+            readFromMaps.TabIndex = 0;
+            readFromMaps.TabStop = true;
+            readFromMaps.Text = "Read from maps";
+            readFromMaps.UseVisualStyleBackColor = true;
+            readFromMaps.CheckedChanged += readFromMaps_CheckedChanged;
             // 
             // shortChannelGroup
             // 
-            this.shortChannelGroup.Controls.Add(this.channelMergeVal);
-            this.shortChannelGroup.Controls.Add(this.channelMergeSlider);
-            this.shortChannelGroup.Controls.Add(this.channelAreaButton);
-            this.shortChannelGroup.Controls.Add(this.channelPercentButton);
-            this.shortChannelGroup.Location = new System.Drawing.Point(246, 366);
-            this.shortChannelGroup.Name = "shortChannelGroup";
-            this.shortChannelGroup.Size = new System.Drawing.Size(258, 100);
-            this.shortChannelGroup.TabIndex = 15;
-            this.shortChannelGroup.TabStop = false;
-            this.shortChannelGroup.Text = "Short channel merge";
+            shortChannelGroup.Controls.Add(channelMergeVal);
+            shortChannelGroup.Controls.Add(channelMergeSlider);
+            shortChannelGroup.Controls.Add(channelAreaButton);
+            shortChannelGroup.Controls.Add(channelPercentButton);
+            shortChannelGroup.Location = new System.Drawing.Point(246, 366);
+            shortChannelGroup.Name = "shortChannelGroup";
+            shortChannelGroup.Size = new System.Drawing.Size(258, 100);
+            shortChannelGroup.TabIndex = 15;
+            shortChannelGroup.TabStop = false;
+            shortChannelGroup.Text = "Short channel merge";
             // 
             // channelMergeVal
             // 
-            this.channelMergeVal.Location = new System.Drawing.Point(194, 53);
-            this.channelMergeVal.Name = "channelMergeVal";
-            this.channelMergeVal.Size = new System.Drawing.Size(58, 23);
-            this.channelMergeVal.TabIndex = 3;
-            this.channelMergeVal.TextChanged += new System.EventHandler(this.channelMergeVal_TextChanged);
+            channelMergeVal.Location = new System.Drawing.Point(194, 53);
+            channelMergeVal.Name = "channelMergeVal";
+            channelMergeVal.Size = new System.Drawing.Size(58, 23);
+            channelMergeVal.TabIndex = 3;
+            channelMergeVal.TextChanged += channelMergeVal_TextChanged;
             // 
             // channelMergeSlider
             // 
-            this.channelMergeSlider.Location = new System.Drawing.Point(6, 43);
-            this.channelMergeSlider.Maximum = 100;
-            this.channelMergeSlider.Name = "channelMergeSlider";
-            this.channelMergeSlider.Size = new System.Drawing.Size(182, 45);
-            this.channelMergeSlider.TabIndex = 2;
-            this.channelMergeSlider.TickFrequency = 10;
-            this.channelMergeSlider.Scroll += new System.EventHandler(this.channelMergeSlider_Scroll);
+            channelMergeSlider.Location = new System.Drawing.Point(6, 43);
+            channelMergeSlider.Maximum = 100;
+            channelMergeSlider.Name = "channelMergeSlider";
+            channelMergeSlider.Size = new System.Drawing.Size(182, 45);
+            channelMergeSlider.TabIndex = 2;
+            channelMergeSlider.TickFrequency = 10;
+            channelMergeSlider.Scroll += channelMergeSlider_Scroll;
             // 
             // channelAreaButton
             // 
-            this.channelAreaButton.AutoSize = true;
-            this.channelAreaButton.Location = new System.Drawing.Point(179, 18);
-            this.channelAreaButton.Name = "channelAreaButton";
-            this.channelAreaButton.Size = new System.Drawing.Size(73, 19);
-            this.channelAreaButton.TabIndex = 1;
-            this.channelAreaButton.TabStop = true;
-            this.channelAreaButton.Text = "Area (ha)";
-            this.channelAreaButton.UseVisualStyleBackColor = true;
-            this.channelAreaButton.CheckedChanged += new System.EventHandler(this.channelAreaButton_CheckedChanged);
+            channelAreaButton.AutoSize = true;
+            channelAreaButton.Location = new System.Drawing.Point(179, 18);
+            channelAreaButton.Name = "channelAreaButton";
+            channelAreaButton.Size = new System.Drawing.Size(73, 19);
+            channelAreaButton.TabIndex = 1;
+            channelAreaButton.TabStop = true;
+            channelAreaButton.Text = "Area (ha)";
+            channelAreaButton.UseVisualStyleBackColor = true;
+            channelAreaButton.CheckedChanged += channelAreaButton_CheckedChanged;
             // 
             // channelPercentButton
             // 
-            this.channelPercentButton.AutoSize = true;
-            this.channelPercentButton.Location = new System.Drawing.Point(9, 18);
-            this.channelPercentButton.Name = "channelPercentButton";
-            this.channelPercentButton.Size = new System.Drawing.Size(129, 19);
-            this.channelPercentButton.TabIndex = 0;
-            this.channelPercentButton.TabStop = true;
-            this.channelPercentButton.Text = "Percent of subbasin";
-            this.channelPercentButton.UseVisualStyleBackColor = true;
-            this.channelPercentButton.CheckedChanged += new System.EventHandler(this.channelPercentButton_CheckedChanged);
+            channelPercentButton.AutoSize = true;
+            channelPercentButton.Location = new System.Drawing.Point(9, 18);
+            channelPercentButton.Name = "channelPercentButton";
+            channelPercentButton.Size = new System.Drawing.Size(129, 19);
+            channelPercentButton.TabIndex = 0;
+            channelPercentButton.TabStop = true;
+            channelPercentButton.Text = "Percent of subbasin";
+            channelPercentButton.UseVisualStyleBackColor = true;
+            channelPercentButton.CheckedChanged += channelPercentButton_CheckedChanged;
             // 
             // floodplainCombo
             // 
-            this.floodplainCombo.FormattingEnabled = true;
-            this.floodplainCombo.Location = new System.Drawing.Point(247, 333);
-            this.floodplainCombo.Name = "floodplainCombo";
-            this.floodplainCombo.Size = new System.Drawing.Size(257, 23);
-            this.floodplainCombo.TabIndex = 14;
-            this.floodplainCombo.SelectedIndexChanged += new System.EventHandler(this.floodplainCombo_SelectedIndexChanged);
+            floodplainCombo.FormattingEnabled = true;
+            floodplainCombo.Location = new System.Drawing.Point(247, 333);
+            floodplainCombo.Name = "floodplainCombo";
+            floodplainCombo.Size = new System.Drawing.Size(257, 23);
+            floodplainCombo.TabIndex = 14;
+            floodplainCombo.SelectedIndexChanged += floodplainCombo_SelectedIndexChanged;
             // 
             // optionGroup
             // 
-            this.optionGroup.Controls.Add(this.elevBandsButton);
-            this.optionGroup.Location = new System.Drawing.Point(11, 475);
-            this.optionGroup.Name = "optionGroup";
-            this.optionGroup.Size = new System.Drawing.Size(138, 61);
-            this.optionGroup.TabIndex = 13;
-            this.optionGroup.TabStop = false;
-            this.optionGroup.Text = "Optional";
+            optionGroup.Controls.Add(elevBandsButton);
+            optionGroup.Location = new System.Drawing.Point(11, 475);
+            optionGroup.Name = "optionGroup";
+            optionGroup.Size = new System.Drawing.Size(138, 61);
+            optionGroup.TabIndex = 13;
+            optionGroup.TabStop = false;
+            optionGroup.Text = "Optional";
             // 
             // elevBandsButton
             // 
-            this.elevBandsButton.Location = new System.Drawing.Point(11, 22);
-            this.elevBandsButton.Name = "elevBandsButton";
-            this.elevBandsButton.Size = new System.Drawing.Size(106, 23);
-            this.elevBandsButton.TabIndex = 0;
-            this.elevBandsButton.Text = "Elevation bands";
-            this.elevBandsButton.UseVisualStyleBackColor = true;
-            this.elevBandsButton.Click += new System.EventHandler(this.elevBandsButton_Click);
+            elevBandsButton.Location = new System.Drawing.Point(11, 22);
+            elevBandsButton.Name = "elevBandsButton";
+            elevBandsButton.Size = new System.Drawing.Size(106, 23);
+            elevBandsButton.TabIndex = 0;
+            elevBandsButton.Text = "Elevation bands";
+            elevBandsButton.UseVisualStyleBackColor = true;
+            elevBandsButton.Click += elevBandsButton_Click;
             // 
             // groupBox1
             // 
-            this.groupBox1.Controls.Add(this.label10);
-            this.groupBox1.Controls.Add(this.reservoirThreshold);
-            this.groupBox1.Location = new System.Drawing.Point(11, 403);
-            this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(138, 66);
-            this.groupBox1.TabIndex = 12;
-            this.groupBox1.TabStop = false;
-            this.groupBox1.Text = "Reservoir threshold";
+            groupBox1.Controls.Add(label10);
+            groupBox1.Controls.Add(reservoirThreshold);
+            groupBox1.Location = new System.Drawing.Point(11, 403);
+            groupBox1.Name = "groupBox1";
+            groupBox1.Size = new System.Drawing.Size(138, 66);
+            groupBox1.TabIndex = 12;
+            groupBox1.TabStop = false;
+            groupBox1.Text = "Reservoir threshold";
             // 
             // label10
             // 
-            this.label10.AutoSize = true;
-            this.label10.Location = new System.Drawing.Point(57, 31);
-            this.label10.Name = "label10";
-            this.label10.Size = new System.Drawing.Size(49, 15);
-            this.label10.TabIndex = 1;
-            this.label10.Text = "% water";
+            label10.AutoSize = true;
+            label10.Location = new System.Drawing.Point(57, 31);
+            label10.Name = "label10";
+            label10.Size = new System.Drawing.Size(49, 15);
+            label10.TabIndex = 1;
+            label10.Text = "% water";
             // 
             // reservoirThreshold
             // 
-            this.reservoirThreshold.Location = new System.Drawing.Point(10, 27);
-            this.reservoirThreshold.Maximum = new decimal(new int[] {
-            101,
-            0,
-            0,
-            0});
-            this.reservoirThreshold.Name = "reservoirThreshold";
-            this.reservoirThreshold.Size = new System.Drawing.Size(39, 23);
-            this.reservoirThreshold.TabIndex = 0;
-            this.reservoirThreshold.Value = new decimal(new int[] {
-            101,
-            0,
-            0,
-            0});
-            this.reservoirThreshold.ValueChanged += new System.EventHandler(this.reservoirThreshold_ValueChanged);
+            reservoirThreshold.Location = new System.Drawing.Point(10, 27);
+            reservoirThreshold.Maximum = new decimal(new int[] { 101, 0, 0, 0 });
+            reservoirThreshold.Name = "reservoirThreshold";
+            reservoirThreshold.Size = new System.Drawing.Size(39, 23);
+            reservoirThreshold.TabIndex = 0;
+            reservoirThreshold.Value = new decimal(new int[] { 101, 0, 0, 0 });
+            reservoirThreshold.ValueChanged += reservoirThreshold_ValueChanged;
             // 
             // slopeGroup
             // 
-            this.slopeGroup.Controls.Add(this.label9);
-            this.slopeGroup.Controls.Add(this.clearButton);
-            this.slopeGroup.Controls.Add(this.insertButton);
-            this.slopeGroup.Controls.Add(this.slopeBrowser);
-            this.slopeGroup.Controls.Add(this.slopeBand);
-            this.slopeGroup.Location = new System.Drawing.Point(9, 261);
-            this.slopeGroup.Name = "slopeGroup";
-            this.slopeGroup.Size = new System.Drawing.Size(140, 136);
-            this.slopeGroup.TabIndex = 11;
-            this.slopeGroup.TabStop = false;
-            this.slopeGroup.Text = "Set slope bands (%)";
+            slopeGroup.Controls.Add(label9);
+            slopeGroup.Controls.Add(clearButton);
+            slopeGroup.Controls.Add(insertButton);
+            slopeGroup.Controls.Add(slopeBrowser);
+            slopeGroup.Controls.Add(slopeBand);
+            slopeGroup.Location = new System.Drawing.Point(9, 261);
+            slopeGroup.Name = "slopeGroup";
+            slopeGroup.Size = new System.Drawing.Size(140, 136);
+            slopeGroup.TabIndex = 11;
+            slopeGroup.TabStop = false;
+            slopeGroup.Text = "Set slope bands (%)";
             // 
             // label9
             // 
-            this.label9.AutoSize = true;
-            this.label9.Location = new System.Drawing.Point(11, 76);
-            this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(71, 15);
-            this.label9.TabIndex = 4;
-            this.label9.Text = "Slope bands";
+            label9.AutoSize = true;
+            label9.Location = new System.Drawing.Point(11, 76);
+            label9.Name = "label9";
+            label9.Size = new System.Drawing.Size(71, 15);
+            label9.TabIndex = 4;
+            label9.Text = "Slope bands";
             // 
             // clearButton
             // 
-            this.clearButton.Location = new System.Drawing.Point(57, 50);
-            this.clearButton.Name = "clearButton";
-            this.clearButton.Size = new System.Drawing.Size(75, 23);
-            this.clearButton.TabIndex = 3;
-            this.clearButton.Text = "Clear";
-            this.clearButton.UseVisualStyleBackColor = true;
-            this.clearButton.Click += new System.EventHandler(this.clearButton_Click);
+            clearButton.Location = new System.Drawing.Point(57, 50);
+            clearButton.Name = "clearButton";
+            clearButton.Size = new System.Drawing.Size(75, 23);
+            clearButton.TabIndex = 3;
+            clearButton.Text = "Clear";
+            clearButton.UseVisualStyleBackColor = true;
+            clearButton.Click += clearButton_Click;
             // 
             // insertButton
             // 
-            this.insertButton.Location = new System.Drawing.Point(57, 21);
-            this.insertButton.Name = "insertButton";
-            this.insertButton.Size = new System.Drawing.Size(75, 23);
-            this.insertButton.TabIndex = 2;
-            this.insertButton.Text = "Insert";
-            this.insertButton.UseVisualStyleBackColor = true;
-            this.insertButton.Click += new System.EventHandler(this.insertButton_Click);
+            insertButton.Location = new System.Drawing.Point(57, 21);
+            insertButton.Name = "insertButton";
+            insertButton.Size = new System.Drawing.Size(75, 23);
+            insertButton.TabIndex = 2;
+            insertButton.Text = "Insert";
+            insertButton.UseVisualStyleBackColor = true;
+            insertButton.Click += insertButton_Click;
             // 
             // slopeBrowser
             // 
-            this.slopeBrowser.Location = new System.Drawing.Point(11, 94);
-            this.slopeBrowser.Name = "slopeBrowser";
-            this.slopeBrowser.Size = new System.Drawing.Size(121, 23);
-            this.slopeBrowser.TabIndex = 1;
+            slopeBrowser.Location = new System.Drawing.Point(11, 94);
+            slopeBrowser.Name = "slopeBrowser";
+            slopeBrowser.Size = new System.Drawing.Size(121, 23);
+            slopeBrowser.TabIndex = 1;
             // 
             // slopeBand
             // 
-            this.slopeBand.Location = new System.Drawing.Point(11, 21);
-            this.slopeBand.Name = "slopeBand";
-            this.slopeBand.Size = new System.Drawing.Size(40, 23);
-            this.slopeBand.TabIndex = 0;
-            this.slopeBand.KeyUp += new System.Windows.Forms.KeyEventHandler(this.slopeBand_KeyUp);
+            slopeBand.Location = new System.Drawing.Point(11, 21);
+            slopeBand.Name = "slopeBand";
+            slopeBand.Size = new System.Drawing.Size(40, 23);
+            slopeBand.TabIndex = 0;
+            slopeBand.KeyUp += slopeBand_KeyUp;
             // 
             // tableGroup
             // 
-            this.tableGroup.Controls.Add(this.selectUrbanTableLabel);
-            this.tableGroup.Controls.Add(this.selectPlantTableLabel);
-            this.tableGroup.Controls.Add(this.selectUsersoilTableLabel);
-            this.tableGroup.Controls.Add(this.soilTableLabel);
-            this.tableGroup.Controls.Add(this.landuseTableLabel);
-            this.tableGroup.Controls.Add(this.selectSoilTable);
-            this.tableGroup.Controls.Add(this.selectUsersoilTable);
-            this.tableGroup.Controls.Add(this.selectPlantTable);
-            this.tableGroup.Controls.Add(this.selectUrbanTable);
-            this.tableGroup.Controls.Add(this.selectLanduseTable);
-            this.tableGroup.Location = new System.Drawing.Point(244, 155);
-            this.tableGroup.Name = "tableGroup";
-            this.tableGroup.Size = new System.Drawing.Size(260, 170);
-            this.tableGroup.TabIndex = 10;
-            this.tableGroup.TabStop = false;
-            this.tableGroup.Text = "Tables";
+            tableGroup.Controls.Add(selectUrbanTableLabel);
+            tableGroup.Controls.Add(selectPlantTableLabel);
+            tableGroup.Controls.Add(selectUsersoilTableLabel);
+            tableGroup.Controls.Add(soilTableLabel);
+            tableGroup.Controls.Add(landuseTableLabel);
+            tableGroup.Controls.Add(selectSoilTable);
+            tableGroup.Controls.Add(selectUsersoilTable);
+            tableGroup.Controls.Add(selectPlantTable);
+            tableGroup.Controls.Add(selectUrbanTable);
+            tableGroup.Controls.Add(selectLanduseTable);
+            tableGroup.Location = new System.Drawing.Point(244, 155);
+            tableGroup.Name = "tableGroup";
+            tableGroup.Size = new System.Drawing.Size(260, 170);
+            tableGroup.TabIndex = 10;
+            tableGroup.TabStop = false;
+            tableGroup.Text = "Tables";
             // 
             // selectUrbanTableLabel
             // 
-            this.selectUrbanTableLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectUrbanTableLabel.AutoSize = true;
-            this.selectUrbanTableLabel.Location = new System.Drawing.Point(64, 138);
-            this.selectUrbanTableLabel.Name = "selectUrbanTableLabel";
-            this.selectUrbanTableLabel.Size = new System.Drawing.Size(39, 15);
-            this.selectUrbanTableLabel.TabIndex = 9;
-            this.selectUrbanTableLabel.Text = "Urban";
+            selectUrbanTableLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectUrbanTableLabel.AutoSize = true;
+            selectUrbanTableLabel.Location = new System.Drawing.Point(64, 138);
+            selectUrbanTableLabel.Name = "selectUrbanTableLabel";
+            selectUrbanTableLabel.Size = new System.Drawing.Size(39, 15);
+            selectUrbanTableLabel.TabIndex = 9;
+            selectUrbanTableLabel.Text = "Urban";
             // 
             // selectPlantTableLabel
             // 
-            this.selectPlantTableLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectPlantTableLabel.AutoSize = true;
-            this.selectPlantTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.selectPlantTableLabel.Location = new System.Drawing.Point(69, 109);
-            this.selectPlantTableLabel.Name = "selectPlantTableLabel";
-            this.selectPlantTableLabel.Size = new System.Drawing.Size(34, 15);
-            this.selectPlantTableLabel.TabIndex = 8;
-            this.selectPlantTableLabel.Text = "Plant";
+            selectPlantTableLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectPlantTableLabel.AutoSize = true;
+            selectPlantTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
+            selectPlantTableLabel.Location = new System.Drawing.Point(69, 109);
+            selectPlantTableLabel.Name = "selectPlantTableLabel";
+            selectPlantTableLabel.Size = new System.Drawing.Size(34, 15);
+            selectPlantTableLabel.TabIndex = 8;
+            selectPlantTableLabel.Text = "Plant";
             // 
             // selectUsersoilTableLabel
             // 
-            this.selectUsersoilTableLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectUsersoilTableLabel.AutoSize = true;
-            this.selectUsersoilTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.selectUsersoilTableLabel.Location = new System.Drawing.Point(55, 80);
-            this.selectUsersoilTableLabel.Name = "selectUsersoilTableLabel";
-            this.selectUsersoilTableLabel.Size = new System.Drawing.Size(48, 15);
-            this.selectUsersoilTableLabel.TabIndex = 7;
-            this.selectUsersoilTableLabel.Text = "Usersoil";
+            selectUsersoilTableLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectUsersoilTableLabel.AutoSize = true;
+            selectUsersoilTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
+            selectUsersoilTableLabel.Location = new System.Drawing.Point(55, 80);
+            selectUsersoilTableLabel.Name = "selectUsersoilTableLabel";
+            selectUsersoilTableLabel.Size = new System.Drawing.Size(48, 15);
+            selectUsersoilTableLabel.TabIndex = 7;
+            selectUsersoilTableLabel.Text = "Usersoil";
             // 
             // soilTableLabel
             // 
-            this.soilTableLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.soilTableLabel.AutoSize = true;
-            this.soilTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.soilTableLabel.Location = new System.Drawing.Point(37, 51);
-            this.soilTableLabel.Name = "soilTableLabel";
-            this.soilTableLabel.Size = new System.Drawing.Size(66, 15);
-            this.soilTableLabel.TabIndex = 6;
-            this.soilTableLabel.Text = "Soil lookup";
+            soilTableLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            soilTableLabel.AutoSize = true;
+            soilTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
+            soilTableLabel.Location = new System.Drawing.Point(37, 51);
+            soilTableLabel.Name = "soilTableLabel";
+            soilTableLabel.Size = new System.Drawing.Size(66, 15);
+            soilTableLabel.TabIndex = 6;
+            soilTableLabel.Text = "Soil lookup";
             // 
             // landuseTableLabel
             // 
-            this.landuseTableLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.landuseTableLabel.AutoSize = true;
-            this.landuseTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.landuseTableLabel.Location = new System.Drawing.Point(12, 22);
-            this.landuseTableLabel.Name = "landuseTableLabel";
-            this.landuseTableLabel.Size = new System.Drawing.Size(91, 15);
-            this.landuseTableLabel.TabIndex = 5;
-            this.landuseTableLabel.Text = "Landuse lookup";
+            landuseTableLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            landuseTableLabel.AutoSize = true;
+            landuseTableLabel.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
+            landuseTableLabel.Location = new System.Drawing.Point(12, 22);
+            landuseTableLabel.Name = "landuseTableLabel";
+            landuseTableLabel.Size = new System.Drawing.Size(91, 15);
+            landuseTableLabel.TabIndex = 5;
+            landuseTableLabel.Text = "Landuse lookup";
             // 
             // selectSoilTable
             // 
-            this.selectSoilTable.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectSoilTable.FormattingEnabled = true;
-            this.selectSoilTable.Location = new System.Drawing.Point(109, 49);
-            this.selectSoilTable.Name = "selectSoilTable";
-            this.selectSoilTable.Size = new System.Drawing.Size(145, 23);
-            this.selectSoilTable.TabIndex = 4;
-            this.selectSoilTable.SelectedIndexChanged += new System.EventHandler(this.selectSoilTable_SelectedIndexChanged);
+            selectSoilTable.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectSoilTable.FormattingEnabled = true;
+            selectSoilTable.Location = new System.Drawing.Point(109, 49);
+            selectSoilTable.Name = "selectSoilTable";
+            selectSoilTable.Size = new System.Drawing.Size(145, 23);
+            selectSoilTable.TabIndex = 4;
+            selectSoilTable.SelectedIndexChanged += selectSoilTable_SelectedIndexChanged;
             // 
             // selectUsersoilTable
             // 
-            this.selectUsersoilTable.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectUsersoilTable.FormattingEnabled = true;
-            this.selectUsersoilTable.Location = new System.Drawing.Point(109, 78);
-            this.selectUsersoilTable.Name = "selectUsersoilTable";
-            this.selectUsersoilTable.Size = new System.Drawing.Size(145, 23);
-            this.selectUsersoilTable.TabIndex = 3;
-            this.selectUsersoilTable.SelectedIndexChanged += new System.EventHandler(this.selectUsersoilTable_SelectedIndexChanged);
+            selectUsersoilTable.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectUsersoilTable.FormattingEnabled = true;
+            selectUsersoilTable.Location = new System.Drawing.Point(109, 78);
+            selectUsersoilTable.Name = "selectUsersoilTable";
+            selectUsersoilTable.Size = new System.Drawing.Size(145, 23);
+            selectUsersoilTable.TabIndex = 3;
+            selectUsersoilTable.SelectedIndexChanged += selectUsersoilTable_SelectedIndexChanged;
             // 
             // selectPlantTable
             // 
-            this.selectPlantTable.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectPlantTable.FormattingEnabled = true;
-            this.selectPlantTable.Location = new System.Drawing.Point(109, 107);
-            this.selectPlantTable.Name = "selectPlantTable";
-            this.selectPlantTable.Size = new System.Drawing.Size(145, 23);
-            this.selectPlantTable.TabIndex = 2;
-            this.selectPlantTable.SelectedIndexChanged += new System.EventHandler(this.selectPlantTable_SelectedIndexChanged);
+            selectPlantTable.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectPlantTable.FormattingEnabled = true;
+            selectPlantTable.Location = new System.Drawing.Point(109, 107);
+            selectPlantTable.Name = "selectPlantTable";
+            selectPlantTable.Size = new System.Drawing.Size(145, 23);
+            selectPlantTable.TabIndex = 2;
+            selectPlantTable.SelectedIndexChanged += selectPlantTable_SelectedIndexChanged;
             // 
             // selectUrbanTable
             // 
-            this.selectUrbanTable.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectUrbanTable.FormattingEnabled = true;
-            this.selectUrbanTable.Location = new System.Drawing.Point(109, 136);
-            this.selectUrbanTable.Name = "selectUrbanTable";
-            this.selectUrbanTable.Size = new System.Drawing.Size(145, 23);
-            this.selectUrbanTable.TabIndex = 1;
-            this.selectUrbanTable.SelectedIndexChanged += new System.EventHandler(this.selectUrbanTable_SelectedIndexChanged);
+            selectUrbanTable.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectUrbanTable.FormattingEnabled = true;
+            selectUrbanTable.Location = new System.Drawing.Point(109, 136);
+            selectUrbanTable.Name = "selectUrbanTable";
+            selectUrbanTable.Size = new System.Drawing.Size(145, 23);
+            selectUrbanTable.TabIndex = 1;
+            selectUrbanTable.SelectedIndexChanged += selectUrbanTable_SelectedIndexChanged;
             // 
             // selectLanduseTable
             // 
-            this.selectLanduseTable.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.selectLanduseTable.FormattingEnabled = true;
-            this.selectLanduseTable.Location = new System.Drawing.Point(109, 20);
-            this.selectLanduseTable.Name = "selectLanduseTable";
-            this.selectLanduseTable.Size = new System.Drawing.Size(145, 23);
-            this.selectLanduseTable.TabIndex = 0;
-            this.selectLanduseTable.SelectedIndexChanged += new System.EventHandler(this.selectLanduseTable_SelectedIndexChanged);
+            selectLanduseTable.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            selectLanduseTable.FormattingEnabled = true;
+            selectLanduseTable.Location = new System.Drawing.Point(109, 20);
+            selectLanduseTable.Name = "selectLanduseTable";
+            selectLanduseTable.Size = new System.Drawing.Size(145, 23);
+            selectLanduseTable.TabIndex = 0;
+            selectLanduseTable.SelectedIndexChanged += selectLanduseTable_SelectedIndexChanged;
             // 
             // soilGroup
             // 
-            this.soilGroup.Controls.Add(this.SSURGOButton);
-            this.soilGroup.Controls.Add(this.STATSGOButton);
-            this.soilGroup.Controls.Add(this.usersoilButton);
-            this.soilGroup.Location = new System.Drawing.Point(6, 155);
-            this.soilGroup.Name = "soilGroup";
-            this.soilGroup.Size = new System.Drawing.Size(200, 100);
-            this.soilGroup.TabIndex = 9;
-            this.soilGroup.TabStop = false;
-            this.soilGroup.Text = " Soil data";
+            soilGroup.Controls.Add(SSURGOButton);
+            soilGroup.Controls.Add(STATSGOButton);
+            soilGroup.Controls.Add(usersoilButton);
+            soilGroup.Location = new System.Drawing.Point(6, 155);
+            soilGroup.Name = "soilGroup";
+            soilGroup.Size = new System.Drawing.Size(200, 100);
+            soilGroup.TabIndex = 9;
+            soilGroup.TabStop = false;
+            soilGroup.Text = " Soil data";
             // 
             // SSURGOButton
             // 
-            this.SSURGOButton.AutoSize = true;
-            this.SSURGOButton.Location = new System.Drawing.Point(16, 70);
-            this.SSURGOButton.Name = "SSURGOButton";
-            this.SSURGOButton.Size = new System.Drawing.Size(127, 19);
-            this.SSURGOButton.TabIndex = 2;
-            this.SSURGOButton.TabStop = true;
-            this.SSURGOButton.Text = "SSURGO/STATSGO2";
-            this.SSURGOButton.UseVisualStyleBackColor = true;
-            this.SSURGOButton.CheckedChanged += new System.EventHandler(this.SSURGOButton_CheckedChanged);
+            SSURGOButton.AutoSize = true;
+            SSURGOButton.Location = new System.Drawing.Point(16, 70);
+            SSURGOButton.Name = "SSURGOButton";
+            SSURGOButton.Size = new System.Drawing.Size(127, 19);
+            SSURGOButton.TabIndex = 2;
+            SSURGOButton.TabStop = true;
+            SSURGOButton.Text = "SSURGO/STATSGO2";
+            SSURGOButton.UseVisualStyleBackColor = true;
+            SSURGOButton.CheckedChanged += SSURGOButton_CheckedChanged;
             // 
             // STATSGOButton
             // 
-            this.STATSGOButton.AutoSize = true;
-            this.STATSGOButton.Location = new System.Drawing.Point(16, 45);
-            this.STATSGOButton.Name = "STATSGOButton";
-            this.STATSGOButton.Size = new System.Drawing.Size(72, 19);
-            this.STATSGOButton.TabIndex = 1;
-            this.STATSGOButton.TabStop = true;
-            this.STATSGOButton.Text = "STATSGO";
-            this.STATSGOButton.UseVisualStyleBackColor = true;
-            this.STATSGOButton.CheckedChanged += new System.EventHandler(this.STATSGOButton_CheckedChanged);
+            STATSGOButton.AutoSize = true;
+            STATSGOButton.Location = new System.Drawing.Point(16, 45);
+            STATSGOButton.Name = "STATSGOButton";
+            STATSGOButton.Size = new System.Drawing.Size(72, 19);
+            STATSGOButton.TabIndex = 1;
+            STATSGOButton.TabStop = true;
+            STATSGOButton.Text = "STATSGO";
+            STATSGOButton.UseVisualStyleBackColor = true;
+            STATSGOButton.CheckedChanged += STATSGOButton_CheckedChanged;
             // 
             // usersoilButton
             // 
-            this.usersoilButton.AutoSize = true;
-            this.usersoilButton.Location = new System.Drawing.Point(16, 20);
-            this.usersoilButton.Name = "usersoilButton";
-            this.usersoilButton.Size = new System.Drawing.Size(65, 19);
-            this.usersoilButton.TabIndex = 0;
-            this.usersoilButton.TabStop = true;
-            this.usersoilButton.Text = "usersoil";
-            this.usersoilButton.UseVisualStyleBackColor = true;
-            this.usersoilButton.CheckedChanged += new System.EventHandler(this.usersoilButton_CheckedChanged);
+            usersoilButton.AutoSize = true;
+            usersoilButton.Location = new System.Drawing.Point(16, 20);
+            usersoilButton.Name = "usersoilButton";
+            usersoilButton.Size = new System.Drawing.Size(65, 19);
+            usersoilButton.TabIndex = 0;
+            usersoilButton.TabStop = true;
+            usersoilButton.Text = "usersoil";
+            usersoilButton.UseVisualStyleBackColor = true;
+            usersoilButton.CheckedChanged += usersoilButton_CheckedChanged;
             // 
             // label3
             // 
-            this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(6, 59);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(86, 15);
-            this.label3.TabIndex = 8;
-            this.label3.Text = "Select soil map";
+            label3.AutoSize = true;
+            label3.Location = new System.Drawing.Point(6, 59);
+            label3.Name = "label3";
+            label3.Size = new System.Drawing.Size(86, 15);
+            label3.TabIndex = 8;
+            label3.Text = "Select soil map";
             // 
             // dbLabel
             // 
-            this.dbLabel.AutoSize = true;
-            this.dbLabel.Location = new System.Drawing.Point(6, 108);
-            this.dbLabel.Name = "dbLabel";
-            this.dbLabel.Size = new System.Drawing.Size(176, 15);
-            this.dbLabel.TabIndex = 7;
-            this.dbLabel.Text = "Select landuse and soil database";
+            dbLabel.AutoSize = true;
+            dbLabel.Location = new System.Drawing.Point(6, 108);
+            dbLabel.Name = "dbLabel";
+            dbLabel.Size = new System.Drawing.Size(176, 15);
+            dbLabel.TabIndex = 7;
+            dbLabel.Text = "Select landuse and soil database";
             // 
             // label1
             // 
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(6, 10);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(109, 15);
-            this.label1.TabIndex = 6;
-            this.label1.Text = "Select landuse map";
+            label1.AutoSize = true;
+            label1.Location = new System.Drawing.Point(6, 10);
+            label1.Name = "label1";
+            label1.Size = new System.Drawing.Size(109, 15);
+            label1.TabIndex = 6;
+            label1.Text = "Select landuse map";
             // 
             // selectSoilButton
             // 
-            this.selectSoilButton.Location = new System.Drawing.Point(478, 77);
-            this.selectSoilButton.Name = "selectSoilButton";
-            this.selectSoilButton.Size = new System.Drawing.Size(41, 23);
-            this.selectSoilButton.TabIndex = 5;
-            this.selectSoilButton.Text = "...";
-            this.selectSoilButton.UseVisualStyleBackColor = true;
-            this.selectSoilButton.Click += new System.EventHandler(this.selectSoilButton_Click);
+            selectSoilButton.Location = new System.Drawing.Point(478, 77);
+            selectSoilButton.Name = "selectSoilButton";
+            selectSoilButton.Size = new System.Drawing.Size(41, 23);
+            selectSoilButton.TabIndex = 5;
+            selectSoilButton.Text = "...";
+            selectSoilButton.UseVisualStyleBackColor = true;
+            selectSoilButton.Click += selectSoilButton_Click;
             // 
             // selectPlantSoilDatabaseButton
             // 
-            this.selectPlantSoilDatabaseButton.Location = new System.Drawing.Point(478, 125);
-            this.selectPlantSoilDatabaseButton.Name = "selectPlantSoilDatabaseButton";
-            this.selectPlantSoilDatabaseButton.Size = new System.Drawing.Size(41, 23);
-            this.selectPlantSoilDatabaseButton.TabIndex = 4;
-            this.selectPlantSoilDatabaseButton.Text = "...";
-            this.selectPlantSoilDatabaseButton.UseVisualStyleBackColor = true;
-            this.selectPlantSoilDatabaseButton.Click += new System.EventHandler(this.selectPlantSoilDatabaseButton_Click);
+            selectPlantSoilDatabaseButton.Location = new System.Drawing.Point(478, 125);
+            selectPlantSoilDatabaseButton.Name = "selectPlantSoilDatabaseButton";
+            selectPlantSoilDatabaseButton.Size = new System.Drawing.Size(41, 23);
+            selectPlantSoilDatabaseButton.TabIndex = 4;
+            selectPlantSoilDatabaseButton.Text = "...";
+            selectPlantSoilDatabaseButton.UseVisualStyleBackColor = true;
+            selectPlantSoilDatabaseButton.Click += selectPlantSoilDatabaseButton_Click;
             // 
             // plantSoilDatabase
             // 
-            this.plantSoilDatabase.Location = new System.Drawing.Point(6, 126);
-            this.plantSoilDatabase.Name = "plantSoilDatabase";
-            this.plantSoilDatabase.Size = new System.Drawing.Size(459, 23);
-            this.plantSoilDatabase.TabIndex = 3;
+            plantSoilDatabase.Location = new System.Drawing.Point(6, 126);
+            plantSoilDatabase.Name = "plantSoilDatabase";
+            plantSoilDatabase.Size = new System.Drawing.Size(459, 23);
+            plantSoilDatabase.TabIndex = 3;
             // 
             // selectSoil
             // 
-            this.selectSoil.Location = new System.Drawing.Point(6, 77);
-            this.selectSoil.Name = "selectSoil";
-            this.selectSoil.Size = new System.Drawing.Size(459, 23);
-            this.selectSoil.TabIndex = 2;
+            selectSoil.Location = new System.Drawing.Point(6, 77);
+            selectSoil.Name = "selectSoil";
+            selectSoil.Size = new System.Drawing.Size(459, 23);
+            selectSoil.TabIndex = 2;
             // 
             // selectLanduseButton
             // 
-            this.selectLanduseButton.Location = new System.Drawing.Point(478, 28);
-            this.selectLanduseButton.Name = "selectLanduseButton";
-            this.selectLanduseButton.Size = new System.Drawing.Size(41, 23);
-            this.selectLanduseButton.TabIndex = 1;
-            this.selectLanduseButton.Text = "...";
-            this.selectLanduseButton.UseVisualStyleBackColor = true;
-            this.selectLanduseButton.Click += new System.EventHandler(this.selectLanduseButton_Click);
+            selectLanduseButton.Location = new System.Drawing.Point(478, 28);
+            selectLanduseButton.Name = "selectLanduseButton";
+            selectLanduseButton.Size = new System.Drawing.Size(41, 23);
+            selectLanduseButton.TabIndex = 1;
+            selectLanduseButton.Text = "...";
+            selectLanduseButton.UseVisualStyleBackColor = true;
+            selectLanduseButton.Click += selectLanduseButton_Click;
             // 
             // selectLanduse
             // 
-            this.selectLanduse.Location = new System.Drawing.Point(6, 28);
-            this.selectLanduse.Name = "selectLanduse";
-            this.selectLanduse.Size = new System.Drawing.Size(459, 23);
-            this.selectLanduse.TabIndex = 0;
+            selectLanduse.Location = new System.Drawing.Point(6, 28);
+            selectLanduse.Name = "selectLanduse";
+            selectLanduse.Size = new System.Drawing.Size(459, 23);
+            selectLanduse.TabIndex = 0;
             // 
             // tabPage2
             // 
-            this.tabPage2.Controls.Add(this.progressLabel2);
-            this.tabPage2.Controls.Add(this.createButton);
-            this.tabPage2.Controls.Add(this.targetGroup);
-            this.tabPage2.Controls.Add(this.gwGroupBox);
-            this.tabPage2.Controls.Add(this.areaGroup);
-            this.tabPage2.Controls.Add(this.landuseSoilSlopeGroup);
-            this.tabPage2.Controls.Add(this.areaPercentChoiceGroup);
-            this.tabPage2.Controls.Add(this.hruChoiceGroup);
-            this.tabPage2.Controls.Add(this.optionGroup_2);
-            this.tabPage2.Location = new System.Drawing.Point(4, 24);
-            this.tabPage2.Name = "tabPage2";
-            this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
-            this.tabPage2.Size = new System.Drawing.Size(541, 614);
-            this.tabPage2.TabIndex = 1;
-            this.tabPage2.Text = "HRUs";
-            this.tabPage2.UseVisualStyleBackColor = true;
+            tabPage2.Controls.Add(gwflowHruWidget);
+            tabPage2.Controls.Add(progressLabel2);
+            tabPage2.Controls.Add(targetGroup);
+            tabPage2.Controls.Add(gwGroupBox);
+            tabPage2.Controls.Add(areaGroup);
+            tabPage2.Controls.Add(createButton);
+            tabPage2.Controls.Add(landuseSoilSlopeGroup);
+            tabPage2.Controls.Add(areaPercentChoiceGroup);
+            tabPage2.Controls.Add(hruChoiceGroup);
+            tabPage2.Controls.Add(optionGroup_2);
+            tabPage2.Location = new System.Drawing.Point(4, 24);
+            tabPage2.Name = "tabPage2";
+            tabPage2.Padding = new System.Windows.Forms.Padding(3);
+            tabPage2.Size = new System.Drawing.Size(541, 751);
+            tabPage2.TabIndex = 1;
+            tabPage2.Text = "HRUs";
+            tabPage2.UseVisualStyleBackColor = true;
+            // 
+            // gwflowHruWidget
+            // 
+            gwflowHruWidget.Controls.Add(gridGroup);
+            gwflowHruWidget.Controls.Add(tileDrainsButton);
+            gwflowHruWidget.Controls.Add(tileDrains);
+            gwflowHruWidget.Controls.Add(useTileDrains);
+            gwflowHruWidget.Controls.Add(aquiferPermeabilityButton);
+            gwflowHruWidget.Controls.Add(aquiferPermeability);
+            gwflowHruWidget.Controls.Add(aquiferPermeabilityLabel);
+            gwflowHruWidget.Controls.Add(aquiferThicknessButton);
+            gwflowHruWidget.Controls.Add(aquiferThickness);
+            gwflowHruWidget.Controls.Add(aquiferThicknessLabel);
+            gwflowHruWidget.Location = new System.Drawing.Point(6, 262);
+            gwflowHruWidget.Name = "gwflowHruWidget";
+            gwflowHruWidget.Size = new System.Drawing.Size(529, 452);
+            gwflowHruWidget.TabIndex = 29;
+            gwflowHruWidget.TabStop = false;
+            gwflowHruWidget.Text = "gwflow Configuration";
+            // 
+            // gridGroup
+            // 
+            gridGroup.Controls.Add(progressBar2);
+            gridGroup.Controls.Add(generateGridButton);
+            gridGroup.Controls.Add(unstructuredWidget);
+            gridGroup.Controls.Add(structuredWidget);
+            gridGroup.Controls.Add(typeRow);
+            gridGroup.Location = new System.Drawing.Point(6, 169);
+            gridGroup.Name = "gridGroup";
+            gridGroup.Size = new System.Drawing.Size(517, 277);
+            gridGroup.TabIndex = 9;
+            gridGroup.TabStop = false;
+            gridGroup.Text = "Create Grid";
+            // 
+            // progressBar2
+            // 
+            progressBar2.Location = new System.Drawing.Point(114, 248);
+            progressBar2.Name = "progressBar2";
+            progressBar2.Size = new System.Drawing.Size(255, 23);
+            progressBar2.TabIndex = 23;
+            // 
+            // generateGridButton
+            // 
+            generateGridButton.Location = new System.Drawing.Point(394, 245);
+            generateGridButton.Name = "generateGridButton";
+            generateGridButton.Size = new System.Drawing.Size(117, 23);
+            generateGridButton.TabIndex = 3;
+            generateGridButton.Text = "GenerateGrid";
+            generateGridButton.UseVisualStyleBackColor = true;
+            generateGridButton.Click += generateGridButton_Click;
+            // 
+            // structuredWidget
+            // 
+            structuredWidget.Controls.Add(cellEstimateLabel);
+            structuredWidget.Controls.Add(alignGrids);
+            structuredWidget.Controls.Add(cellSize);
+            structuredWidget.Controls.Add(cellSizeLabel);
+            structuredWidget.Location = new System.Drawing.Point(8, 58);
+            structuredWidget.Name = "structuredWidget";
+            structuredWidget.Size = new System.Drawing.Size(240, 114);
+            structuredWidget.TabIndex = 1;
+            // 
+            // cellEstimateLabel
+            // 
+            cellEstimateLabel.AutoSize = true;
+            cellEstimateLabel.Location = new System.Drawing.Point(9, 75);
+            cellEstimateLabel.Name = "cellEstimateLabel";
+            cellEstimateLabel.Size = new System.Drawing.Size(203, 15);
+            cellEstimateLabel.TabIndex = 3;
+            cellEstimateLabel.Text = "~ 200 cells (based on watershed area)";
+            // 
+            // alignGrids
+            // 
+            alignGrids.AutoSize = true;
+            alignGrids.Location = new System.Drawing.Point(11, 42);
+            alignGrids.Name = "alignGrids";
+            alignGrids.Size = new System.Drawing.Size(133, 19);
+            alignGrids.TabIndex = 2;
+            alignGrids.Text = "Align to SWAT+ grid";
+            alignGrids.UseVisualStyleBackColor = true;
+            // 
+            // unstructuredWidget
+            // 
+            unstructuredWidget.Controls.Add(transitionSlider);
+            unstructuredWidget.Controls.Add(gradualLabel);
+            unstructuredWidget.Controls.Add(transitionSpin);
+            unstructuredWidget.Controls.Add(abruptLabel);
+            unstructuredWidget.Controls.Add(transitionRateLabel);
+            unstructuredWidget.Controls.Add(refineWells);
+            unstructuredWidget.Controls.Add(refineTopography);
+            unstructuredWidget.Controls.Add(refineStreams);
+            unstructuredWidget.Controls.Add(refineBoundary);
+            unstructuredWidget.Controls.Add(refineBasedOnLabel);
+            unstructuredWidget.Controls.Add(refineLevels);
+            unstructuredWidget.Controls.Add(refineLevelsLabel);
+            unstructuredWidget.Controls.Add(maxCellSize);
+            unstructuredWidget.Controls.Add(maxCellSizeLabel);
+            unstructuredWidget.Controls.Add(minSizeLabel);
+            unstructuredWidget.Controls.Add(elevTolerance);
+            unstructuredWidget.Controls.Add(elevTolLabel);
+            unstructuredWidget.Location = new System.Drawing.Point(8, 58);
+            unstructuredWidget.Name = "unstructuredWidget";
+            unstructuredWidget.Size = new System.Drawing.Size(503, 183);
+            unstructuredWidget.TabIndex = 2;
+            // 
+            // transitionSlider
+            // 
+            transitionSlider.LargeChange = 1;
+            transitionSlider.Location = new System.Drawing.Point(150, 130);
+            transitionSlider.Maximum = 30;
+            transitionSlider.Minimum = 1;
+            transitionSlider.Name = "transitionSlider";
+            transitionSlider.Size = new System.Drawing.Size(260, 45);
+            transitionSlider.TabIndex = 16;
+            transitionSlider.TickStyle = System.Windows.Forms.TickStyle.None;
+            transitionSlider.Value = 10;
+            transitionSlider.Scroll += transitionSlider_Scroll;
+            // 
+            // gradualLabel
+            // 
+            gradualLabel.AutoSize = true;
+            gradualLabel.Location = new System.Drawing.Point(100, 130);
+            gradualLabel.Name = "gradualLabel";
+            gradualLabel.Size = new System.Drawing.Size(48, 15);
+            gradualLabel.TabIndex = 15;
+            gradualLabel.Text = "Gradual";
+            // 
+            // transitionSpin
+            // 
+            transitionSpin.DecimalPlaces = 1;
+            transitionSpin.Increment = new decimal(new int[] { 1, 0, 0, 65536 });
+            transitionSpin.Location = new System.Drawing.Point(463, 128);
+            transitionSpin.Maximum = new decimal(new int[] { 30, 0, 0, 65536 });
+            transitionSpin.Minimum = new decimal(new int[] { 1, 0, 0, 65536 });
+            transitionSpin.Name = "transitionSpin";
+            transitionSpin.Size = new System.Drawing.Size(37, 23);
+            transitionSpin.TabIndex = 14;
+            transitionSpin.Value = new decimal(new int[] { 1, 0, 0, 65536 });
+            transitionSpin.ValueChanged += transitionSpin_ValueChanged;
+            // 
+            // abruptLabel
+            // 
+            abruptLabel.AutoSize = true;
+            abruptLabel.Location = new System.Drawing.Point(413, 130);
+            abruptLabel.Name = "abruptLabel";
+            abruptLabel.Size = new System.Drawing.Size(44, 15);
+            abruptLabel.TabIndex = 13;
+            abruptLabel.Text = "Abrupt";
+            // 
+            // transitionRateLabel
+            // 
+            transitionRateLabel.AutoSize = true;
+            transitionRateLabel.Location = new System.Drawing.Point(12, 130);
+            transitionRateLabel.Name = "transitionRateLabel";
+            transitionRateLabel.Size = new System.Drawing.Size(81, 15);
+            transitionRateLabel.TabIndex = 12;
+            transitionRateLabel.Text = "Transition rate";
+            // 
+            // refineWells
+            // 
+            refineWells.AutoSize = true;
+            refineWells.Location = new System.Drawing.Point(430, 98);
+            refineWells.Name = "refineWells";
+            refineWells.Size = new System.Drawing.Size(54, 19);
+            refineWells.TabIndex = 11;
+            refineWells.Text = "Wells";
+            refineWells.UseVisualStyleBackColor = true;
+            // 
+            // refineTopography
+            // 
+            refineTopography.AutoSize = true;
+            refineTopography.Location = new System.Drawing.Point(130, 98);
+            refineTopography.Name = "refineTopography";
+            refineTopography.Size = new System.Drawing.Size(74, 19);
+            refineTopography.TabIndex = 10;
+            refineTopography.Text = "Elevation";
+            refineTopography.UseVisualStyleBackColor = true;
+            refineTopography.CheckedChanged += refineTopography_CheckedChanged;
+            // 
+            // refineStreams
+            // 
+            refineStreams.AutoSize = true;
+            refineStreams.Location = new System.Drawing.Point(230, 98);
+            refineStreams.Name = "refineStreams";
+            refineStreams.Size = new System.Drawing.Size(68, 19);
+            refineStreams.TabIndex = 9;
+            refineStreams.Text = "Streams";
+            refineStreams.UseVisualStyleBackColor = true;
+            // 
+            // refineBoundary
+            // 
+            refineBoundary.AutoSize = true;
+            refineBoundary.Location = new System.Drawing.Point(330, 98);
+            refineBoundary.Name = "refineBoundary";
+            refineBoundary.Size = new System.Drawing.Size(77, 19);
+            refineBoundary.TabIndex = 8;
+            refineBoundary.Text = "Boundary";
+            refineBoundary.UseVisualStyleBackColor = true;
+            // 
+            // refineBasedOnLabel
+            // 
+            refineBasedOnLabel.AutoSize = true;
+            refineBasedOnLabel.Location = new System.Drawing.Point(12, 100);
+            refineBasedOnLabel.Name = "refineBasedOnLabel";
+            refineBasedOnLabel.Size = new System.Drawing.Size(91, 15);
+            refineBasedOnLabel.TabIndex = 7;
+            refineBasedOnLabel.Text = "Refine based on";
+            // 
+            // refineLevels
+            // 
+            refineLevels.Location = new System.Drawing.Point(286, 8);
+            refineLevels.Maximum = new decimal(new int[] { 8, 0, 0, 0 });
+            refineLevels.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            refineLevels.Name = "refineLevels";
+            refineLevels.Size = new System.Drawing.Size(43, 23);
+            refineLevels.TabIndex = 6;
+            refineLevels.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            refineLevels.ValueChanged += refineLevels_ValueChanged;
+            // 
+            // refineLevelsLabel
+            // 
+            refineLevelsLabel.AutoSize = true;
+            refineLevelsLabel.Location = new System.Drawing.Point(235, 10);
+            refineLevelsLabel.Name = "refineLevelsLabel";
+            refineLevelsLabel.Size = new System.Drawing.Size(39, 15);
+            refineLevelsLabel.TabIndex = 5;
+            refineLevelsLabel.Text = "Levels";
+            // 
+            // maxCellSize
+            // 
+            maxCellSize.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+            maxCellSize.Location = new System.Drawing.Point(134, 8);
+            maxCellSize.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+            maxCellSize.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
+            maxCellSize.Name = "maxCellSize";
+            maxCellSize.Size = new System.Drawing.Size(75, 23);
+            maxCellSize.TabIndex = 4;
+            maxCellSize.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            maxCellSize.ValueChanged += maxCellSize_ValueChanged;
+            // 
+            // maxCellSizeLabel
+            // 
+            maxCellSizeLabel.AutoSize = true;
+            maxCellSizeLabel.Location = new System.Drawing.Point(12, 10);
+            maxCellSizeLabel.Name = "maxCellSizeLabel";
+            maxCellSizeLabel.Size = new System.Drawing.Size(74, 15);
+            maxCellSizeLabel.TabIndex = 3;
+            maxCellSizeLabel.Text = "Max size (m)";
+            // 
+            // minSizeLabel
+            // 
+            minSizeLabel.AutoSize = true;
+            minSizeLabel.Location = new System.Drawing.Point(12, 70);
+            minSizeLabel.Name = "minSizeLabel";
+            minSizeLabel.Size = new System.Drawing.Size(74, 15);
+            minSizeLabel.TabIndex = 2;
+            minSizeLabel.Text = "Min cell size:";
+            // 
+            // elevTolerance
+            // 
+            elevTolerance.Location = new System.Drawing.Point(135, 38);
+            elevTolerance.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+            elevTolerance.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            elevTolerance.Name = "elevTolerance";
+            elevTolerance.Size = new System.Drawing.Size(75, 23);
+            elevTolerance.TabIndex = 1;
+            elevTolerance.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            // 
+            // elevTolLabel
+            // 
+            elevTolLabel.AutoSize = true;
+            elevTolLabel.Location = new System.Drawing.Point(12, 40);
+            elevTolLabel.Name = "elevTolLabel";
+            elevTolLabel.Size = new System.Drawing.Size(105, 15);
+            elevTolLabel.TabIndex = 0;
+            elevTolLabel.Text = "Elev. tolerance (m)";
+            // 
+            // cellSize
+            // 
+            cellSize.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+            cellSize.Location = new System.Drawing.Point(107, 8);
+            cellSize.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+            cellSize.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
+            cellSize.Name = "cellSize";
+            cellSize.Size = new System.Drawing.Size(72, 23);
+            cellSize.TabIndex = 1;
+            cellSize.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            cellSize.ValueChanged += cellSize_ValueChanged;
+            // 
+            // cellSizeLabel
+            // 
+            cellSizeLabel.AutoSize = true;
+            cellSizeLabel.Location = new System.Drawing.Point(7, 10);
+            cellSizeLabel.Name = "cellSizeLabel";
+            cellSizeLabel.Size = new System.Drawing.Size(71, 15);
+            cellSizeLabel.TabIndex = 0;
+            cellSizeLabel.Text = "Cell size (m)";
+            cellSizeLabel.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            // 
+            // typeRow
+            // 
+            typeRow.Controls.Add(unstructuredRadio);
+            typeRow.Controls.Add(structuredRadio);
+            typeRow.Location = new System.Drawing.Point(6, 20);
+            typeRow.Name = "typeRow";
+            typeRow.Size = new System.Drawing.Size(207, 30);
+            typeRow.TabIndex = 0;
+            // 
+            // unstructuredRadio
+            // 
+            unstructuredRadio.AutoSize = true;
+            unstructuredRadio.Location = new System.Drawing.Point(110, 5);
+            unstructuredRadio.Name = "unstructuredRadio";
+            unstructuredRadio.Size = new System.Drawing.Size(94, 19);
+            unstructuredRadio.TabIndex = 1;
+            unstructuredRadio.Text = "Unstructured";
+            unstructuredRadio.UseVisualStyleBackColor = true;
+            unstructuredRadio.CheckedChanged += unstructuredRadio_CheckedChanged;
+            // 
+            // structuredRadio
+            // 
+            structuredRadio.AutoSize = true;
+            structuredRadio.Checked = true;
+            structuredRadio.Location = new System.Drawing.Point(12, 5);
+            structuredRadio.Name = "structuredRadio";
+            structuredRadio.Size = new System.Drawing.Size(80, 19);
+            structuredRadio.TabIndex = 0;
+            structuredRadio.TabStop = true;
+            structuredRadio.Text = "Structured";
+            structuredRadio.UseVisualStyleBackColor = true;
+            structuredRadio.CheckedChanged += structuredRadio_CheckedChanged;
+            // 
+            // tileDrainsButton
+            // 
+            tileDrainsButton.Location = new System.Drawing.Point(496, 138);
+            tileDrainsButton.Name = "tileDrainsButton";
+            tileDrainsButton.Size = new System.Drawing.Size(27, 23);
+            tileDrainsButton.TabIndex = 8;
+            tileDrainsButton.Text = "...";
+            tileDrainsButton.UseVisualStyleBackColor = true;
+            tileDrainsButton.Click += tileDrainsButton_Click;
+            // 
+            // tileDrains
+            // 
+            tileDrains.Location = new System.Drawing.Point(11, 140);
+            tileDrains.Name = "tileDrains";
+            tileDrains.PlaceholderText = "Tile drains shapefile ...";
+            tileDrains.Size = new System.Drawing.Size(479, 23);
+            tileDrains.TabIndex = 7;
+            // 
+            // useTileDrains
+            // 
+            useTileDrains.AutoSize = true;
+            useTileDrains.Location = new System.Drawing.Point(12, 120);
+            useTileDrains.Name = "useTileDrains";
+            useTileDrains.Size = new System.Drawing.Size(99, 19);
+            useTileDrains.TabIndex = 6;
+            useTileDrains.Text = "Use tile drains";
+            useTileDrains.UseVisualStyleBackColor = true;
+            useTileDrains.CheckedChanged += useTileDrains_CheckedChanged;
+            // 
+            // aquiferPermeabilityButton
+            // 
+            aquiferPermeabilityButton.Location = new System.Drawing.Point(495, 88);
+            aquiferPermeabilityButton.Name = "aquiferPermeabilityButton";
+            aquiferPermeabilityButton.Size = new System.Drawing.Size(27, 23);
+            aquiferPermeabilityButton.TabIndex = 5;
+            aquiferPermeabilityButton.Text = "...";
+            aquiferPermeabilityButton.UseVisualStyleBackColor = true;
+            aquiferPermeabilityButton.Click += aquiferPermeabilityButton_Click;
+            // 
+            // aquiferPermeability
+            // 
+            aquiferPermeability.Location = new System.Drawing.Point(10, 88);
+            aquiferPermeability.Name = "aquiferPermeability";
+            aquiferPermeability.PlaceholderText = "Select shapefile ...";
+            aquiferPermeability.Size = new System.Drawing.Size(479, 23);
+            aquiferPermeability.TabIndex = 4;
+            // 
+            // aquiferPermeabilityLabel
+            // 
+            aquiferPermeabilityLabel.AutoSize = true;
+            aquiferPermeabilityLabel.Location = new System.Drawing.Point(11, 70);
+            aquiferPermeabilityLabel.Name = "aquiferPermeabilityLabel";
+            aquiferPermeabilityLabel.Size = new System.Drawing.Size(165, 15);
+            aquiferPermeabilityLabel.TabIndex = 3;
+            aquiferPermeabilityLabel.Text = "Aquifer permeability shapefile";
+            // 
+            // aquiferThicknessButton
+            // 
+            aquiferThicknessButton.Location = new System.Drawing.Point(495, 38);
+            aquiferThicknessButton.Name = "aquiferThicknessButton";
+            aquiferThicknessButton.Size = new System.Drawing.Size(27, 23);
+            aquiferThicknessButton.TabIndex = 2;
+            aquiferThicknessButton.Text = "...";
+            aquiferThicknessButton.UseVisualStyleBackColor = true;
+            aquiferThicknessButton.Click += aquiferThicknessButton_Click;
+            // 
+            // aquiferThickness
+            // 
+            aquiferThickness.Location = new System.Drawing.Point(10, 38);
+            aquiferThickness.Name = "aquiferThickness";
+            aquiferThickness.PlaceholderText = "Select raster file ...";
+            aquiferThickness.Size = new System.Drawing.Size(479, 23);
+            aquiferThickness.TabIndex = 1;
+            // 
+            // aquiferThicknessLabel
+            // 
+            aquiferThicknessLabel.AutoSize = true;
+            aquiferThicknessLabel.Location = new System.Drawing.Point(10, 20);
+            aquiferThicknessLabel.Name = "aquiferThicknessLabel";
+            aquiferThicknessLabel.Size = new System.Drawing.Size(130, 15);
+            aquiferThicknessLabel.TabIndex = 0;
+            aquiferThicknessLabel.Text = "Aquifer thickness raster";
             // 
             // progressLabel2
             // 
-            this.progressLabel2.AutoSize = true;
-            this.progressLabel2.Location = new System.Drawing.Point(30, 580);
-            this.progressLabel2.Name = "progressLabel2";
-            this.progressLabel2.Size = new System.Drawing.Size(72, 15);
-            this.progressLabel2.TabIndex = 28;
-            this.progressLabel2.Text = "dummy text";
-            // 
-            // createButton
-            // 
-            this.createButton.Location = new System.Drawing.Point(424, 576);
-            this.createButton.Name = "createButton";
-            this.createButton.Size = new System.Drawing.Size(91, 23);
-            this.createButton.TabIndex = 27;
-            this.createButton.Text = "Create HRUs";
-            this.createButton.UseVisualStyleBackColor = true;
-            this.createButton.Click += new System.EventHandler(this.createButton_Click);
+            progressLabel2.AutoSize = true;
+            progressLabel2.Location = new System.Drawing.Point(12, 724);
+            progressLabel2.Name = "progressLabel2";
+            progressLabel2.Size = new System.Drawing.Size(72, 15);
+            progressLabel2.TabIndex = 28;
+            progressLabel2.Text = "dummy text";
             // 
             // targetGroup
             // 
-            this.targetGroup.Controls.Add(this.targetVal);
-            this.targetGroup.Controls.Add(this.targetMax);
-            this.targetGroup.Controls.Add(this.targetLabel);
-            this.targetGroup.Controls.Add(this.targetMin);
-            this.targetGroup.Controls.Add(this.targetSlider);
-            this.targetGroup.Location = new System.Drawing.Point(343, 105);
-            this.targetGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.targetGroup.Name = "targetGroup";
-            this.targetGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.targetGroup.Size = new System.Drawing.Size(185, 75);
-            this.targetGroup.TabIndex = 25;
-            this.targetGroup.TabStop = false;
-            this.targetGroup.Text = "Set target";
+            targetGroup.Controls.Add(targetVal);
+            targetGroup.Controls.Add(targetMax);
+            targetGroup.Controls.Add(targetLabel);
+            targetGroup.Controls.Add(targetMin);
+            targetGroup.Controls.Add(targetSlider);
+            targetGroup.Location = new System.Drawing.Point(343, 105);
+            targetGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            targetGroup.Name = "targetGroup";
+            targetGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            targetGroup.Size = new System.Drawing.Size(185, 75);
+            targetGroup.TabIndex = 25;
+            targetGroup.TabStop = false;
+            targetGroup.Text = "Set target";
             // 
             // targetVal
             // 
-            this.targetVal.Location = new System.Drawing.Point(148, 45);
-            this.targetVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.targetVal.Name = "targetVal";
-            this.targetVal.Size = new System.Drawing.Size(32, 23);
-            this.targetVal.TabIndex = 10;
-            this.targetVal.TextChanged += new System.EventHandler(this.targetVal_TextChanged);
+            targetVal.Location = new System.Drawing.Point(148, 45);
+            targetVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            targetVal.Name = "targetVal";
+            targetVal.Size = new System.Drawing.Size(32, 23);
+            targetVal.TabIndex = 10;
+            targetVal.TextChanged += targetVal_TextChanged;
             // 
             // targetMax
             // 
-            this.targetMax.AutoSize = true;
-            this.targetMax.Location = new System.Drawing.Point(121, 22);
-            this.targetMax.Name = "targetMax";
-            this.targetMax.Size = new System.Drawing.Size(31, 15);
-            this.targetMax.TabIndex = 9;
-            this.targetMax.Text = "9999";
+            targetMax.AutoSize = true;
+            targetMax.Location = new System.Drawing.Point(121, 22);
+            targetMax.Name = "targetMax";
+            targetMax.Size = new System.Drawing.Size(31, 15);
+            targetMax.TabIndex = 9;
+            targetMax.Text = "9999";
             // 
             // targetLabel
             // 
-            this.targetLabel.AutoSize = true;
-            this.targetLabel.Location = new System.Drawing.Point(28, 22);
-            this.targetLabel.Name = "targetLabel";
-            this.targetLabel.Size = new System.Drawing.Size(97, 15);
-            this.targetLabel.TabIndex = 8;
-            this.targetLabel.Text = "Number of HRUs";
+            targetLabel.AutoSize = true;
+            targetLabel.Location = new System.Drawing.Point(28, 22);
+            targetLabel.Name = "targetLabel";
+            targetLabel.Size = new System.Drawing.Size(97, 15);
+            targetLabel.TabIndex = 8;
+            targetLabel.Text = "Number of HRUs";
             // 
             // targetMin
             // 
-            this.targetMin.AutoSize = true;
-            this.targetMin.Location = new System.Drawing.Point(5, 22);
-            this.targetMin.Name = "targetMin";
-            this.targetMin.Size = new System.Drawing.Size(13, 15);
-            this.targetMin.TabIndex = 7;
-            this.targetMin.Text = "0";
+            targetMin.AutoSize = true;
+            targetMin.Location = new System.Drawing.Point(5, 22);
+            targetMin.Name = "targetMin";
+            targetMin.Size = new System.Drawing.Size(13, 15);
+            targetMin.TabIndex = 7;
+            targetMin.Text = "0";
             // 
             // targetSlider
             // 
-            this.targetSlider.Location = new System.Drawing.Point(5, 37);
-            this.targetSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.targetSlider.Name = "targetSlider";
-            this.targetSlider.Size = new System.Drawing.Size(137, 45);
-            this.targetSlider.TabIndex = 6;
-            this.targetSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
-            this.targetSlider.Scroll += new System.EventHandler(this.targetSlider_Scroll);
+            targetSlider.Location = new System.Drawing.Point(5, 37);
+            targetSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            targetSlider.Name = "targetSlider";
+            targetSlider.Size = new System.Drawing.Size(137, 45);
+            targetSlider.TabIndex = 6;
+            targetSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
+            targetSlider.Scroll += targetSlider_Scroll;
             // 
             // gwGroupBox
             // 
-            this.gwGroupBox.Controls.Add(this.gwflowButton);
-            this.gwGroupBox.Controls.Add(this.SWATAquifersButton1);
-            this.gwGroupBox.Location = new System.Drawing.Point(262, 365);
-            this.gwGroupBox.Name = "gwGroupBox";
-            this.gwGroupBox.Size = new System.Drawing.Size(154, 84);
-            this.gwGroupBox.TabIndex = 26;
-            this.gwGroupBox.TabStop = false;
-            this.gwGroupBox.Text = "Ground water";
+            gwGroupBox.Controls.Add(gwflowButton);
+            gwGroupBox.Controls.Add(SWATAquifersButton);
+            gwGroupBox.Location = new System.Drawing.Point(6, 168);
+            gwGroupBox.Name = "gwGroupBox";
+            gwGroupBox.Size = new System.Drawing.Size(135, 75);
+            gwGroupBox.TabIndex = 26;
+            gwGroupBox.TabStop = false;
+            gwGroupBox.Text = "Ground water";
             // 
             // gwflowButton
             // 
-            this.gwflowButton.AutoSize = true;
-            this.gwflowButton.Location = new System.Drawing.Point(11, 53);
-            this.gwflowButton.Name = "gwflowButton";
-            this.gwflowButton.Size = new System.Drawing.Size(86, 19);
-            this.gwflowButton.TabIndex = 1;
-            this.gwflowButton.TabStop = true;
-            this.gwflowButton.Text = "Use gwflow";
-            this.gwflowButton.UseVisualStyleBackColor = true;
+            gwflowButton.AutoSize = true;
+            gwflowButton.Location = new System.Drawing.Point(10, 45);
+            gwflowButton.Name = "gwflowButton";
+            gwflowButton.Size = new System.Drawing.Size(86, 19);
+            gwflowButton.TabIndex = 1;
+            gwflowButton.TabStop = true;
+            gwflowButton.Text = "Use gwflow";
+            gwflowButton.UseVisualStyleBackColor = true;
+            gwflowButton.CheckedChanged += gwflowButton_CheckedChanged;
             // 
-            // SWATAquifersButton1
+            // SWATAquifersButton
             // 
-            this.SWATAquifersButton1.AutoSize = true;
-            this.SWATAquifersButton1.Location = new System.Drawing.Point(11, 28);
-            this.SWATAquifersButton1.Name = "SWATAquifersButton1";
-            this.SWATAquifersButton1.Size = new System.Drawing.Size(130, 19);
-            this.SWATAquifersButton1.TabIndex = 0;
-            this.SWATAquifersButton1.TabStop = true;
-            this.SWATAquifersButton1.Text = "Use SWAT+ aquifers";
-            this.SWATAquifersButton1.UseVisualStyleBackColor = true;
+            SWATAquifersButton.AutoSize = true;
+            SWATAquifersButton.Location = new System.Drawing.Point(11, 24);
+            SWATAquifersButton.Name = "SWATAquifersButton";
+            SWATAquifersButton.Size = new System.Drawing.Size(108, 19);
+            SWATAquifersButton.TabIndex = 0;
+            SWATAquifersButton.TabStop = true;
+            SWATAquifersButton.Text = "SWAT+ aquifers";
+            SWATAquifersButton.UseVisualStyleBackColor = true;
+            SWATAquifersButton.CheckedChanged += SWATAquifersButton_CheckedChanged;
             // 
             // areaGroup
             // 
-            this.areaGroup.Controls.Add(this.areaVal);
-            this.areaGroup.Controls.Add(this.areaMax);
-            this.areaGroup.Controls.Add(this.areaLabel);
-            this.areaGroup.Controls.Add(this.areaMin);
-            this.areaGroup.Controls.Add(this.areaSlider);
-            this.areaGroup.Location = new System.Drawing.Point(343, 105);
-            this.areaGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.areaGroup.Name = "areaGroup";
-            this.areaGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.areaGroup.Size = new System.Drawing.Size(185, 75);
-            this.areaGroup.TabIndex = 24;
-            this.areaGroup.TabStop = false;
-            this.areaGroup.Text = "Set area threshold";
+            areaGroup.Controls.Add(areaVal);
+            areaGroup.Controls.Add(areaMax);
+            areaGroup.Controls.Add(areaLabel);
+            areaGroup.Controls.Add(areaMin);
+            areaGroup.Controls.Add(areaSlider);
+            areaGroup.Location = new System.Drawing.Point(343, 105);
+            areaGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            areaGroup.Name = "areaGroup";
+            areaGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            areaGroup.Size = new System.Drawing.Size(185, 75);
+            areaGroup.TabIndex = 24;
+            areaGroup.TabStop = false;
+            areaGroup.Text = "Set area threshold";
             // 
             // areaVal
             // 
-            this.areaVal.Location = new System.Drawing.Point(147, 45);
-            this.areaVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.areaVal.Name = "areaVal";
-            this.areaVal.Size = new System.Drawing.Size(32, 23);
-            this.areaVal.TabIndex = 10;
-            this.areaVal.TextChanged += new System.EventHandler(this.areaVal_TextChanged);
+            areaVal.Location = new System.Drawing.Point(147, 45);
+            areaVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            areaVal.Name = "areaVal";
+            areaVal.Size = new System.Drawing.Size(32, 23);
+            areaVal.TabIndex = 10;
+            areaVal.TextChanged += areaVal_TextChanged;
             // 
             // areaMax
             // 
-            this.areaMax.AutoSize = true;
-            this.areaMax.Location = new System.Drawing.Point(121, 22);
-            this.areaMax.Name = "areaMax";
-            this.areaMax.Size = new System.Drawing.Size(31, 15);
-            this.areaMax.TabIndex = 9;
-            this.areaMax.Text = "9999";
+            areaMax.AutoSize = true;
+            areaMax.Location = new System.Drawing.Point(121, 22);
+            areaMax.Name = "areaMax";
+            areaMax.Size = new System.Drawing.Size(31, 15);
+            areaMax.TabIndex = 9;
+            areaMax.Text = "9999";
             // 
             // areaLabel
             // 
-            this.areaLabel.AutoSize = true;
-            this.areaLabel.Location = new System.Drawing.Point(51, 22);
-            this.areaLabel.Name = "areaLabel";
-            this.areaLabel.Size = new System.Drawing.Size(55, 15);
-            this.areaLabel.TabIndex = 8;
-            this.areaLabel.Text = "Area (ha)";
+            areaLabel.AutoSize = true;
+            areaLabel.Location = new System.Drawing.Point(51, 22);
+            areaLabel.Name = "areaLabel";
+            areaLabel.Size = new System.Drawing.Size(55, 15);
+            areaLabel.TabIndex = 8;
+            areaLabel.Text = "Area (ha)";
             // 
             // areaMin
             // 
-            this.areaMin.AutoSize = true;
-            this.areaMin.Location = new System.Drawing.Point(5, 22);
-            this.areaMin.Name = "areaMin";
-            this.areaMin.Size = new System.Drawing.Size(13, 15);
-            this.areaMin.TabIndex = 7;
-            this.areaMin.Text = "0";
+            areaMin.AutoSize = true;
+            areaMin.Location = new System.Drawing.Point(5, 22);
+            areaMin.Name = "areaMin";
+            areaMin.Size = new System.Drawing.Size(13, 15);
+            areaMin.TabIndex = 7;
+            areaMin.Text = "0";
             // 
             // areaSlider
             // 
-            this.areaSlider.Location = new System.Drawing.Point(5, 37);
-            this.areaSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.areaSlider.Name = "areaSlider";
-            this.areaSlider.Size = new System.Drawing.Size(137, 45);
-            this.areaSlider.TabIndex = 6;
-            this.areaSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
-            this.areaSlider.Scroll += new System.EventHandler(this.areaSlider_Scroll);
+            areaSlider.Location = new System.Drawing.Point(5, 37);
+            areaSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            areaSlider.Name = "areaSlider";
+            areaSlider.Size = new System.Drawing.Size(137, 45);
+            areaSlider.TabIndex = 6;
+            areaSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
+            areaSlider.Scroll += areaSlider_Scroll;
+            // 
+            // createButton
+            // 
+            createButton.Location = new System.Drawing.Point(432, 720);
+            createButton.Name = "createButton";
+            createButton.Size = new System.Drawing.Size(91, 23);
+            createButton.TabIndex = 27;
+            createButton.Text = "Create HRUs";
+            createButton.UseVisualStyleBackColor = true;
+            createButton.Click += createButton_Click;
             // 
             // landuseSoilSlopeGroup
             // 
-            this.landuseSoilSlopeGroup.Controls.Add(this.slopeVal);
-            this.landuseSoilSlopeGroup.Controls.Add(this.slopeMax);
-            this.landuseSoilSlopeGroup.Controls.Add(this.slopeLabel);
-            this.landuseSoilSlopeGroup.Controls.Add(this.slopeMin);
-            this.landuseSoilSlopeGroup.Controls.Add(this.slopeSlider);
-            this.landuseSoilSlopeGroup.Controls.Add(this.soilButton);
-            this.landuseSoilSlopeGroup.Controls.Add(this.soilVal);
-            this.landuseSoilSlopeGroup.Controls.Add(this.soilMax);
-            this.landuseSoilSlopeGroup.Controls.Add(this.soilLabel);
-            this.landuseSoilSlopeGroup.Controls.Add(this.soilMin);
-            this.landuseSoilSlopeGroup.Controls.Add(this.soilSlider);
-            this.landuseSoilSlopeGroup.Controls.Add(this.landuseButton);
-            this.landuseSoilSlopeGroup.Controls.Add(this.landuseVal);
-            this.landuseSoilSlopeGroup.Controls.Add(this.landuseMax);
-            this.landuseSoilSlopeGroup.Controls.Add(this.landuseLabel);
-            this.landuseSoilSlopeGroup.Controls.Add(this.landuseMin);
-            this.landuseSoilSlopeGroup.Controls.Add(this.landuseSlider);
-            this.landuseSoilSlopeGroup.Location = new System.Drawing.Point(343, 25);
-            this.landuseSoilSlopeGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.landuseSoilSlopeGroup.Name = "landuseSoilSlopeGroup";
-            this.landuseSoilSlopeGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.landuseSoilSlopeGroup.Size = new System.Drawing.Size(185, 239);
-            this.landuseSoilSlopeGroup.TabIndex = 17;
-            this.landuseSoilSlopeGroup.TabStop = false;
-            this.landuseSoilSlopeGroup.Text = "Set landuse, soil, slope thresholds";
+            landuseSoilSlopeGroup.Controls.Add(slopeVal);
+            landuseSoilSlopeGroup.Controls.Add(slopeMax);
+            landuseSoilSlopeGroup.Controls.Add(slopeLabel);
+            landuseSoilSlopeGroup.Controls.Add(slopeMin);
+            landuseSoilSlopeGroup.Controls.Add(slopeSlider);
+            landuseSoilSlopeGroup.Controls.Add(soilButton);
+            landuseSoilSlopeGroup.Controls.Add(soilVal);
+            landuseSoilSlopeGroup.Controls.Add(soilMax);
+            landuseSoilSlopeGroup.Controls.Add(soilLabel);
+            landuseSoilSlopeGroup.Controls.Add(soilMin);
+            landuseSoilSlopeGroup.Controls.Add(soilSlider);
+            landuseSoilSlopeGroup.Controls.Add(landuseButton);
+            landuseSoilSlopeGroup.Controls.Add(landuseVal);
+            landuseSoilSlopeGroup.Controls.Add(landuseMax);
+            landuseSoilSlopeGroup.Controls.Add(landuseLabel);
+            landuseSoilSlopeGroup.Controls.Add(landuseMin);
+            landuseSoilSlopeGroup.Controls.Add(landuseSlider);
+            landuseSoilSlopeGroup.Location = new System.Drawing.Point(343, 25);
+            landuseSoilSlopeGroup.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            landuseSoilSlopeGroup.Name = "landuseSoilSlopeGroup";
+            landuseSoilSlopeGroup.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            landuseSoilSlopeGroup.Size = new System.Drawing.Size(185, 239);
+            landuseSoilSlopeGroup.TabIndex = 17;
+            landuseSoilSlopeGroup.TabStop = false;
+            landuseSoilSlopeGroup.Text = "Set landuse, soil, slope thresholds";
             // 
             // slopeVal
             // 
-            this.slopeVal.Location = new System.Drawing.Point(147, 166);
-            this.slopeVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.slopeVal.Name = "slopeVal";
-            this.slopeVal.Size = new System.Drawing.Size(32, 23);
-            this.slopeVal.TabIndex = 16;
-            this.slopeVal.TextChanged += new System.EventHandler(this.slopeVal_TextChanged);
+            slopeVal.Location = new System.Drawing.Point(147, 166);
+            slopeVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            slopeVal.Name = "slopeVal";
+            slopeVal.Size = new System.Drawing.Size(32, 23);
+            slopeVal.TabIndex = 16;
+            slopeVal.TextChanged += slopeVal_TextChanged;
             // 
             // slopeMax
             // 
-            this.slopeMax.AutoSize = true;
-            this.slopeMax.Location = new System.Drawing.Point(118, 167);
-            this.slopeMax.Name = "slopeMax";
-            this.slopeMax.Size = new System.Drawing.Size(25, 15);
-            this.slopeMax.TabIndex = 15;
-            this.slopeMax.Text = "100";
+            slopeMax.AutoSize = true;
+            slopeMax.Location = new System.Drawing.Point(118, 167);
+            slopeMax.Name = "slopeMax";
+            slopeMax.Size = new System.Drawing.Size(25, 15);
+            slopeMax.TabIndex = 15;
+            slopeMax.Text = "100";
             // 
             // slopeLabel
             // 
-            this.slopeLabel.AutoSize = true;
-            this.slopeLabel.Location = new System.Drawing.Point(43, 167);
-            this.slopeLabel.Name = "slopeLabel";
-            this.slopeLabel.Size = new System.Drawing.Size(57, 15);
-            this.slopeLabel.TabIndex = 14;
-            this.slopeLabel.Text = "Slope (%)";
+            slopeLabel.AutoSize = true;
+            slopeLabel.Location = new System.Drawing.Point(43, 167);
+            slopeLabel.Name = "slopeLabel";
+            slopeLabel.Size = new System.Drawing.Size(57, 15);
+            slopeLabel.TabIndex = 14;
+            slopeLabel.Text = "Slope (%)";
             // 
             // slopeMin
             // 
-            this.slopeMin.AutoSize = true;
-            this.slopeMin.Location = new System.Drawing.Point(16, 167);
-            this.slopeMin.Name = "slopeMin";
-            this.slopeMin.Size = new System.Drawing.Size(13, 15);
-            this.slopeMin.TabIndex = 13;
-            this.slopeMin.Text = "0";
+            slopeMin.AutoSize = true;
+            slopeMin.Location = new System.Drawing.Point(16, 167);
+            slopeMin.Name = "slopeMin";
+            slopeMin.Size = new System.Drawing.Size(13, 15);
+            slopeMin.TabIndex = 13;
+            slopeMin.Text = "0";
             // 
             // slopeSlider
             // 
-            this.slopeSlider.Location = new System.Drawing.Point(6, 185);
-            this.slopeSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.slopeSlider.Name = "slopeSlider";
-            this.slopeSlider.Size = new System.Drawing.Size(137, 45);
-            this.slopeSlider.TabIndex = 12;
-            this.slopeSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
-            this.slopeSlider.Scroll += new System.EventHandler(this.slopeSlider_Scroll);
+            slopeSlider.Location = new System.Drawing.Point(6, 185);
+            slopeSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            slopeSlider.Name = "slopeSlider";
+            slopeSlider.Size = new System.Drawing.Size(137, 45);
+            slopeSlider.TabIndex = 12;
+            slopeSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
+            slopeSlider.Scroll += slopeSlider_Scroll;
             // 
             // soilButton
             // 
-            this.soilButton.Location = new System.Drawing.Point(148, 129);
-            this.soilButton.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.soilButton.Name = "soilButton";
-            this.soilButton.Size = new System.Drawing.Size(32, 23);
-            this.soilButton.TabIndex = 11;
-            this.soilButton.Text = "Go";
-            this.soilButton.UseVisualStyleBackColor = true;
-            this.soilButton.Click += new System.EventHandler(this.soilButton_Click);
+            soilButton.Location = new System.Drawing.Point(148, 129);
+            soilButton.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            soilButton.Name = "soilButton";
+            soilButton.Size = new System.Drawing.Size(32, 23);
+            soilButton.TabIndex = 11;
+            soilButton.Text = "Go";
+            soilButton.UseVisualStyleBackColor = true;
+            soilButton.Click += soilButton_Click;
             // 
             // soilVal
             // 
-            this.soilVal.Location = new System.Drawing.Point(148, 102);
-            this.soilVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.soilVal.Name = "soilVal";
-            this.soilVal.Size = new System.Drawing.Size(32, 23);
-            this.soilVal.TabIndex = 10;
-            this.soilVal.TextChanged += new System.EventHandler(this.soilVal_TextChanged);
+            soilVal.Location = new System.Drawing.Point(148, 102);
+            soilVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            soilVal.Name = "soilVal";
+            soilVal.Size = new System.Drawing.Size(32, 23);
+            soilVal.TabIndex = 10;
+            soilVal.TextChanged += soilVal_TextChanged;
             // 
             // soilMax
             // 
-            this.soilMax.AutoSize = true;
-            this.soilMax.Location = new System.Drawing.Point(121, 103);
-            this.soilMax.Name = "soilMax";
-            this.soilMax.Size = new System.Drawing.Size(25, 15);
-            this.soilMax.TabIndex = 9;
-            this.soilMax.Text = "100";
+            soilMax.AutoSize = true;
+            soilMax.Location = new System.Drawing.Point(121, 103);
+            soilMax.Name = "soilMax";
+            soilMax.Size = new System.Drawing.Size(25, 15);
+            soilMax.TabIndex = 9;
+            soilMax.Text = "100";
             // 
             // soilLabel
             // 
-            this.soilLabel.AutoSize = true;
-            this.soilLabel.Location = new System.Drawing.Point(52, 103);
-            this.soilLabel.Name = "soilLabel";
-            this.soilLabel.Size = new System.Drawing.Size(47, 15);
-            this.soilLabel.TabIndex = 8;
-            this.soilLabel.Text = "Soil (%)";
+            soilLabel.AutoSize = true;
+            soilLabel.Location = new System.Drawing.Point(52, 103);
+            soilLabel.Name = "soilLabel";
+            soilLabel.Size = new System.Drawing.Size(47, 15);
+            soilLabel.TabIndex = 8;
+            soilLabel.Text = "Soil (%)";
             // 
             // soilMin
             // 
-            this.soilMin.AutoSize = true;
-            this.soilMin.Location = new System.Drawing.Point(16, 103);
-            this.soilMin.Name = "soilMin";
-            this.soilMin.Size = new System.Drawing.Size(13, 15);
-            this.soilMin.TabIndex = 7;
-            this.soilMin.Text = "0";
+            soilMin.AutoSize = true;
+            soilMin.Location = new System.Drawing.Point(16, 103);
+            soilMin.Name = "soilMin";
+            soilMin.Size = new System.Drawing.Size(13, 15);
+            soilMin.TabIndex = 7;
+            soilMin.Text = "0";
             // 
             // soilSlider
             // 
-            this.soilSlider.Location = new System.Drawing.Point(6, 121);
-            this.soilSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.soilSlider.Name = "soilSlider";
-            this.soilSlider.Size = new System.Drawing.Size(137, 45);
-            this.soilSlider.TabIndex = 6;
-            this.soilSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
-            this.soilSlider.Scroll += new System.EventHandler(this.soilSlider_Scroll);
+            soilSlider.Location = new System.Drawing.Point(6, 121);
+            soilSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            soilSlider.Name = "soilSlider";
+            soilSlider.Size = new System.Drawing.Size(137, 45);
+            soilSlider.TabIndex = 6;
+            soilSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
+            soilSlider.Scroll += soilSlider_Scroll;
             // 
             // landuseButton
             // 
-            this.landuseButton.Location = new System.Drawing.Point(148, 65);
-            this.landuseButton.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.landuseButton.Name = "landuseButton";
-            this.landuseButton.Size = new System.Drawing.Size(32, 23);
-            this.landuseButton.TabIndex = 5;
-            this.landuseButton.Text = "Go";
-            this.landuseButton.UseVisualStyleBackColor = true;
-            this.landuseButton.Click += new System.EventHandler(this.landuseButton_Click);
+            landuseButton.Location = new System.Drawing.Point(148, 65);
+            landuseButton.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            landuseButton.Name = "landuseButton";
+            landuseButton.Size = new System.Drawing.Size(32, 23);
+            landuseButton.TabIndex = 5;
+            landuseButton.Text = "Go";
+            landuseButton.UseVisualStyleBackColor = true;
+            landuseButton.Click += landuseButton_Click;
             // 
             // landuseVal
             // 
-            this.landuseVal.Location = new System.Drawing.Point(148, 38);
-            this.landuseVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.landuseVal.Name = "landuseVal";
-            this.landuseVal.Size = new System.Drawing.Size(32, 23);
-            this.landuseVal.TabIndex = 4;
-            this.landuseVal.TextChanged += new System.EventHandler(this.landuseVal_TextChanged);
+            landuseVal.Location = new System.Drawing.Point(148, 38);
+            landuseVal.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            landuseVal.Name = "landuseVal";
+            landuseVal.Size = new System.Drawing.Size(32, 23);
+            landuseVal.TabIndex = 4;
+            landuseVal.TextChanged += landuseVal_TextChanged;
             // 
             // landuseMax
             // 
-            this.landuseMax.AutoSize = true;
-            this.landuseMax.Location = new System.Drawing.Point(121, 39);
-            this.landuseMax.Name = "landuseMax";
-            this.landuseMax.Size = new System.Drawing.Size(25, 15);
-            this.landuseMax.TabIndex = 3;
-            this.landuseMax.Text = "100";
+            landuseMax.AutoSize = true;
+            landuseMax.Location = new System.Drawing.Point(121, 39);
+            landuseMax.Name = "landuseMax";
+            landuseMax.Size = new System.Drawing.Size(25, 15);
+            landuseMax.TabIndex = 3;
+            landuseMax.Text = "100";
             // 
             // landuseLabel
             // 
-            this.landuseLabel.AutoSize = true;
-            this.landuseLabel.Location = new System.Drawing.Point(43, 39);
-            this.landuseLabel.Name = "landuseLabel";
-            this.landuseLabel.Size = new System.Drawing.Size(72, 15);
-            this.landuseLabel.TabIndex = 2;
-            this.landuseLabel.Text = "Landuse (%)";
+            landuseLabel.AutoSize = true;
+            landuseLabel.Location = new System.Drawing.Point(43, 39);
+            landuseLabel.Name = "landuseLabel";
+            landuseLabel.Size = new System.Drawing.Size(72, 15);
+            landuseLabel.TabIndex = 2;
+            landuseLabel.Text = "Landuse (%)";
             // 
             // landuseMin
             // 
-            this.landuseMin.AutoSize = true;
-            this.landuseMin.Location = new System.Drawing.Point(16, 39);
-            this.landuseMin.Name = "landuseMin";
-            this.landuseMin.Size = new System.Drawing.Size(13, 15);
-            this.landuseMin.TabIndex = 1;
-            this.landuseMin.Text = "0";
+            landuseMin.AutoSize = true;
+            landuseMin.Location = new System.Drawing.Point(16, 39);
+            landuseMin.Name = "landuseMin";
+            landuseMin.Size = new System.Drawing.Size(13, 15);
+            landuseMin.TabIndex = 1;
+            landuseMin.Text = "0";
             // 
             // landuseSlider
             // 
-            this.landuseSlider.Location = new System.Drawing.Point(6, 57);
-            this.landuseSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.landuseSlider.Name = "landuseSlider";
-            this.landuseSlider.Size = new System.Drawing.Size(137, 45);
-            this.landuseSlider.TabIndex = 0;
-            this.landuseSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
-            this.landuseSlider.Scroll += new System.EventHandler(this.landuseSlider_Scroll);
+            landuseSlider.Location = new System.Drawing.Point(6, 57);
+            landuseSlider.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            landuseSlider.Name = "landuseSlider";
+            landuseSlider.Size = new System.Drawing.Size(137, 45);
+            landuseSlider.TabIndex = 0;
+            landuseSlider.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
+            landuseSlider.Scroll += landuseSlider_Scroll;
             // 
             // areaPercentChoiceGroup
             // 
-            this.areaPercentChoiceGroup.Controls.Add(this.areaButton);
-            this.areaPercentChoiceGroup.Controls.Add(this.percentButton);
-            this.areaPercentChoiceGroup.Location = new System.Drawing.Point(147, 168);
-            this.areaPercentChoiceGroup.Name = "areaPercentChoiceGroup";
-            this.areaPercentChoiceGroup.Size = new System.Drawing.Size(190, 75);
-            this.areaPercentChoiceGroup.TabIndex = 16;
-            this.areaPercentChoiceGroup.TabStop = false;
-            this.areaPercentChoiceGroup.Text = "Threshold method";
+            areaPercentChoiceGroup.Controls.Add(areaButton);
+            areaPercentChoiceGroup.Controls.Add(percentButton);
+            areaPercentChoiceGroup.Location = new System.Drawing.Point(147, 168);
+            areaPercentChoiceGroup.Name = "areaPercentChoiceGroup";
+            areaPercentChoiceGroup.Size = new System.Drawing.Size(190, 75);
+            areaPercentChoiceGroup.TabIndex = 16;
+            areaPercentChoiceGroup.TabStop = false;
+            areaPercentChoiceGroup.Text = "Threshold method";
             // 
             // areaButton
             // 
-            this.areaButton.AutoSize = true;
-            this.areaButton.Location = new System.Drawing.Point(9, 45);
-            this.areaButton.Name = "areaButton";
-            this.areaButton.Size = new System.Drawing.Size(73, 19);
-            this.areaButton.TabIndex = 1;
-            this.areaButton.TabStop = true;
-            this.areaButton.Text = "Area (ha)";
-            this.areaButton.UseVisualStyleBackColor = true;
-            this.areaButton.CheckedChanged += new System.EventHandler(this.areaButton_CheckedChanged);
+            areaButton.AutoSize = true;
+            areaButton.Location = new System.Drawing.Point(9, 45);
+            areaButton.Name = "areaButton";
+            areaButton.Size = new System.Drawing.Size(73, 19);
+            areaButton.TabIndex = 1;
+            areaButton.TabStop = true;
+            areaButton.Text = "Area (ha)";
+            areaButton.UseVisualStyleBackColor = true;
+            areaButton.CheckedChanged += areaButton_CheckedChanged;
             // 
             // percentButton
             // 
-            this.percentButton.AutoSize = true;
-            this.percentButton.Location = new System.Drawing.Point(9, 23);
-            this.percentButton.Name = "percentButton";
-            this.percentButton.Size = new System.Drawing.Size(159, 19);
-            this.percentButton.TabIndex = 0;
-            this.percentButton.TabStop = true;
-            this.percentButton.Text = "Percent of landscape unit";
-            this.percentButton.UseVisualStyleBackColor = true;
-            this.percentButton.CheckedChanged += new System.EventHandler(this.percentButton_CheckedChanged);
+            percentButton.AutoSize = true;
+            percentButton.Location = new System.Drawing.Point(9, 23);
+            percentButton.Name = "percentButton";
+            percentButton.Size = new System.Drawing.Size(159, 19);
+            percentButton.TabIndex = 0;
+            percentButton.TabStop = true;
+            percentButton.Text = "Percent of landscape unit";
+            percentButton.UseVisualStyleBackColor = true;
+            percentButton.CheckedChanged += percentButton_CheckedChanged;
             // 
             // hruChoiceGroup
             // 
-            this.hruChoiceGroup.Controls.Add(this.dominantLanduseButton);
-            this.hruChoiceGroup.Controls.Add(this.filterAreaButton);
-            this.hruChoiceGroup.Controls.Add(this.filterLanduseButton);
-            this.hruChoiceGroup.Controls.Add(this.dominantHRUButton);
-            this.hruChoiceGroup.Controls.Add(this.targetButton);
-            this.hruChoiceGroup.Location = new System.Drawing.Point(145, 15);
-            this.hruChoiceGroup.Name = "hruChoiceGroup";
-            this.hruChoiceGroup.Size = new System.Drawing.Size(192, 142);
-            this.hruChoiceGroup.TabIndex = 15;
-            this.hruChoiceGroup.TabStop = false;
-            this.hruChoiceGroup.Text = "Single/Mutiple HRUs";
+            hruChoiceGroup.Controls.Add(dominantLanduseButton);
+            hruChoiceGroup.Controls.Add(filterAreaButton);
+            hruChoiceGroup.Controls.Add(filterLanduseButton);
+            hruChoiceGroup.Controls.Add(dominantHRUButton);
+            hruChoiceGroup.Controls.Add(targetButton);
+            hruChoiceGroup.Location = new System.Drawing.Point(145, 15);
+            hruChoiceGroup.Name = "hruChoiceGroup";
+            hruChoiceGroup.Size = new System.Drawing.Size(192, 142);
+            hruChoiceGroup.TabIndex = 15;
+            hruChoiceGroup.TabStop = false;
+            hruChoiceGroup.Text = "Single/Mutiple HRUs";
             // 
             // dominantLanduseButton
             // 
-            this.dominantLanduseButton.AutoSize = true;
-            this.dominantLanduseButton.Location = new System.Drawing.Point(9, 23);
-            this.dominantLanduseButton.Name = "dominantLanduseButton";
-            this.dominantLanduseButton.Size = new System.Drawing.Size(180, 19);
-            this.dominantLanduseButton.TabIndex = 4;
-            this.dominantLanduseButton.TabStop = true;
-            this.dominantLanduseButton.Text = "Dominant landuse, soil, slope";
-            this.dominantLanduseButton.UseVisualStyleBackColor = true;
-            this.dominantLanduseButton.CheckedChanged += new System.EventHandler(this.dominantLanduseButton_CheckedChanged);
+            dominantLanduseButton.AutoSize = true;
+            dominantLanduseButton.Location = new System.Drawing.Point(9, 23);
+            dominantLanduseButton.Name = "dominantLanduseButton";
+            dominantLanduseButton.Size = new System.Drawing.Size(180, 19);
+            dominantLanduseButton.TabIndex = 4;
+            dominantLanduseButton.TabStop = true;
+            dominantLanduseButton.Text = "Dominant landuse, soil, slope";
+            dominantLanduseButton.UseVisualStyleBackColor = true;
+            dominantLanduseButton.CheckedChanged += dominantLanduseButton_CheckedChanged;
             // 
             // filterAreaButton
             // 
-            this.filterAreaButton.AutoSize = true;
-            this.filterAreaButton.Location = new System.Drawing.Point(9, 89);
-            this.filterAreaButton.Name = "filterAreaButton";
-            this.filterAreaButton.Size = new System.Drawing.Size(92, 19);
-            this.filterAreaButton.TabIndex = 3;
-            this.filterAreaButton.TabStop = true;
-            this.filterAreaButton.Text = "Filter by area";
-            this.filterAreaButton.UseVisualStyleBackColor = true;
-            this.filterAreaButton.CheckedChanged += new System.EventHandler(this.filterAreaButton_CheckedChanged);
+            filterAreaButton.AutoSize = true;
+            filterAreaButton.Location = new System.Drawing.Point(9, 89);
+            filterAreaButton.Name = "filterAreaButton";
+            filterAreaButton.Size = new System.Drawing.Size(92, 19);
+            filterAreaButton.TabIndex = 3;
+            filterAreaButton.TabStop = true;
+            filterAreaButton.Text = "Filter by area";
+            filterAreaButton.UseVisualStyleBackColor = true;
+            filterAreaButton.CheckedChanged += filterAreaButton_CheckedChanged;
             // 
             // filterLanduseButton
             // 
-            this.filterLanduseButton.AutoSize = true;
-            this.filterLanduseButton.Location = new System.Drawing.Point(9, 67);
-            this.filterLanduseButton.Name = "filterLanduseButton";
-            this.filterLanduseButton.Size = new System.Drawing.Size(169, 19);
-            this.filterLanduseButton.TabIndex = 2;
-            this.filterLanduseButton.TabStop = true;
-            this.filterLanduseButton.Text = "Filter by landuse, soil, slope";
-            this.filterLanduseButton.UseVisualStyleBackColor = true;
-            this.filterLanduseButton.CheckedChanged += new System.EventHandler(this.filterLanduseButton_CheckedChanged);
+            filterLanduseButton.AutoSize = true;
+            filterLanduseButton.Location = new System.Drawing.Point(9, 67);
+            filterLanduseButton.Name = "filterLanduseButton";
+            filterLanduseButton.Size = new System.Drawing.Size(169, 19);
+            filterLanduseButton.TabIndex = 2;
+            filterLanduseButton.TabStop = true;
+            filterLanduseButton.Text = "Filter by landuse, soil, slope";
+            filterLanduseButton.UseVisualStyleBackColor = true;
+            filterLanduseButton.CheckedChanged += filterLanduseButton_CheckedChanged;
             // 
             // dominantHRUButton
             // 
-            this.dominantHRUButton.AutoSize = true;
-            this.dominantHRUButton.Location = new System.Drawing.Point(9, 45);
-            this.dominantHRUButton.Name = "dominantHRUButton";
-            this.dominantHRUButton.Size = new System.Drawing.Size(105, 19);
-            this.dominantHRUButton.TabIndex = 1;
-            this.dominantHRUButton.TabStop = true;
-            this.dominantHRUButton.Text = "Dominant HRU";
-            this.dominantHRUButton.UseVisualStyleBackColor = true;
-            this.dominantHRUButton.CheckedChanged += new System.EventHandler(this.dominantHRUButton_CheckedChanged);
+            dominantHRUButton.AutoSize = true;
+            dominantHRUButton.Location = new System.Drawing.Point(9, 45);
+            dominantHRUButton.Name = "dominantHRUButton";
+            dominantHRUButton.Size = new System.Drawing.Size(105, 19);
+            dominantHRUButton.TabIndex = 1;
+            dominantHRUButton.TabStop = true;
+            dominantHRUButton.Text = "Dominant HRU";
+            dominantHRUButton.UseVisualStyleBackColor = true;
+            dominantHRUButton.CheckedChanged += dominantHRUButton_CheckedChanged;
             // 
             // targetButton
             // 
-            this.targetButton.AutoSize = true;
-            this.targetButton.Location = new System.Drawing.Point(9, 111);
-            this.targetButton.Name = "targetButton";
-            this.targetButton.Size = new System.Drawing.Size(148, 19);
-            this.targetButton.TabIndex = 0;
-            this.targetButton.TabStop = true;
-            this.targetButton.Text = "Target number of HRUs";
-            this.targetButton.UseVisualStyleBackColor = true;
-            this.targetButton.CheckedChanged += new System.EventHandler(this.targetButton_CheckedChanged);
+            targetButton.AutoSize = true;
+            targetButton.Location = new System.Drawing.Point(9, 111);
+            targetButton.Name = "targetButton";
+            targetButton.Size = new System.Drawing.Size(148, 19);
+            targetButton.TabIndex = 0;
+            targetButton.TabStop = true;
+            targetButton.Text = "Target number of HRUs";
+            targetButton.UseVisualStyleBackColor = true;
+            targetButton.CheckedChanged += targetButton_CheckedChanged;
             // 
             // optionGroup_2
             // 
-            this.optionGroup_2.Controls.Add(this.exemptButton);
-            this.optionGroup_2.Controls.Add(this.splitButton);
-            this.optionGroup_2.Location = new System.Drawing.Point(6, 15);
-            this.optionGroup_2.Name = "optionGroup_2";
-            this.optionGroup_2.Size = new System.Drawing.Size(133, 104);
-            this.optionGroup_2.TabIndex = 14;
-            this.optionGroup_2.TabStop = false;
-            this.optionGroup_2.Text = "Optional";
+            optionGroup_2.Controls.Add(exemptButton);
+            optionGroup_2.Controls.Add(splitButton);
+            optionGroup_2.Location = new System.Drawing.Point(6, 15);
+            optionGroup_2.Name = "optionGroup_2";
+            optionGroup_2.Size = new System.Drawing.Size(133, 104);
+            optionGroup_2.TabIndex = 14;
+            optionGroup_2.TabStop = false;
+            optionGroup_2.Text = "Optional";
             // 
             // exemptButton
             // 
-            this.exemptButton.Location = new System.Drawing.Point(11, 62);
-            this.exemptButton.Name = "exemptButton";
-            this.exemptButton.Size = new System.Drawing.Size(106, 23);
-            this.exemptButton.TabIndex = 1;
-            this.exemptButton.Text = "Exempt landuses";
-            this.exemptButton.UseVisualStyleBackColor = true;
-            this.exemptButton.Click += new System.EventHandler(this.exemptButton_Click);
+            exemptButton.Location = new System.Drawing.Point(11, 62);
+            exemptButton.Name = "exemptButton";
+            exemptButton.Size = new System.Drawing.Size(106, 23);
+            exemptButton.TabIndex = 1;
+            exemptButton.Text = "Exempt landuses";
+            exemptButton.UseVisualStyleBackColor = true;
+            exemptButton.Click += exemptButton_Click;
             // 
             // splitButton
             // 
-            this.splitButton.Location = new System.Drawing.Point(11, 22);
-            this.splitButton.Name = "splitButton";
-            this.splitButton.Size = new System.Drawing.Size(106, 23);
-            this.splitButton.TabIndex = 0;
-            this.splitButton.Text = "Split landuses";
-            this.splitButton.UseVisualStyleBackColor = true;
-            this.splitButton.Click += new System.EventHandler(this.splitButton_Click);
+            splitButton.Location = new System.Drawing.Point(11, 22);
+            splitButton.Name = "splitButton";
+            splitButton.Size = new System.Drawing.Size(106, 23);
+            splitButton.TabIndex = 0;
+            splitButton.Text = "Split landuses";
+            splitButton.UseVisualStyleBackColor = true;
+            splitButton.Click += splitButton_Click;
             // 
             // cancelButton
             // 
-            this.cancelButton.Location = new System.Drawing.Point(454, 658);
-            this.cancelButton.Name = "cancelButton";
-            this.cancelButton.Size = new System.Drawing.Size(75, 23);
-            this.cancelButton.TabIndex = 1;
-            this.cancelButton.Text = "Cancel";
-            this.cancelButton.UseVisualStyleBackColor = true;
-            this.cancelButton.Click += new System.EventHandler(this.cancelButton_Click);
+            cancelButton.Location = new System.Drawing.Point(462, 795);
+            cancelButton.Name = "cancelButton";
+            cancelButton.Size = new System.Drawing.Size(75, 23);
+            cancelButton.TabIndex = 1;
+            cancelButton.Text = "Cancel";
+            cancelButton.UseVisualStyleBackColor = true;
+            cancelButton.Click += cancelButton_Click;
             // 
             // HRUsForm
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(600, 690);
-            this.Controls.Add(this.cancelButton);
-            this.Controls.Add(this.HRUsTab);
-            this.Name = "HRUsForm";
-            this.Text = "HRUsForm";
-            this.HRUsTab.ResumeLayout(false);
-            this.tabPage1.ResumeLayout(false);
-            this.tabPage1.PerformLayout();
-            this.readChoiceGroup.ResumeLayout(false);
-            this.readChoiceGroup.PerformLayout();
-            this.shortChannelGroup.ResumeLayout(false);
-            this.shortChannelGroup.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.channelMergeSlider)).EndInit();
-            this.optionGroup.ResumeLayout(false);
-            this.groupBox1.ResumeLayout(false);
-            this.groupBox1.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.reservoirThreshold)).EndInit();
-            this.slopeGroup.ResumeLayout(false);
-            this.slopeGroup.PerformLayout();
-            this.tableGroup.ResumeLayout(false);
-            this.tableGroup.PerformLayout();
-            this.soilGroup.ResumeLayout(false);
-            this.soilGroup.PerformLayout();
-            this.tabPage2.ResumeLayout(false);
-            this.tabPage2.PerformLayout();
-            this.targetGroup.ResumeLayout(false);
-            this.targetGroup.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.targetSlider)).EndInit();
-            this.gwGroupBox.ResumeLayout(false);
-            this.gwGroupBox.PerformLayout();
-            this.areaGroup.ResumeLayout(false);
-            this.areaGroup.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.areaSlider)).EndInit();
-            this.landuseSoilSlopeGroup.ResumeLayout(false);
-            this.landuseSoilSlopeGroup.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.slopeSlider)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.soilSlider)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.landuseSlider)).EndInit();
-            this.areaPercentChoiceGroup.ResumeLayout(false);
-            this.areaPercentChoiceGroup.PerformLayout();
-            this.hruChoiceGroup.ResumeLayout(false);
-            this.hruChoiceGroup.PerformLayout();
-            this.optionGroup_2.ResumeLayout(false);
-            this.ResumeLayout(false);
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            ClientSize = new System.Drawing.Size(574, 824);
+            Controls.Add(cancelButton);
+            Controls.Add(HRUsTab);
+            Name = "HRUsForm";
+            Text = "HRUsForm";
+            HRUsTab.ResumeLayout(false);
+            tabPage1.ResumeLayout(false);
+            tabPage1.PerformLayout();
+            readChoiceGroup.ResumeLayout(false);
+            readChoiceGroup.PerformLayout();
+            shortChannelGroup.ResumeLayout(false);
+            shortChannelGroup.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)channelMergeSlider).EndInit();
+            optionGroup.ResumeLayout(false);
+            groupBox1.ResumeLayout(false);
+            groupBox1.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)reservoirThreshold).EndInit();
+            slopeGroup.ResumeLayout(false);
+            slopeGroup.PerformLayout();
+            tableGroup.ResumeLayout(false);
+            tableGroup.PerformLayout();
+            soilGroup.ResumeLayout(false);
+            soilGroup.PerformLayout();
+            tabPage2.ResumeLayout(false);
+            tabPage2.PerformLayout();
+            gwflowHruWidget.ResumeLayout(false);
+            gwflowHruWidget.PerformLayout();
+            gridGroup.ResumeLayout(false);
+            structuredWidget.ResumeLayout(false);
+            structuredWidget.PerformLayout();
+            unstructuredWidget.ResumeLayout(false);
+            unstructuredWidget.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)transitionSlider).EndInit();
+            ((System.ComponentModel.ISupportInitialize)transitionSpin).EndInit();
+            ((System.ComponentModel.ISupportInitialize)refineLevels).EndInit();
+            ((System.ComponentModel.ISupportInitialize)maxCellSize).EndInit();
+            ((System.ComponentModel.ISupportInitialize)elevTolerance).EndInit();
+            ((System.ComponentModel.ISupportInitialize)cellSize).EndInit();
+            typeRow.ResumeLayout(false);
+            typeRow.PerformLayout();
+            targetGroup.ResumeLayout(false);
+            targetGroup.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)targetSlider).EndInit();
+            gwGroupBox.ResumeLayout(false);
+            gwGroupBox.PerformLayout();
+            areaGroup.ResumeLayout(false);
+            areaGroup.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)areaSlider).EndInit();
+            landuseSoilSlopeGroup.ResumeLayout(false);
+            landuseSoilSlopeGroup.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)slopeSlider).EndInit();
+            ((System.ComponentModel.ISupportInitialize)soilSlider).EndInit();
+            ((System.ComponentModel.ISupportInitialize)landuseSlider).EndInit();
+            areaPercentChoiceGroup.ResumeLayout(false);
+            areaPercentChoiceGroup.PerformLayout();
+            hruChoiceGroup.ResumeLayout(false);
+            hruChoiceGroup.PerformLayout();
+            optionGroup_2.ResumeLayout(false);
+            ResumeLayout(false);
 
         }
 
@@ -1363,7 +1837,7 @@
         private System.Windows.Forms.Label soilTableLabel;
         private System.Windows.Forms.Label landuseTableLabel;
         private System.Windows.Forms.Label progressLabel1;
-        private System.Windows.Forms.ProgressBar progressBar;
+        private System.Windows.Forms.ProgressBar progressBar1;
         private System.Windows.Forms.Button readButton;
         private System.Windows.Forms.Label fullHRUsLabel;
         private System.Windows.Forms.Label channelsLabel;
@@ -1426,6 +1900,45 @@
         private System.Windows.Forms.Button createButton;
         private System.Windows.Forms.GroupBox gwGroupBox;
         private System.Windows.Forms.RadioButton gwflowButton;
-        private System.Windows.Forms.RadioButton SWATAquifersButton1;
+        private System.Windows.Forms.RadioButton SWATAquifersButton;
+        private System.Windows.Forms.GroupBox gwflowHruWidget;
+        private System.Windows.Forms.Button aquiferPermeabilityButton;
+        private System.Windows.Forms.TextBox aquiferPermeability;
+        private System.Windows.Forms.Label aquiferPermeabilityLabel;
+        private System.Windows.Forms.Button aquiferThicknessButton;
+        private System.Windows.Forms.TextBox aquiferThickness;
+        private System.Windows.Forms.Label aquiferThicknessLabel;
+        private System.Windows.Forms.Button tileDrainsButton;
+        private System.Windows.Forms.TextBox tileDrains;
+        private System.Windows.Forms.CheckBox useTileDrains;
+        private System.Windows.Forms.GroupBox gridGroup;
+        private System.Windows.Forms.Panel typeRow;
+        private System.Windows.Forms.RadioButton unstructuredRadio;
+        private System.Windows.Forms.RadioButton structuredRadio;
+        private System.Windows.Forms.Panel structuredWidget;
+        private System.Windows.Forms.Label cellSizeLabel;
+        private System.Windows.Forms.NumericUpDown cellSize;
+        private System.Windows.Forms.Label cellEstimateLabel;
+        private System.Windows.Forms.CheckBox alignGrids;
+        private System.Windows.Forms.Panel unstructuredWidget;
+        private System.Windows.Forms.NumericUpDown elevTolerance;
+        private System.Windows.Forms.Label elevTolLabel;
+        private System.Windows.Forms.Label minSizeLabel;
+        private System.Windows.Forms.Label maxCellSizeLabel;
+        private System.Windows.Forms.Label refineLevelsLabel;
+        private System.Windows.Forms.NumericUpDown maxCellSize;
+        private System.Windows.Forms.NumericUpDown refineLevels;
+        private System.Windows.Forms.CheckBox refineTopography;
+        private System.Windows.Forms.CheckBox refineStreams;
+        private System.Windows.Forms.CheckBox refineBoundary;
+        private System.Windows.Forms.Label refineBasedOnLabel;
+        private System.Windows.Forms.CheckBox refineWells;
+        private System.Windows.Forms.Label transitionRateLabel;
+        private System.Windows.Forms.NumericUpDown transitionSpin;
+        private System.Windows.Forms.Label abruptLabel;
+        private System.Windows.Forms.Label gradualLabel;
+        private System.Windows.Forms.TrackBar transitionSlider;
+        private System.Windows.Forms.Button generateGridButton;
+        private System.Windows.Forms.ProgressBar progressBar2;
     }
 }

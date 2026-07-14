@@ -489,7 +489,11 @@ namespace ArcSWATPlus {
             this.setSummary();
             this.fillScenarios();
             //this._dlg.scenariosCombo.activated.connect(this.setupDb);
-            this._dlg.PscenariosCombo.SelectedIndex = this._dlg.PscenariosCombo.Items.IndexOf("Default");
+            var defaultIndex = this._dlg.PscenariosCombo.Items.IndexOf("Default");
+            if (defaultIndex < 0) { //  accept 'default', which occurs with HAWQS projects
+                defaultIndex = this._dlg.PscenariosCombo.Items.IndexOf("default");
+            }
+            this._dlg.PscenariosCombo.SelectedIndex = defaultIndex;
             if (this.db == "") {
                 this.setupDb();
             }
@@ -3025,9 +3029,9 @@ namespace ArcSWATPlus {
                 var animateVar = this.animateVars[layerName];
                 var animateVarShort = animateVar.Substring(0, Math.Min(10, animateVar.Length));
                 var data = this.animateResultsData[layerName][dat];
-                // TODO
-                //Debug.Assert(this.mapTitle is not null);
-                //this.mapTitle.updateLine2(date);
+                await QueuedTask.Run(() => {
+                    this.setMapTitle(this.animateLayer, line2: date);
+                });
                 await QueuedTask.Run(async () => {
                     if (!animateLayer.CanEditData()) {
                         animateLayer.SetEditable(true);
@@ -3114,6 +3118,9 @@ namespace ArcSWATPlus {
                     }
                 });
                 await Project.Current.SaveEditsAsync();
+                await QueuedTask.Run(() => {
+                    MapView.Active.Redraw(false);
+                });
                 this._dlg.PdateLabel.Refresh();
             } catch (Exception) {
                 this.animating = false;
@@ -5308,7 +5315,7 @@ namespace ArcSWATPlus {
                 flowData.Remove(yearIndex);
             }
             if (flowData.Count == 0) {
-                Utils.error(string.Format("There is insufficient data.  There must be at least a yesr starting from 1 {0} {1}.",this._dlg.PdQpStartMonth.SelectedItem.ToString(), this.startYear), this._gv.isBatch);
+                Utils.error(string.Format("There is insufficient data.  There must be at least a year starting from 1 {0} {1}.",this._dlg.PdQpStartMonth.SelectedItem.ToString(), this.startYear), this._gv.isBatch);
                 return;
             }
             var d = (int)this._dlg.PdQpSpinD.Value;

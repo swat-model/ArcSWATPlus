@@ -28,7 +28,8 @@ namespace ArcSWATPlus
         /// <summary>
         /// Retrieve the singleton instance to this module here
         /// </summary>
-        public static Module1 Current => _this ??= (Module1)FrameworkApplication.FindModule("ArcSWATPlus_Module");
+        public static Module1 Current => 
+            _this ??= (Module1)FrameworkApplication.FindModule("ArcSWATPlus_Module");
 
         #region Overrides
         /// <summary>

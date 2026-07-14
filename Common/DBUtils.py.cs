@@ -1,36 +1,33 @@
 
-using OSGeo.OGR;
-
-using System.Collections.Generic;
-
-using System.Collections;
-
-using System;
-
-using System.Linq;
-
-using System.Diagnostics;
-using System.Data.SQLite;
-using System.IO;
-using Path = System.IO.Path;
-using File = System.IO.File;
-using System.Text.RegularExpressions;
-
+using ArcGIS.Core.Data;
+using ArcGIS.Core.Data.Exceptions;
+using ArcGIS.Core.Data.Raster;
+using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using ArcGIS.Core.Internal.CIM;
-//using System.Windows.Controls;
-using System.Runtime.CompilerServices;
 using ArcGIS.Desktop.Layouts;
 using CsvHelper.Configuration.Attributes;
-using System.Data;
-using ArcGIS.Core.Data.Exceptions;
-using System.Data.SqlTypes;
-using ArcGIS.Core.Data;
 using Microsoft.Win32;
-using System.Windows.Forms;
+using OSGeo.OGR;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SQLite;
+using System.Data.SqlTypes;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Resources;
+//using System.Windows.Controls;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
+using System.Windows.Interop;
+using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
-using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using static System.Net.WebRequestMethods;
+using File = System.IO.File;
+using Path = System.IO.Path;
 
 namespace ArcSWATPlus {
 
@@ -115,15 +112,13 @@ namespace ArcSWATPlus {
 
         public string SSURGODbFile;
 
-        public HashSet<int> ssurgoSoils;
+        public HashSet<int> usedSSURGOSoils;
 
         public Dictionary<int, int> SSURGOsoils;
 
         public int SSURGOUndefined;
 
         public bool SSURGOUndefinedMapValueReported;
-
-        public bool SSURGOUndefinedKeyReported;
 
         public int upslopeWetlandCrop;
 
@@ -283,7 +278,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             //# Set of values occurring in soil map
             this.soilVals = new HashSet<int>();
             //# ssurgo soil numbers actually found
-            this.ssurgoSoils = new HashSet<int>();
+            this.usedSSURGOSoils = new HashSet<int>();
             //# Default soil
             //# Set to 0 soild value (if any) else first soil in lookup table and used to replace soil nodata when using grid model
             this.defaultSoil = -1;
@@ -302,10 +297,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 //# SSURGO soil database (only used with HUC and HAWQS)
                 if (isHUC) {
                     // changed to use copy one up frpm projDir
-                    this.SSURGODbFile = Utils.join(projDir + "/..", Parameters._SSURGODB_HUC);
+                    this.SSURGODbFile = Utils.join(projDir + "/..", Parameters._SOILDB);
                 } else {
                     // HAWQS
-                    this.SSURGODbFile = Utils.join(Utils.join(Parameters._SWATPLUSDEFAULTDIR, Parameters._DBDIR), Parameters._SSURGODB_HUC);
+                    this.SSURGODbFile = Utils.join(Utils.join(Parameters._SWATPLUSDEFAULTDIR, Parameters._DBDIR), Parameters._SOILDB);
                 }
                 this.SSURGOConn = new SQLiteConnection("Data Source=" + this.SSURGODbFile);
                 this.SSURGOConn.Open();
@@ -314,8 +309,6 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             this.SSURGOUndefined = -1;
             // flag to reduce undefined SSURGO map values (only used with HUC and HAWQS)
             this.SSURGOUndefinedMapValueReported = false;
-            // flag to reduce undefined SSURGO lkeys (only used with HUC and HAWQS)
-            this.SSURGOUndefinedKeyReported = false;
             //# regular expression for checking if SSURGO soils are water (only used with HUC and HAWQS)
             this.waterPattern = @"\bwaters?\b";
             //# flag indicating, if useSTATSGO is true, that muid+seqn is being used
@@ -348,10 +341,6 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             this.routingSources = new HashSet<(int, string)>();
             //# routing targets
             this.routingSinks = new HashSet<(int, string)>();
-            // no longer used
-            //if (this.isHUC) {
-            //    this.writeSubmapping();
-            //}
         }
 
         //  sqlite3 connection to project database and reference database
@@ -502,7 +491,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             cmd.Parameters.AddWithValue(string.Format("@p{0}", i), val);
                         }
                     }
-                    cmd.ExecuteNonQuery();
+                    try {
+                        cmd.ExecuteNonQuery();
+                    } catch (Exception ex) {
+                        Utils.error(string.Format("{0} failed: {1}", cmd.CommandText, ex.Message), this.isBatch);
+                    }
                 }
             } else {
                 using (var cmd = new SQLiteCommand(sql, this.conn)) {
@@ -513,7 +506,12 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             cmd.Parameters.AddWithValue(string.Format("@p{0}", i), val);
                         }
                     }
-                    cmd.ExecuteNonQuery();
+                    try {
+                        cmd.ExecuteNonQuery();
+                    }
+                    catch (Exception ex) {
+                        Utils.error(string.Format("{0} failed: {1}", cmd.CommandText, ex.Message), this.isBatch);
+                    }
                 }
             }
         }
@@ -547,6 +545,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
         }
 
+        // remove all keys for table
+        public virtual void clearKeys(string table) {
+            this.gis_keys[table] = new HashSet<int>();
+        }
+
         // Add key to table entry in gis_keys.
         public virtual void addKey(string table, int key) {
             HashSet<int> keys = new HashSet<int>();
@@ -569,10 +572,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         // Generate error message if key not in gis_keys for this table.
         public virtual void checkKeyInTable(string table, int key) {
-            // ignore for HUC and HAWQS projects
-            if (this.isHUC || this.isHAWQS) {
-                return;
-            }
+            //// ignore for HUC and HAWQS projects
+            //if (this.isHUC || this.isHAWQS) {
+            //    return;
+            //}
             HashSet<int> keys = new HashSet<int>();
             if (this.gis_keys.TryGetValue(table, out keys)) {
                 if (!keys.Contains(key)) {
@@ -603,7 +606,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 table = null;
             } else if (sourceCategory == "LSU") {
                 table = null;
-            } else if (sourceCategory == "SUB") {
+            } else if (sourceCategory == "SUB" || sourceCategory == "SBR") {
                 table = null;
             } else if (sourceCategory == "AQU") {
                 table = null;
@@ -627,14 +630,28 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             this.execCmdQuery(cmd, new object[] { sourceId, sourceCategory, hydTyp, sinkId, sinkCategory, percent });
         }
 
-        // Checks categories PT, LSU, SUB sources are defined in gis_table.
+        // Change routing of existing (not checked) entry.
+        public virtual void updateRouting(
+            int sourceId,
+            string sourceCategory,
+            int sinkId,
+            string sinkCategory,
+            string hydTyp,
+            double percent,
+            SQLiteCommand cmd) {
+            this.routingSinks.Add((sinkId, sinkCategory));
+            cmd.CommandText = DBUtils._ROUTINGUPDATESQL;
+            this.execCmdQuery(cmd, new object[] { sinkId, sinkCategory, percent, sourceId, sourceCategory, hydTyp });
+        }
+
+        // Checks categories PT, LSU, SUB, SBR sources are defined in gis_table.
         public virtual void checkRoutedPointsSubbasinsAndLSUsDefined() {
             foreach (var (sourceId, sourceCategory) in this.routingSources) {
                 if (sourceCategory == "PT") {
                     this.checkKeyInTable("gis_points", sourceId);
                 } else if (sourceCategory == "LSU") {
                     this.checkKeyInTable("gis_lsus", sourceId);
-                } else if (sourceCategory == "SUB") {
+                } else if (sourceCategory == "SUB" || sourceCategory == "SBR") {
                     this.checkKeyInTable("gis_subbasins", sourceId);
                 }
             }
@@ -941,10 +958,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                         cmdu.Parameters.AddWithValue("@p1", landuseCode);
                         using (SQLiteDataReader readeru = cmdu.ExecuteReader()) {
                             if (!readeru.HasRows) {
-                                if (this.isHUC) {
-                                    // TODO: plant table needs updating: don't generate lots of error messages: just use AGRL for now
-                                    this.landuseCodes[landuseCat] = "agrl";
-                                    this.landuseIds[landuseCat] = 2;
+                                if (this.isHUC || this.isHAWQS) {
+                                    //// TODO: plant table needs updating: don't generate lots of error messages: just use AGRL for now
+                                    //this.landuseCodes[landuseCat] = "agrl";
+                                    //this.landuseIds[landuseCat] = 2;
+                                    this.landuseCodes[landuseCat] = landuseCode;
                                     return true;
                                 }
                                 Utils.error(string.Format("No data for landuse {0}", landuseCode), this.isBatch);
@@ -1107,7 +1125,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         // Return name for soil id sid.
         public virtual (string, bool) getSoilName(int sid) {
             if (this.useSSURGO) {
-                this.ssurgoSoils.Add(sid);
+                this.usedSSURGOSoils.Add(sid);
                 return (sid.ToString(), true);
             }
             var (sid1, OK) = this.translateSoil(sid);
@@ -1275,6 +1293,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 localConn.Open();
             }
             var usersoilTable = this.getUsersoilTable();
+            var errorReported = false;
             try {
                 // single usersoil table has 152 columns, one with separate layer table has 11: 
                 // we leave room for expansion by using 20 as limit
@@ -1293,94 +1312,100 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     }
                     sqlLayer = DBUtils.sqlSelect(layerTable, "*", "layer_num", "soil_id=@p1");
                 }
-                using (var cmd = localConn.CreateCommand()) {
-                    cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_NAME);
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_TABLE);
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_LAYER_NAME);
-                    cmd.ExecuteNonQuery();
-                    cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_LAYER_NAME, DBUtils._SOILS_SOL_LAYER_TABLE);
-                    cmd.ExecuteNonQuery();
-                    var insert = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)", DBUtils._SOILS_SOL_NAME);
-                    var insertLayer = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17)", DBUtils._SOILS_SOL_LAYER_NAME);
-                    string sql = null;
-                    if (this.useSTATSGO) {
-                        if (this.addSeqn) {
-                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND seqn=@p2");
-                        } else if (this.addName) {
-                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND name=@p2");
-                        } else if (this.useS5id) {
-                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "s5id=@p1");
-                        } else {
-                            sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1");
-                        }
-                    } else if (this.useSSURGO) {
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "", "muid=@p1");
-                    } else if (hasSeparateLayerTable) {
-                        // main and layer tables can get confused
-                        if (usersoilTable.EndsWith("_layer"))
-                        {
-                            usersoilTable = usersoilTable.Substring(0, usersoilTable.Length - 6);
-                            Utils.loginfo("usersoil table reduced to " + usersoilTable);
-                        }
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "", "name=@p1");
-                    } else {
-                        sql = DBUtils.sqlSelect(usersoilTable, "*", "", "SNAM=@p1");
-                    }
-                    var sid = 0;
-                    var lid = 0;
-                    cmd.CommandText = sql;
-                    if (this.useSSURGO) {
-                        foreach (var ssurgoId in this.ssurgoSoils) {
-                            cmd.Parameters.Clear();
-                            cmd.Parameters.AddWithValue("@p1", ssurgoId);
-                            using (var readerSSURGO = cmd.ExecuteReader()) {
-                                if (!readerSSURGO.HasRows) {
-                                    if (this.isHUC) {
-                                        continue;
-                                    }
-                                    Utils.error(string.Format("SSURGO soil {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", ssurgoId, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
-                                    return false;
-                                }
-                                sid += 1;
-                                if (hasSeparateLayerTable) {
-                                    lid = this.writeUsedSoilRowSeparate(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, sqlLayer);
-                                } else {
-                                    lid = this.writeUsedSoilRow(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer);
-                                }
-                            }
-                        }
-                    } else {
-                        foreach (string name in this.usedSoilNames.Values) {
-                            Utils.loginfo("Used soil " + name);
-                            cmd.Parameters.Clear();
-                            if (this.useSTATSGO) {
-                                if (this.useS5id) {
-                                    cmd.Parameters.AddWithValue("@p1", name);
-                                } else if (this.addSeqn || this.addName) {
-                                    cmd.Parameters.AddWithValue("@p1", name.Substring(0, 5));
-                                    cmd.Parameters.AddWithValue("@p2", name.Substring(6));
-                                } else {
-                                    cmd.Parameters.AddWithValue("@p1", name);
-                                }
+
+                using (var transaction = this.conn.BeginTransaction()) {
+                    using (var cmd = new SQLiteCommand("", localConn, transaction)) {
+                        cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_NAME);
+                        cmd.ExecuteNonQuery();
+                        cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_TABLE);
+                        cmd.ExecuteNonQuery();
+                        cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_LAYER_NAME);
+                        cmd.ExecuteNonQuery();
+                        cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_LAYER_NAME, DBUtils._SOILS_SOL_LAYER_TABLE);
+                        cmd.ExecuteNonQuery();
+                        var insert = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)", DBUtils._SOILS_SOL_NAME);
+                        var insertLayer = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17)", DBUtils._SOILS_SOL_LAYER_NAME);
+                        string sql = null;
+                        if (this.useSTATSGO) {
+                            if (this.addSeqn) {
+                                sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND seqn=@p2");
+                            } else if (this.addName) {
+                                sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1 AND name=@p2");
+                            } else if (this.useS5id) {
+                                sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "s5id=@p1");
                             } else {
-                                cmd.Parameters.AddWithValue("@p1", name);
+                                sql = DBUtils.sqlSelect(usersoilTable, "*", "id ASC", "muid=@p1");
                             }
-                            using (var reader = cmd.ExecuteReader()) {
-                                if (!reader.HasRows) {
-                                    Utils.error(string.Format("Soil name {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", name, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
-                                    return false;
+                        } else if (this.useSSURGO) {
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "", "muid=@p1");
+                        } else if (hasSeparateLayerTable) {
+                            // main and layer tables can get confused
+                            if (usersoilTable.EndsWith("_layer")) {
+                                usersoilTable = usersoilTable.Substring(0, usersoilTable.Length - 6);
+                                Utils.loginfo("usersoil table reduced to " + usersoilTable);
+                            }
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "", "name=@p1");
+                        } else {
+                            sql = DBUtils.sqlSelect(usersoilTable, "*", "", "SNAM=@p1");
+                        }
+                        var sid = 0;
+                        var lid = 0;
+                        cmd.CommandText = sql;
+                        if (this.useSSURGO) {
+                            foreach (var ssurgoId in this.usedSSURGOSoils) {
+                                cmd.Parameters.Clear();
+                                cmd.Parameters.AddWithValue("@p1", ssurgoId);
+                                using (var readerSSURGO = cmd.ExecuteReader()) {
+                                    if (!readerSSURGO.HasRows) {
+                                        if (this.isHUC || this.isHAWQS) {
+                                            continue;
+                                        }
+                                        if (!errorReported) {
+                                            Utils.error(string.Format("SSURGO soil {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table incomplete.  You might like to try using the soil raster https://swat.tamu.edu/docs/swat/SSURGO-2023.tif.", ssurgoId, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
+                                            errorReported = !this.isBatch;
+                                        }
+                                        Utils.logerror(string.Format("SSURGO soil {0} not defined", ssurgoId));
+                                    }
+                                    sid += 1;
+                                    if (hasSeparateLayerTable) {
+                                        lid = this.writeUsedSoilRowSeparate(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, sqlLayer, transaction);
+                                    } else {
+                                        lid = this.writeUsedSoilRow(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, transaction);
+                                    }
                                 }
-                                sid += 1;
-                                if (hasSeparateLayerTable) {
-                                    lid = this.writeUsedSoilRowSeparate(sid, lid, name, cmd, reader, insert, insertLayer, sqlLayer);
+                            }
+                        } else {
+                            foreach (string name in this.usedSoilNames.Values) {
+                                // Utils.loginfo("Used soil " + name);
+                                cmd.Parameters.Clear();
+                                if (this.useSTATSGO) {
+                                    if (this.useS5id) {
+                                        cmd.Parameters.AddWithValue("@p1", name);
+                                    } else if (this.addSeqn || this.addName) {
+                                        cmd.Parameters.AddWithValue("@p1", name.Substring(0, 5));
+                                        cmd.Parameters.AddWithValue("@p2", name.Substring(6));
+                                    } else {
+                                        cmd.Parameters.AddWithValue("@p1", name);
+                                    }
                                 } else {
-                                    lid = this.writeUsedSoilRow(sid, lid, name, cmd, reader, insert, insertLayer);
+                                    cmd.Parameters.AddWithValue("@p1", name);
+                                }
+                                using (var reader = cmd.ExecuteReader()) {
+                                    if (!reader.HasRows) {
+                                        Utils.error(string.Format("Soil name {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", name, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
+                                        return false;
+                                    }
+                                    sid += 1;
+                                    if (hasSeparateLayerTable) {
+                                        lid = this.writeUsedSoilRowSeparate(sid, lid, name, cmd, reader, insert, insertLayer, sqlLayer, transaction);
+                                    } else {
+                                        lid = this.writeUsedSoilRow(sid, lid, name, cmd, reader, insert, insertLayer, transaction);
+                                    }
                                 }
                             }
                         }
                     }
+                    transaction.Commit();
                 }
                 return true;
             } catch (Exception ex) {
@@ -1404,10 +1429,11 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             SQLiteCommand cmd0,
             SQLiteDataReader reader,
             string insert,
-            string insertLayer) {
+            string insertLayer,
+            SQLiteTransaction transaction) {
             reader.Read();
             // needs new command since existing one used to make reader
-            SQLiteCommand cmd = this.conn.CreateCommand();  
+            SQLiteCommand cmd = new SQLiteCommand("", this.conn, transaction);  
             cmd.CommandText = insert;
             cmd.Parameters.Clear();
             cmd.Parameters.AddWithValue("@p1", sid);
@@ -1452,24 +1478,25 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             SQLiteDataReader reader,
             string insert,
             string insertLayer,
-            string sqlLayer)
+            string sqlLayer,
+            SQLiteTransaction transaction)
         {
             reader.Read();
             // needs new command since existing one used to make reader
-            SQLiteCommand cmd = this.conn.CreateCommand();
+            SQLiteCommand cmd = new SQLiteCommand("", this.conn, transaction);
             cmd.CommandText = insert;
             cmd.Parameters.Clear();
             cmd.Parameters.AddWithValue("@p1", sid);
             cmd.Parameters.AddWithValue("@p2", name);
-            Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(6)));
+            //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(6)));
             cmd.Parameters.AddWithValue("@p3", reader.GetValue(6));
-            Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(7)));
+            //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(7)));
             cmd.Parameters.AddWithValue("@p4", reader.GetValue(7));
-            Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(8)));
+            //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(8)));
             cmd.Parameters.AddWithValue("@p5", reader.GetValue(8));
-            Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(9)));
+            //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(9)));
             cmd.Parameters.AddWithValue("@p6", reader.GetValue(9));
-            Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(10)));
+            //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(10)));
             cmd.Parameters.AddWithValue("@p7", reader.GetValue(10));
             // check whether there is a non-null description item
             if (reader.VisibleFieldCount == 11) {
@@ -1478,7 +1505,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 cmd.Parameters.AddWithValue("@p8", reader.GetValue(11));
             }
             cmd.ExecuteNonQuery(); 
-            SQLiteCommand cmd1 = this.conn.CreateCommand();
+            SQLiteCommand cmd1 = new SQLiteCommand("", this.conn, transaction);
             cmd1.CommandText = sqlLayer;
             cmd1.Parameters.Clear();
             var soilId = reader.GetValue(0);
@@ -1514,7 +1541,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
         }
 
-        // Translate a soil id to its equivalent id in soilNames, plUs flag indicating lookup success.
+        // Translate a soil id to its equivalent id in soilNames, plus flag indicating lookup success.
         public virtual (int, bool) translateSoil(int sid) {
             this.soilVals.Add(sid);
             if (this.useSSURGO) {
@@ -1532,8 +1559,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
         }
 
-        // Use statsgo_ssurgo_lkey table to convert soil map lkey values to SSURGO muids, plUs flag indicating lookup success.  
-        //         Replace any soil with sname Water with Parameters._SSURGOWater.  
+        // Return soil id, possibly changed to Parameters._SSURGOWater,
+        // plus flag to indicate success or failure in lookup.  
         //         Report undefined SSURGO soils.  Only used with HUC and HAWQS.
         public virtual (int, bool) translateSSURGOSoil(int sid) {
             if (this._undefinedSoilIds.Contains(sid)) {
@@ -1541,44 +1568,52 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
             var muid = -1;
             if (this.SSURGOsoils.TryGetValue(sid, out muid) && muid > 0) { return (muid, true); }
-            var sql = DBUtils.sqlSelect("statsgo_ssurgo_lkey", "Source, MUKEY", "", "LKEY=@p1");
-            var lookup_cmd = new SQLiteCommand(sql, this.conn);
-            lookup_cmd.Parameters.AddWithValue("@p1", sid);
-            using (var lookup_reader = lookup_cmd.ExecuteReader()) {
-                if (!lookup_reader.HasRows) {
-                    Utils.information(string.Format("WARNING: SSURGO soil map value {0} not defined as lkey in statsgo_ssurgo_lkey in project {1}", sid, this.projName), this.isBatch, logFile: this.logFile);
+            //var sql = DBUtils.sqlSelect("statsgo_ssurgo_lkey", "Source, MUKEY", "", "LKEY=@p1");
+            //var lookup_cmd = new SQLiteCommand(sql, this.conn);
+            //lookup_cmd.Parameters.AddWithValue("@p1", sid);
+            //using (var lookup_reader = lookup_cmd.ExecuteReader()) {
+            //    if (!lookup_reader.HasRows) {
+            //        Utils.information(string.Format("WARNING: SSURGO soil map value {0} not defined as lkey in statsgo_ssurgo_lkey in project {1}", sid, this.projName), this.isBatch, logFile: this.logFile);
+            //        this._undefinedSoilIds.Add(sid);
+            //        return (sid, false);
+            //    }
+            //    lookup_reader.Read();
+            //    // only an information issue, not an error for now 
+            //    if (lookup_reader.GetString(0).ToUpper().Trim() == "STATSGO") {
+            //        Utils.information(string.Format("SSURGO soil map value {0} is a STATSGO soil according to statsgo_ssurgo_lkey", sid), this.isBatch, logFile: this.logFile);
+            //        // self._undefinedSoilIds.append(sid)
+            //        // return sid
+            //    }
+            var msg2 = this.isBatch ? "" : " (and perhaps others)";
+            var msg3 = this.isBatch ? "" : "See QSWAT+ log messages.";
+            var sql = DBUtils.sqlSelect("ssurgo", "texture", "", "muid=@p1");
+            var cmd = new SQLiteCommand(sql, this.SSURGOConn);
+            cmd.Parameters.AddWithValue("@p1", sid);
+            using (var reader = cmd.ExecuteReader()) {
+                if (!reader.HasRows) {
+                    Utils.loginfo(string.Format("SSURGO MUID {0} not defined", sid));
+                    if (!this.SSURGOUndefinedMapValueReported) {
+                        if (!this.isHAWQS) { // minimise interruptions to HAWQS runs
+                            Utils.information(string.Format("WARNING: SSURGO MUID {0}{1} not defined in project {2}.  {3} You might like to try using the soil raster https://swat.tamu.edu/docs/swat/SSURGO-2023.tif.",
+                                sid, msg2, this.projName, msg3), this.isBatch, logFile: this.logFile);
+                        }
+                        this.SSURGOUndefinedMapValueReported = !this.isBatch;
+                    }
                     this._undefinedSoilIds.Add(sid);
-                    return (sid, false);
+                    return (this.SSURGOUndefined, false);
                 }
-                lookup_reader.Read();
-                // only an information issue, not an error for now 
-                if (lookup_reader.GetString(0).ToUpper().Trim() == "STATSGO") {
-                    Utils.information(string.Format("SSURGO soil map value {0} is a STATSGO soil according to statsgo_ssurgo_lkey", sid), this.isBatch, logFile: this.logFile);
-                    // self._undefinedSoilIds.append(sid)
-                    // return sid
-                }
-                sql = DBUtils.sqlSelect("SSURGO_Soils", "TEXTURE", "", "MUID=@p1");
-                muid = Convert.ToInt32(lookup_reader.GetValue(1));
-                var cmd = new SQLiteCommand(sql, this.SSURGOConn);
-                cmd.Parameters.AddWithValue("@p1", muid);
-                using (var reader = cmd.ExecuteReader()) {
-                    if (!reader.HasRows) {
-                        Utils.information(string.Format("WARNING: SSURGO soil lkey value {0} and MUID {1} not defined in project {2}", sid, muid, this.projName), this.isBatch, logFile: this.logFile);
-                        this._undefinedSoilIds.Add(sid);
-                        return (this.SSURGOUndefined, false);
-                    }
-                    //if row[0].lower().Trim() == 'water':
-                    Regex patt = new Regex(this.waterPattern);
-                    if (patt.IsMatch(reader.GetString(0))) {
-                        this.SSURGOsoils[sid] = Parameters._SSURGOWater;
-                        return (Parameters._SSURGOWater, true);
-                    } else {
-                        this.SSURGOsoils[sid] = muid;
-                        return (muid, true);
-                    }
+                //if row[0].lower().Trim() == 'water':
+                Regex patt = new Regex(this.waterPattern);
+                if (patt.IsMatch(reader.GetString(0))) {
+                    this.SSURGOsoils[sid] = Parameters._SSURGOWater;
+                    return (Parameters._SSURGOWater, true);
+                } else {
+                    this.SSURGOsoils[sid] = sid;
+                    return (sid, true);
                 }
             }
         }
+
 
         // Write the plants_plt and urban_urb tables in the project database.
         public virtual bool writeLanduseTables() {
@@ -1602,102 +1637,105 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 localConn = new SQLiteConnection(string.Format("DataSource={0}", this.plantSoilDatabase));
                 localConn.Open();
             }
-            using (var cmd = new SQLiteCommand(localConn)) {
-                try {
-                    if (copyPlant) {
-                        sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._PLANTS_PLT_NAME);
-                        cmd.CommandText = sql;
-                        cmd.ExecuteNonQuery();
-                        sql = string.Format("CREATE TABLE {0} {1}", DBUtils._PLANTS_PLT_NAME, DBUtils._PLANTS_PLT_TABLE);
-                        cmd.CommandText = sql;
-                        cmd.ExecuteNonQuery();
-                    }
-                    if (copyUrban) {
-                        sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._URBAN_URB_NAME);
-                        cmd.CommandText = sql;
-                        cmd.ExecuteNonQuery();
-                        sql = string.Format("CREATE TABLE {0} {1}", DBUtils._URBAN_URB_NAME, DBUtils._URBAN_URB_TABLE);
-                        cmd.CommandText = sql;
-                        cmd.ExecuteNonQuery();
-                    }
-                    var plantSelect = DBUtils.sqlSelect(this.plantTable, "*", "", "name=@p1 COLLATE NOCASE");
-                    var urbanSelect = DBUtils.sqlSelect(this.urbanTable, "*", "", "name=@p1 COLLATE NOCASE");
-                    // changed to copy all of plant and urban tables
-                    // pid = 0
-                    // uid = 0
-                    using (var readCmd = new SQLiteCommand(localConn)) {
-                        foreach (var crop in this.landuseVals) {
-                            var name = this.getLanduseCode(crop);
-                            if (name.ToUpper() == "BARR" || name.ToUpper() == "WATR") {
-                                // BARR will become NULL later, WATR will become WETW; neither in plant table
-                                continue;
-                            }
-                            var args = ValueTuple.Create(name);
-                            // look first in plantTable
-                            readCmd.Parameters.Clear();
-                            readCmd.Parameters.AddWithValue("@p1", name);
-                            readCmd.CommandText = plantSelect;
-                            var found = false;
-                            using (var readPlant = readCmd.ExecuteReader()) {
-                                found = readPlant.HasRows;
-                            }
-                            if (!found) {
-                                readCmd.CommandText = urbanSelect;
-                                using (var readUrban = readCmd.ExecuteReader()) {
-                                    if (!readUrban.HasRows) {
-                                        Utils.error(string.Format("Landuse name {0} (and perhaps others) not defined in {1} or {2} tables in database {3}.", name, this.plantTable, this.urbanTable, this.plantSoilDatabase), this.isBatch);
-                                        return false;
-                                    }
-                                }
-                            }
-                        }
-                        // copy all of plant and urban tables
-                        var insertPlant = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18,@p19,@p20,@p21,@p22,@p23,@p24,@p25,@p26,@p27,@p28,@p29,@p30,@p31,@p32,@p33,@p34,@p35,@p36,@p37,@p38,@p39,@p40,@p41,@p42,@p43,@p44,@p45,@p46,@p47,@p48,@p49,@p50,@p51,@p52,@p53,@p54,@p55)", DBUtils._PLANTS_PLT_NAME);
-                        var insertUrban = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13)", DBUtils._URBAN_URB_NAME);
+            try {
+                using (var transaction = localConn.BeginTransaction()) {
+                    using (var cmd = new SQLiteCommand("", localConn, transaction)) {
                         if (copyPlant) {
-                            var plantAll = DBUtils.sqlSelect(this.plantTable, "*", "", "");
-                            readCmd.Parameters.Clear();
-                            readCmd.CommandText = plantAll;
-                            using (var writeCommand = new SQLiteCommand(insertPlant, localConn)) {
-                                using (var reader = readCmd.ExecuteReader()) {
-                                    while (reader.Read()) {
-                                        for (int i = 0; i < 55; i++) {
-                                            writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
-                                        }
-                                        writeCommand.ExecuteNonQuery();
-                                    }
-                                }
-                            }
+                            sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._PLANTS_PLT_NAME);
+                            cmd.CommandText = sql;
+                            cmd.ExecuteNonQuery();
+                            sql = string.Format("CREATE TABLE {0} {1}", DBUtils._PLANTS_PLT_NAME, DBUtils._PLANTS_PLT_TABLE);
+                            cmd.CommandText = sql;
+                            cmd.ExecuteNonQuery();
                         }
                         if (copyUrban) {
-                            var urbanAll = DBUtils.sqlSelect(this.urbanTable, "*", "", "");
-                            readCmd.Parameters.Clear();
-                            readCmd.CommandText = urbanAll;
-                            using (var writeCommand = new SQLiteCommand(insertUrban, localConn)) {
-                                using (var reader = readCmd.ExecuteReader()) {
-                                    while (reader.Read()) {
-                                        for (int i = 0; i < 13; i++) {
-                                            writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
+                            sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._URBAN_URB_NAME);
+                            cmd.CommandText = sql;
+                            cmd.ExecuteNonQuery();
+                            sql = string.Format("CREATE TABLE {0} {1}", DBUtils._URBAN_URB_NAME, DBUtils._URBAN_URB_TABLE);
+                            cmd.CommandText = sql;
+                            cmd.ExecuteNonQuery();
+                        }
+                        var plantSelect = DBUtils.sqlSelect(this.plantTable, "*", "", "name=@p1 COLLATE NOCASE");
+                        var urbanSelect = DBUtils.sqlSelect(this.urbanTable, "*", "", "name=@p1 COLLATE NOCASE");
+                        // changed to copy all of plant and urban tables
+                        // pid = 0
+                        // uid = 0
+                        using (var readCmd = new SQLiteCommand(localConn)) {
+                            foreach (var crop in this.landuseVals) {
+                                var name = this.getLanduseCode(crop);
+                                if (name.ToUpper() == "BARR" || name.ToUpper() == "WATR") {
+                                    // BARR will become NULL later, WATR will become WETW; neither in plant table
+                                    continue;
+                                }
+                                var args = ValueTuple.Create(name);
+                                // look first in plantTable
+                                readCmd.Parameters.Clear();
+                                readCmd.Parameters.AddWithValue("@p1", name);
+                                readCmd.CommandText = plantSelect;
+                                var found = false;
+                                using (var readPlant = readCmd.ExecuteReader()) {
+                                    found = readPlant.HasRows;
+                                }
+                                if (!found) {
+                                    readCmd.CommandText = urbanSelect;
+                                    using (var readUrban = readCmd.ExecuteReader()) {
+                                        if (!readUrban.HasRows) {
+                                            Utils.error(string.Format("Landuse name {0} not defined in {1} or {2} tables in database {3}.", name, this.plantTable, this.urbanTable, this.plantSoilDatabase), this.isBatch);
                                         }
-                                        writeCommand.ExecuteNonQuery();
                                     }
                                 }
                             }
+                            // copy all of plant and urban tables
+                            var insertPlant = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18,@p19,@p20,@p21,@p22,@p23,@p24,@p25,@p26,@p27,@p28,@p29,@p30,@p31,@p32,@p33,@p34,@p35,@p36,@p37,@p38,@p39,@p40,@p41,@p42,@p43,@p44,@p45,@p46,@p47,@p48,@p49,@p50,@p51,@p52,@p53,@p54,@p55)", DBUtils._PLANTS_PLT_NAME);
+                            var insertUrban = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13)", DBUtils._URBAN_URB_NAME);
+                            if (copyPlant) {
+                                var plantAll = DBUtils.sqlSelect(this.plantTable, "*", "", "");
+                                readCmd.Parameters.Clear();
+                                readCmd.CommandText = plantAll;
+                                using (var writeCommand = new SQLiteCommand(insertPlant, localConn, transaction)) {
+                                    using (var reader = readCmd.ExecuteReader()) {
+                                        while (reader.Read()) {
+                                            for (int i = 0; i < 55; i++) {
+                                                writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
+                                            }
+                                            writeCommand.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                            }
+                            if (copyUrban) {
+                                var urbanAll = DBUtils.sqlSelect(this.urbanTable, "*", "", "");
+                                readCmd.Parameters.Clear();
+                                readCmd.CommandText = urbanAll;
+                                using (var writeCommand = new SQLiteCommand(insertUrban, localConn, transaction)) {
+                                    using (var reader = readCmd.ExecuteReader()) {
+                                        while (reader.Read()) {
+                                            for (int i = 0; i < 13; i++) {
+                                                writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
+                                            }
+                                            writeCommand.ExecuteNonQuery();
+                                        }
+                                    }
+                                }
+                            }
+
                         }
                     }
-                    return true;
+                    transaction.Commit();
                 }
-                catch (Exception) {
-                    Utils.exceptionError(string.Format("Could not create {3} and {4} tables from {0} and {1} tables in landuse and soil database {2}", this.plantTable, this.urbanTable, this.plantSoilDatabase, DBUtils._PLANTS_PLT_NAME, DBUtils._URBAN_URB_NAME), this.isBatch);
-                    return false;
-                }
-                finally {
-                    // this.hashDbTable(this.conn, DBUtils._PLANTS_PLT_NAME);
-                    // this.hashDbTable(this.conn, DBUtils._URBAN_URB_NAME);
-                    if (!(isProjDb || isRefDb)) {
-                        localConn.Close();
-                        localConn.Dispose();
-                    }
+                return true;
+            }
+            catch (Exception) {
+                Utils.exceptionError(string.Format("Could not create {3} and {4} tables from {0} and {1} tables in landuse and soil database {2}", this.plantTable, this.urbanTable, this.plantSoilDatabase, DBUtils._PLANTS_PLT_NAME, DBUtils._URBAN_URB_NAME), this.isBatch);
+                return false;
+            }
+            finally {
+                // this.hashDbTable(this.conn, DBUtils._PLANTS_PLT_NAME);
+                // this.hashDbTable(this.conn, DBUtils._URBAN_URB_NAME);
+                if (!(isProjDb || isRefDb)) {
+                    localConn.Close();
+                    localConn.Dispose();
                 }
             }
         }
@@ -2151,35 +2189,6 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         public static string _PLANTTABLE = _PLANTS_PLT_TABLE;
 
         public static string _URBANTABLE = _URBAN_URB_TABLE;
-
-        // Write submapping table for HUC projects.
-        public virtual void writeSubmapping() {
-            using (var cmd = new SQLiteCommand(this.conn)) {
-                var sql0 = "DROP TABLE IF EXISTS submapping";
-                cmd.CommandText = sql0;
-                cmd.ExecuteNonQuery();
-                var sql1 = DBUtils._SUBMAPPINGCREATESQL;
-                cmd.CommandText = sql1;
-                cmd.ExecuteNonQuery();
-                var sql2 = "INSERT INTO submapping VALUES(@p1,@p2,@p3)";
-                cmd.CommandText = sql2;
-                var submapping = Utils.join(this.projDir, "submapping.csv");
-                using (var sr = new StreamReader(submapping)) {
-                    // skip heading
-                    var _ = sr.ReadLine();
-                    var line = sr.ReadLine();
-                    while (line != null) {
-                        var items = line.Split(',');
-                        cmd.Parameters.Clear();
-                        cmd.Parameters.AddWithValue("@p1", items[0]);
-                        cmd.Parameters.AddWithValue("@p2", items[1]);
-                        cmd.Parameters.AddWithValue("@p3", items[2]);
-                        cmd.ExecuteNonQuery();
-                        line = sr.ReadLine();
-                    }
-                }
-            }
-        }
 
         // Create BASINSDATA, LUSDATA, WATERDATA and HRUSDATA in project database.
         public virtual bool createBasinsDataTables() {
@@ -2965,13 +2974,13 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
         }
 
-        // Change upslope HRU drainage to percent into channel or reservoir, rest to downslope LSU.
+        // Change upslope HRU drainage to percent into channel or water body, rest to downslope LSU.
         public virtual void changeUpslopeHRUDrain(double percent) {
             try {
                 var table1 = "gis_hrus";
                 var table2 = "gis_routing";
                 var sql1 = DBUtils.sqlSelect(table1, "id, lsu", "", "");
-                var sql2 = DBUtils.sqlSelect(table2, "rowid, sinkcat", "", "sourceid=@p1 AND sourcecat=@p2");
+                var sql2 = DBUtils.sqlSelect(table2, "rowid, sinkcat, percent", "", "sourceid=@p1 AND sourcecat=@p2");
                 var update = string.Format("UPDATE {0} SET percent=@p1 WHERE rowid=@p2", table2);
                 // first find upslope HRUs
                 var cmd1 = new SQLiteCommand(sql1, this.conn);
@@ -2987,8 +2996,12 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 while (reader2.Read()) {
                                     var sinkCat = reader2.GetString(1);
                                     var rowId = reader2.GetInt32(0);
-                                    // set drain to channel or reservoir to percent
-                                    if (sinkCat == "CH" || sinkCat == "RES") {
+                                    var current_percent = reader2.GetInt32(2);
+                                    if (current_percent == 100) {
+                                        continue; // lower LSU is all water; nothing to change
+                                    }
+                                    // set drain to channel or water body to percent
+                                    if (sinkCat == "CH" || sinkCat == "RES" || sinkCat == "PND" || sinkCat == "WETL") {
                                         this.execNonQuery(update, new object[] { percent, rowId });
                                         // set drain to LSU to 100 - percent
                                     } else if (sinkCat == "LSU") {
@@ -3018,9 +3031,19 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                         string row = null;
                         if (bands is not null) {
                             // need mid-points of bands, but list has start values
-                            var el1 = bands[0].Item1;
-                            var el2 = bands[1].Item1;
-                            var semiWidth = (el2 - el1) / 2.0;
+                            double el1 = 0;
+                            double el2 = 0;
+                            double mid = 0;
+                            double semiWidth = 0;
+                            if (bands.Count == 1) {
+                                el1 = bands[0].Item1;
+                                mid = bands[0].Item2;
+                                semiWidth = mid - el1;
+                            } else {
+                                el1 = bands[0].Item1;
+                                el2 = bands[1].Item1;
+                                semiWidth = (el2 - el1) / 2.0;
+                            }
                             // with very small range of elevations in a subbasin can have fewer bands than numElevBands:
                             // len(bands) is at most number of enteger elevations in subbasin
                             // Conversely, with rounding errors can have more bands than numElevBands
@@ -3464,7 +3487,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         //        conn.row_factory = (_,row) => row;
         //        var m = hashlib.md5();
         //        var sql = DBUtils.sqlSelect(table, "*", "", "");
-        //        foreach (var row in conn.execute(sql)) {
+        //        foreach (var row in this._gv.db.execNonQuery(sql)) {
         //            m.update(row.@__repr__().encode());
         //        }
         //        var result = m.hexdigest();
@@ -3475,6 +3498,21 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         //    }
         //    return "";
         //}
+
+        // Log channels involved in loop, in reverse order.
+        public static void outputLoop(List<int> channels) {
+            var done = new HashSet<int>();
+            var maxCount = channels.Count;
+            Utils.logerror("Reverse list of channels in loop");
+            var index = -1;
+            while (maxCount + index >= 0) {
+                var channel = channels[index];
+                if (done.Contains(channel)) { break; }
+                Utils.loginfo(channel.ToString());
+                done.Add(channel);
+                index--;
+            }
+        }
         
         // Check every source in gis_routing table drains ultimately to an outlet, i.e. there are no loops
         //         and everything not a final outlet has a sink appearing as a source in gis_routing.  Also check routing for each
@@ -3487,9 +3525,9 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             // mapping category -> id-set showing sources that are known to drain to an outlet
             // to save tracking every source all the way
             var done = new Dictionary<string, HashSet<int>>();
-            // mapping category -> id-set showing sources currently under investigation
+            // mapping category -> id-list showing sources currently under investigation
             // (so all can be marked as done if the chain terminates)
-            var pending = new Dictionary<string, HashSet<int>>();
+            var pending = new Dictionary<string, List<int>>();
             // mapping category -> id -> hyd_typ -> percent used to check sources with multiple sinks have 100% accounted for
             var percentages = new Dictionary<string, Dictionary<int, Dictionary<string, double>>>();
             var nextSql = DBUtils.sqlSelect(table, "*", "", "");
@@ -3510,6 +3548,23 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     var tcat = reader.GetString(4); // "sinkcat"];
                     var percent = Convert.ToDouble(reader.GetValue(5));  // "percent"]);
                     var hasZero = percent == 0;
+                    if (percent < 100) {
+                        // add percent to percentages for this source
+                        Dictionary<string, double> hydTypPercentages;
+                        Dictionary<int, Dictionary<string, double>> sourcePercentages;
+                        if (!percentages.TryGetValue(scat, out sourcePercentages)) {
+                            hydTypPercentages = new() { [hydTyp] = percent };
+                            sourcePercentages = new() { [sid] = hydTypPercentages };
+                            percentages[scat] = sourcePercentages;
+                        } else {
+                            if (!sourcePercentages.TryGetValue(sid, out hydTypPercentages)) {
+                                hydTypPercentages = new() { [hydTyp] = percent };
+                                sourcePercentages[sid] = hydTypPercentages;
+                            } else {
+                                hydTypPercentages[hydTyp] += percent;
+                            }
+                        }
+                    }
                     var count = maxSteps;
                     while (count > 0) {
                         if (done.ContainsKey(scat) && done[scat].Contains(sid)) {
@@ -3518,34 +3573,13 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 if (done.ContainsKey(pcat)) {
                                     done[pcat].UnionWith(pids);
                                 } else {
-                                    done[pcat] = pids;
+                                    done[pcat] = new HashSet<int>(pids);
                                 }
                             }
-                            pending = new Dictionary<string, HashSet<int>>();
+                            pending = new Dictionary<string, List<int>>();
                             break;
                         }
-                        if (percent < 100) {
-                            // add percent to percentages for this source
-                            Dictionary<int, Dictionary<string, double>> sourcePercentages = null;
-                            Dictionary<string, double> hydTypPercentages = null;
-                            if (percentages.TryGetValue(scat, out sourcePercentages)) {
-                                if (sourcePercentages.TryGetValue(sid, out hydTypPercentages)) {
-                                    hydTypPercentages[hydTyp] += percent;
-                                } else {
-                                    hydTypPercentages = new Dictionary<string, double> {
-                                    {hydTyp, percent}
-                                };
-                                }
-                                sourcePercentages[sid] = hydTypPercentages;
-                                percentages[scat] = sourcePercentages;
-                            } else {
-                                hydTypPercentages = new Dictionary<string, double> {
-                                    {hydTyp, percent}};
-                                percentages[scat] = new Dictionary<int, Dictionary<string, double>> {
-                                { sid, hydTypPercentages }
-                            };
-                            }
-                        } else {
+                        if (percent == 100) {
                             // Only include source in pending (which should become done) 
                             // if there is only one sink for it, else other sinks will be ignored.
                             // Pending is only used for efficiency, to avoid tracking every source to a final outlet,
@@ -3553,9 +3587,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             if (pending.ContainsKey(scat)) {
                                 pending[scat].Add(sid);
                             } else {
-                                pending[scat] = new HashSet<int> {
-                                sid
-                            };
+                                pending[scat] = new List<int> { sid };
                             }
                         }
                         if (tcat == "X") {
@@ -3564,10 +3596,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 if (done.ContainsKey(pcat)) {
                                     done[pcat].UnionWith(pids);
                                 } else {
-                                    done[pcat] = pids;
+                                    done[pcat] = new HashSet<int>(pids);
                                 }
                             }
-                            pending = new Dictionary<string, HashSet<int>>();
+                            pending = new Dictionary<string, List<int>>();
                             break;
                         }
                         count -= 1;
@@ -3576,17 +3608,21 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 warnings.Add(string.Format("WARNING: There is a loop in the {0} table involving id {1}, category {2}, flow type {3} but with a zero percentage", table, sid, scat, hydTyp));
                             } else {
                                 errors.Add(string.Format("There is a loop in the {0} table involving id {1}, category {2}, flow type {3}", table, sid, scat, hydTyp));
-                            }
-                            // move pending to done
-                            foreach (var (pcat, pids) in pending) {
-                                if (done.ContainsKey(pcat)) {
-                                    done[pcat].UnionWith(pids);
-                                } else {
-                                    done[pcat] = pids;
+                                List<int> channels;
+                                if (pending.TryGetValue("CH", out channels)) {
+                                    outputLoop(channels);
                                 }
+                                // move pending to done
+                                foreach (var (pcat, pids) in pending) {
+                                    if (done.ContainsKey(pcat)) {
+                                        done[pcat].UnionWith(pids);
+                                    } else {
+                                        done[pcat] = new HashSet<int>(pids);
+                                    }
+                                }
+                                pending = new Dictionary<string, List<int>>();
+                                break;
                             }
-                            pending = new Dictionary<string, HashSet<int>>();
-                            break;
                         }
                         var cmd2 = new SQLiteCommand(findSql, localConn);
                         cmd2.Parameters.Clear();
@@ -3617,8 +3653,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             // check all percentages are approximately 100
                         }
                     } //end of while loop
-                }
-            } 
+                } // end of for loop
+            }
             foreach (var (scat, sourceDdata) in percentages) {
                 foreach (var (sid, data) in sourceDdata) {
                     foreach (var (hydTyp, percent) in data) {
@@ -3669,6 +3705,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                              NOT NULL,
             category INTEGER,
             channel  INTEGER,
+            subbasin INTEGER,
             area     REAL,
             slope    REAL,
             len1     REAL,
@@ -3681,7 +3718,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         );
         ";
         
-        public static string _LSUSINSERTSQL = "INSERT INTO gis_lsus VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12)";
+        public static string _LSUSINSERTSQL = "INSERT INTO gis_lsus VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13)";
         
         public static string _POINTSCREATESQL = @"
         CREATE TABLE gis_points (
@@ -3738,9 +3775,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         
         public static string _WATERCREATESQL = @"
         CREATE TABLE gis_water (
-            id    INTEGER PRIMARY KEY
-                             UNIQUE
-                             NOT NULL,
+            id    INTEGER,
             wtype TEXT,
             lsu   INTEGER,
             subbasin INTEGER,
@@ -3774,6 +3809,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
     ";
         
         public static string _ROUTINGINSERTSQL = "INSERT INTO gis_routing VALUES(@p1,@p2,@p3,@p4,@p5,@p6)";
+
+        public static string _ROUTINGUPDATESQL = "UPDATE gis_routing SET sinkid=@p1, sinkcat=@p2, percent=@p3 WHERE sourceid=@p4 AND sourcecat=@p5 AND hyd_typ=@p6";
         
         public static string _LANDEXEMPTCREATESQL = @"
     CREATE TABLE gis_landexempt (
@@ -3902,13 +3939,6 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         
         public static string _INSERTDEEPAQUIFERS = "INSERT INTO gis_deep_aquifers VALUES(@p1,@p2,@p3,@p4,@p5,@p6)";
         
-        public static string _SUBMAPPINGCREATESQL = @"
-    CREATE TABLE submapping (
-        SUBBASIN    INTEGER,
-        HUC_ID      TEXT,
-        IsEnding    INTEGER
-        );
-    ";
     }
 
     public class Proj
@@ -3923,7 +3953,9 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         // if any parameter tables are empty initialise them with default values
         // this enables UPDATE commands to work.
         public void init() {
-            var paramTables = new List<string> { "delin", "hru", "landuse", "lsu", "observed", "params", "soil" };
+            // older projects may not have config_gwflow table
+            this.makeConfigGwflow();
+            var paramTables = new List<string> { "delin", "hru", "landuse", "lsu", "observed", "params", "soil", "gwflow" };
             foreach (var table in paramTables) {
                 var projTable = "config_" + table;
                 if (this.gv.db.hasData(projTable)) { continue; }
@@ -3931,6 +3963,27 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 this.gv.db.execNonQuery(sql);
             }
         }
+        public void makeConfigGwflow() {
+            var sql = @"CREATE TABLE IF NOT EXISTS config_gwflow(
+    aquiferThickness    TEXT    DEFAULT(''),
+    aquiferPermeability TEXT    DEFAULT(''),
+    tileDrains          TEXT    DEFAULT(''),
+    gridType            TEXT    DEFAULT('structured'),
+    cellSize            INTEGER DEFAULT(1000),
+    maxSize             INTEGER DEFAULT(1000),
+    levels              INTEGER DEFAULT(0),
+    transitionRate      REAL    DEFAULT(0),
+    refineStreams       INTEGER DEFAULT(1),
+    refineTopography    INTEGER DEFAULT(1),
+    refineBoundary      INTEGER DEFAULT(1),
+    refineWells         INTEGER DEFAULT(0),
+    useTileDrains       INTEGER DEFAULT(0),
+    alignGrids          INTEGER DEFAULT(1),
+    elevTolerance       INTEGER DEFAULT(0)
+)";
+            this.gv.db.execNonQuery(sql);
+        }
+
 
         // imitation of QGIS readEntry
         // assume result is a relative path and prefix with projDir if title is not empty

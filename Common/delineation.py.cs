@@ -1127,6 +1127,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         }
 
         // Add lakes in HUC models.
+        // TODO subtract playas to make local lakes shapefile
         public async Task<bool> addHUCLakes(OSGeo.OGR.Layer lakesLayer, OSGeo.OGR.Layer channelsLayer, OSGeo.OGR.Layer subbasinsLayer, RasterLayer demLayer) {
 
             // Cannot run TauDEM as supplied channels will in general not coincide with calculated ones.
@@ -1880,7 +1881,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 await Utils.removeLayer(slpFile);
                 await Utils.removeLayer(angFile);
                 this.progress("DinfFlowDir ...");
-                ok = await this._gv.taudem.runDinfFlowDir(felFile, slpFile, angFile, numProcesses, this._dlg.getTaudemOutput);
+                // Dinf slopes based on non-pitfilled and non-burned-in DEM
+                ok = await this._gv.taudem.runDinfFlowDir(demFile, slpFile, angFile, numProcesses, this._dlg.getTaudemOutput);
                 if (!ok) {
                     this.cleanUp(3);
                     return;
@@ -2349,7 +2351,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     this.cleanUp(-1);
                     return;
                 }
-                // for HUC projects load lakes file 
+                // for HUC and HAWQS projects load lakes file 
                 var lakeFile = "";
                 if (this._gv.isHUC || this._gv.isHAWQS) {
                     if (this._gv.isHUC) {

@@ -44,6 +44,7 @@ using Path = System.IO.Path;
 
 namespace ArcSWATPlus
 {
+    
     public class CreateHRUs
     {
 
@@ -109,7 +110,6 @@ namespace ArcSWATPlus
             this._db = gv.db;
             this._reportsCombo = reportsCombo;
             this._dlg = dialog;
-            dialog.gwGroup.Visible = false;
             //# number of HRUs created in watershed
             this.HRUNum = 0;
             //# Minimum elevation in watershed
@@ -1148,7 +1148,7 @@ namespace ArcSWATPlus
                         if (!this._gv.topo.chBasinToSubbasin.TryGetValue(chBasin, out subbasin)) {
                             subbasin = -1;
                         }
-                        if (subbasin == -1) {
+                        if (subbasin < 0) { // allow for NOBASIN (-2) as well as no such chBasin
                             if (this._gv.useLandscapes) {
                                 lsuRow[col] = -1;
                             }
@@ -1424,7 +1424,6 @@ namespace ArcSWATPlus
                 soilDefinedPercent = 0;
             }
             Utils.loginfo(string.Format("Soil defined percent: {0:F1}", soilDefinedPercent));
-            bool under95 = false;
             if (this._gv.isHUC) {
                 var huc12 = this._gv.projName.Substring(3);
                 var logFile = this._gv.logFile;
@@ -1435,20 +1434,18 @@ namespace ArcSWATPlus
                 } else if (soilMapPercent < 95) {
                     // start of message is key phrase for HUC12Models
                     Utils.information(string.Format("UNDER95 WARNING: only {0:F1} percent of the watershed in project huc{1} is inside the soil map.", soilMapPercent, huc12), this._gv.isBatch, logFile: logFile);
-                    under95 = true;
                 } else if (soilMapPercent < 99.95) {
                     // always give statistic for HUC models; avoid saying 100.0 when rounded to 1dp
                     // start of message is key word for HUC12Models
                     Utils.information(string.Format("WARNING: only {0:F1} percent of the watershed in project huc{1} is inside the soil map.", soilMapPercent, huc12), this._gv.isBatch, logFile: logFile);
                 }
-                if (soilDefinedPercent < 80) {
+                if (soilDefinedPercent < 95) {
                     // start of message is key word for HUC12Models
                     Utils.information(string.Format("WARNING: only {0:F1} percent of the watershed in project huc{1} has defined soils.", soilDefinedPercent, huc12), this._gv.isBatch, logFile: logFile);
                 }
             } else {
                 if (soilMapPercent < 95) {
                     Utils.information(string.Format("WARNING: only {0:F1} percent of the watershed has defined soil values.\n If this percentage is zero check your soil map has the same projection as your DEM.", soilMapPercent), this._gv.isBatch);
-                    under95 = true;
                     // only run this for non-HUC models: previous warnings sufficient
                 }
                 if (!this.noCropOrSoilLSUs()) {
@@ -1494,7 +1491,7 @@ namespace ArcSWATPlus
             if (!this._gv.useGridModel) {
                 basinDs = null;
             }
-            this.saveAreas(true, redistributeNodata: !(under95 && (this._gv.isHUC || this._gv.isHAWQS)));
+            this.saveAreas(true, redistributeNodata: true);
             this._dlg.progress("Writing HRU data to database ...");
             if (!this._db.createBasinsDataTables()) {
                 return false;
@@ -1506,7 +1503,7 @@ namespace ArcSWATPlus
             return true;
         }
 
-        // Give an error message and return false if any LSUs have no crop and soil data, nor a waterbody.
+        // Give an error message and return false (unless batch/HUC/HAWQS) if any LSUs have no crop and soil data, nor a waterbody.
         public virtual bool noCropOrSoilLSUs() {
             foreach (var (basin, basinData) in this.basins) {
                 foreach (var (channel, channelData) in basinData.lsus) {
@@ -1519,10 +1516,14 @@ namespace ArcSWATPlus
                             if (lscape == Utils._FLOODPLAIN) {
                                 msg2 = "the floodplain of ";
                             } else if (lscape == Utils._UPSLOPE) {
-                                msg2 = "the upslape of ";
+                                msg2 = "the upslope of ";
                             }
                             var msg3 = string.Format("channel {0} (LINKNO {2}) in subbasin {1} (and perhaps others)", SWATChannel, SWATBasin, channel);
-                            Utils.error(msg1 + msg2 + msg3, this._gv.isBatch);
+                            if (this._gv.isHUC || this._gv.isHAWQS) {
+                                Utils.loginfo(msg1 + msg2 + msg3);
+                            } else {
+                                Utils.error(msg1 + msg2 + msg3, this._gv.isBatch);
+                            }
                             // allow batch, HUC and HAWQS runs to continue
                             return this._gv.isBatch || this._gv.isHUC || this._gv.isHAWQS;
                         }
@@ -2403,24 +2404,39 @@ namespace ArcSWATPlus
             if (this._gv.playaFile != "") {
                 // if using playas do not want to absorb water into nearby lakes, as some playas will disappear
                 chLinksByLakes = new List<int>();
-            }
-            if (this._gv.useGridModel) {
+            } else if (this._gv.useGridModel) {
                 chLinksByLakes = this._gv.topo.chLinkIntoLake.Keys.Concat(this._gv.topo.chLinkInsideLake.Keys).Concat(this._gv.topo.chLinkFromLake.Keys);
             } else {
                 chLinksByLakes = this._gv.topo.chLinkIntoLake.Keys.Concat(this._gv.topo.chLinkInsideLake.Keys);
             }
+            double maxRedistributeFactor = 4 / 3.0;  // for HUC and HAWQS. Corresponds to cropSoilSlopeArea is 75% of area
             foreach (var (basin, data) in this.basins) {
-                if (isOriginal && redistributeNodata && (this._gv.isHUC || this._gv.isHAWQS)) {  // don't redistribute water in wetlands for HUC or HAWQS
+                if (isOriginal && (this._gv.isHUC || this._gv.isHAWQS)) {  // don't redistribute water in wetlands for HUC or HAWQS
                     foreach (var (chLink, channelData) in data.getLsus()) {
                         foreach (var (lscape, lsuData) in channelData) {
-                            var areaToRedistribute = lsuData.area - lsuData.cropSoilSlopeArea;
-                            if (lsuData.area > areaToRedistribute && areaToRedistribute > 0) {
-                                var redistributeFactor = lsuData.area / (lsuData.area - areaToRedistribute);
-                                if (redistributeFactor > 2) {
-                                    var SWATChannel = this._gv.topo.channelToSWATChannel[chLink];
-                                    Utils.loginfo(string.Format("Channel {0} has redistribute factor of {1:.2F}", SWATChannel, redistributeFactor));
+                            if (redistributeNodata) {
+                                var SWATChannel = this._gv.topo.channelToSWATChannel[chLink];
+                                var lsuId = Utils.landscapeUnitId(SWATChannel, lscape);
+                                var doRedistribute = true;
+                                var areaToRedistribute = lsuData.area - lsuData.cropSoilSlopeArea;
+                                if (lsuData.area > areaToRedistribute && areaToRedistribute > 0) {
+                                    var redistributeFactor = lsuData.area / (lsuData.area - areaToRedistribute);
+                                    if (this._gv.isHUC || this._gv.isHAWQS) {
+                                        if (redistributeFactor > maxRedistributeFactor) {
+                                            // report limit also requires at least 50% defined soil and 1 sq km total LSU area
+                                            if (redistributeFactor <= 2 && lsuData.area >= 1E6) {
+                                                Utils.loginfo(string.Format("LSU {0} with area {1:F1} ha has less than {2:F1}% area with defined soil and landuse: not redistributing", lsuId, lsuData.area / 1E4, 100 / redistributeFactor));
+                                            }
+                                            lsuData.area = lsuData.cropSoilSlopeArea;
+                                            doRedistribute = false;
+                                        }
+                                    } else if (redistributeFactor > 2) {
+                                        Utils.loginfo(string.Format("Channel {0} has redistribute factor of {1:F1}", SWATChannel, redistributeFactor));
+                                    }
+                                    if (doRedistribute) {
+                                        lsuData.redistribute(redistributeFactor);
+                                    }
                                 }
-                                lsuData.redistribute(redistributeFactor);
                             }
                             lsuData.setCropAreas(isOriginal);
                             lsuData.setSoilAreas(isOriginal);
@@ -2483,7 +2499,7 @@ namespace ArcSWATPlus
         //             SWATBasin = self._gv.topo.subbasinToSWATBasin[basin]
         //             channelWidth = float(self._gv.channelWidthMultiplier * drainAreaKm ** self._gv.channelWidthExponent)
         //             channelDepth = floatself._gv.channelDepthMultiplier * drainAreaKm ** self._gv.channelDepthExponent)
-        //             conn.execute(sql, (basinData.drainArea / 1E4, channelWidth, channelDepth, SWATBasin))
+        //             this._gv.db.execNonQuery(sql, (basinData.drainArea / 1E4, channelWidth, channelDepth, SWATBasin))
         //===========================================================================
         // 
         //         Return the maximum landscape area in hectares.
@@ -3720,19 +3736,13 @@ namespace ArcSWATPlus
             if (mapp is null || mapp.Count == 0) {
                 return (0, 0, 0, 0, 0);
             }
-            while (mapp[minimum] == 0) {
+            while (minimum < mapp.Count && mapp[minimum] == 0) {
                 minimum += 1;
-                if (minimum == mapp.Count) {
-                    return (0, 0, 0, 0, 0);
-                }
             }
             // find index of last non-zero frequency
             var maximum = mapp.Count - 1;
-            while (mapp[maximum] == 0) {
+            while (maximum >= 0 && mapp[maximum] == 0) {
                 maximum -= 1;
-                if (maximum < 0) {
-                    return (minimum, 0, 0, 0, 0);
-                }
             }
             // calculate mean elevation and total of frequencies
             var summ = 0.0;
@@ -4077,7 +4087,7 @@ namespace ArcSWATPlus
                     if (this._gv.isHUC || this._gv.isHAWQS) {
                         Utils.information(string.Format("WARNING: Subbasin {0} has no data", SWATBasin), this._gv.isBatch);
                     } else {
-                        Utils.information(string.Format("Subbasin {0} has no data", SWATBasin), this._gv.isBatch);
+                        Utils.error(string.Format("Subbasin {0} has no data", SWATBasin), this._gv.isBatch);
                     }
                     break;
                 }
@@ -4103,7 +4113,7 @@ namespace ArcSWATPlus
                 fw.WriteLine("Landuse");
                 var originalCropAreas = basinData.cropAreas(true);
                 var basinWaterBodiesArea = this.basinWaterBodiesArea(basinData);
-                if (this._gv.isHUC) {
+                if (this._gv.isHUC || this._gv.isHAWQS) {
                     // avoid empty subbasin errors
                     noLanduseReported = true;
                     noSoilReported = true;
@@ -4221,8 +4231,8 @@ namespace ArcSWATPlus
                     } else {
                         // use Katrin's formula
                         var upslopePercent = Convert.ToInt32(100 * lsuData.cropSoilSlopeArea / (lsuData.cropSoilSlopeArea + downLsuData.cropSoilSlopeArea));
-                        // make upslopePercent at least 1%, or percentage sum check algorithm fails with numbers of 0 and 100
-                        upslopePercent = upslopePercent == 0 ? 1 : upslopePercent;
+                        // make upslopePercent at least 1%, or at most 99%, as percentage sum check algorithm fails with numbers of 0 and 100
+                        upslopePercent = upslopePercent == 0 ? 1 : upslopePercent == 100 ? 99 : upslopePercent;
                         if (downLsuData.waterBody is not null && !downLsuData.waterBody.isUnknown()) {
                             wid = downLsuData.waterBody.id;
                             wCat = downLsuData.waterBody.isReservoir() ? "RES" : "PND";
@@ -5104,27 +5114,62 @@ namespace ArcSWATPlus
                             generator = this.generateBasinsFromTable();
                         }
                         foreach (var (fid, basin, SWATBasin, basinData) in generator) {
-                            if (basinData is null || SWATBasin == 0) {
+                            if (SWATBasin == 0) {
                                 continue;
                             }
-                            var areaKm = basinData.subbasinArea() / 1000000.0;
-                            var areaHa = areaKm * 100;
-                            var cellCount = basinData.subbasinCellCount();
-                            var waterId = basinData.waterId;
-                            Debug.Assert(waterId > 0 || cellCount > 0, string.Format("Basin {0} has zero cell count", SWATBasin));
-                            var meanSlope = waterId > 0 || cellCount == 0 ? 0 : basinData.totalSlope() / cellCount * this._gv.meanSlopeMultiplier;
-                            var meanSlopePercent = meanSlope * 100;
-                            var farDistance = basinData.farDistance * this._gv.tributaryLengthMultiplier;
-                            var slsubbsn = Utils.getSlsubbsn(meanSlope);
+                            int waterId = 0;
+                            double areaKm = 0;
+                            double areaHa = 0;
+                            double meanSlopePercent = 0;
+                            double farDistance = 0;
+                            double slsubbsn = 120;
+                            double meanElevation = 0;
+                            double elevMin = 0;
+                            double elevMax = 0;
+                            if (basinData is null) {
+                                // subbasin may be inside lake
+                                // include anyways as SBR and SUB entries in gis_routing will otherwise cause errors
+                                // look for lakeId to use as waterId
+                                int lakeId = 0;
+                                foreach (var (subbasin, (_, _, chLinks)) in this._gv.topo.outlets) {
+                                    if (basin == subbasin) {
+                                        var chLink = chLinks[0];
+                                        // with grid models chLinks is always a singleton list
+                                        if (this._gv.useGridModel) {
+                                            if (this._gv.topo.chLinkInsideLake.Keys.Contains(chLink) || this._gv.topo.chLinkFromLake.Keys.Contains(chLink)) {
+                                                continue;
+                                            }
+                                        }
+                                        if (!this._gv.topo.outletsInLake.TryGetValue(subbasin, out lakeId)) { lakeId = -1; }
+                                        // if one chLink is inside lake, all will be, since they share their outlet point
+                                        // does not seem to be true for HUC models, where right link (coincident with stream exit) must be first
+                                        if (lakeId < 0) {
+                                            if (!this._gv.topo.chLinkInsideLake.TryGetValue(chLink, out lakeId)) { break; }
+                                        }
+                                    }
+                                }
+                                waterId = lakeId;
+                            } else {
+                                areaKm = basinData.subbasinArea() / 1000000.0;
+                                areaHa = areaKm * 100;
+                                var cellCount = basinData.subbasinCellCount();
+                                waterId = basinData.waterId;
+                                //  cell counts may be zero in HUC and HAWQS models because of restricted landuse and soil maps
+                                Debug.Assert(waterId > 0 || cellCount > 0 || this._gv.isHUC || this._gv.isHAWQS, string.Format("Basin {0} has zero cell count", SWATBasin));
+                                var meanSlope = waterId > 0 || cellCount == 0 ? 0 : basinData.totalSlope() / cellCount * this._gv.meanSlopeMultiplier;
+                                meanSlopePercent = meanSlope * 100;
+                                farDistance = basinData.farDistance * this._gv.tributaryLengthMultiplier;
+                                slsubbsn = Utils.getSlsubbsn(meanSlope);
+                                meanElevation = waterId > 0 || cellCount == 0 ? 0.0 : basinData.totalElevation() / cellCount;
+                                elevMin = waterId > 0 ? 0.0 : basinData.minElevation;
+                                elevMax = waterId > 0 ? 0.0 : basinData.maxElevation;
+                            }
                             var centroid = this._gv.topo.basinCentroids[basin];
                             var centreX = centroid[0];
                             var centreY = centroid[1];
                             var centroidll = this._gv.topo.pointToLatLong(centroid);
                             var lat = centroidll[1];
                             var lon = centroidll[0];
-                            var meanElevation = waterId > 0 || cellCount == 0 ? 0.0 : basinData.totalElevation() / cellCount;
-                            var elevMin = waterId > 0 ? 0.0 : basinData.minElevation;
-                            var elevMax = waterId > 0 ? 0.0 : basinData.maxElevation;
                             if (addToSubs1) {
                                 var f = subs1Layer.GetFeature(fid);
                                 f.SetField(areasubIdx, areaHa);
@@ -5145,108 +5190,114 @@ namespace ArcSWATPlus
                                 new object[] { SWATBasin, areaHa, meanSlopePercent, farDistance, slsubbsn, lat, lon, meanElevation, elevMin, elevMax, waterId },
                                 transaction);
                             this._db.addKey(subtable, SWATBasin);
-                            foreach (var (channel, channelData) in basinData.getLsus()) {
-                                int SWATChannel = this._gv.topo.channelToSWATChannel[channel];
-                                var floodDrop = 0.0;
-                                var floodLen = 0.0;
-                                LSUData floodLsuData;
-                                if (this._gv.useLandscapes) {
-                                    if (!channelData.TryGetValue(Utils._FLOODPLAIN, out floodLsuData)) {
-                                        floodLsuData = null;
+                            if (basinData is not null) {
+                                foreach (var (channel, channelData) in basinData.getLsus()) {
+                                    int SWATChannel = this._gv.topo.channelToSWATChannel[channel];
+                                    var floodDrop = 0.0;
+                                    var floodLen = 0.0;
+                                    LSUData floodLsuData;
+                                    if (this._gv.useLandscapes) {
+                                        if (!channelData.TryGetValue(Utils._FLOODPLAIN, out floodLsuData)) {
+                                            floodLsuData = null;
+                                        }
+                                    } else {
+                                        if (!channelData.TryGetValue(Utils._NOLANDSCAPE, out floodLsuData)) {
+                                            floodLsuData = null;
+                                        }
                                     }
-                                } else {
-                                    if (!channelData.TryGetValue(Utils._NOLANDSCAPE, out floodLsuData)) {
-                                        floodLsuData = null;
-                                    }
-                                }
 
-                                if (floodLsuData is not null) {
-                                    var dropToSource = floodLsuData.farElevation - floodLsuData.sourceElevation;
-                                    if (valleyDepthsBand is null) {
-                                        floodDrop = double.NaN;
-                                    } else {
-                                        floodDrop = Topology.valueAtPoint(new double[3] { floodLsuData.farPointX, floodLsuData.farPointY, 0 }, transform, valleyDepthsBand);
-                                    }
-                                    if (double.IsNaN(floodDrop)) {
-                                        // estimate it
-                                        floodDrop = Math.Abs(this._gv.useLandscapes ? dropToSource * 0.25 : dropToSource);
-                                    }
-                                    floodLen = floodLsuData.farDistance;
-                                }
-                                foreach (var (landscape, lsuData) in channelData) {
-                                    var lsuId = Utils.landscapeUnitId(SWATChannel, landscape);
-                                    if (lsuData.cropSoilSlopeArea == 0 || lsuData.waterBody is not null && !lsuData.waterBody.isUnknown() && lsuData.cropSoilSlopeArea == lsuData.waterBody.originalArea) {
-                                        // was all water
-                                        allWaterLSUs.Add(lsuId);
-                                        continue;
-                                    }
-                                    double slopeDrop;
-                                    double tribDrop;
-                                    double tribDistance;
-                                    if (landscape == Utils._UPSLOPE) {
-                                        tribDistance = (lsuData.farDistance - floodLen) * this._gv.tributaryLengthMultiplier;
+                                    if (floodLsuData is not null) {
+                                        var dropToSource = floodLsuData.farElevation - floodLsuData.sourceElevation;
                                         if (valleyDepthsBand is null) {
-                                            slopeDrop = double.NaN;
+                                            floodDrop = double.NaN;
                                         } else {
-                                            slopeDrop = Topology.valueAtPoint(new double[3] { lsuData.farPointX, lsuData.farPointY, 0 }, transform, valleyDepthsBand);
+                                            floodDrop = Topology.valueAtPoint(new double[3] { floodLsuData.farPointX, floodLsuData.farPointY, 0 }, transform, valleyDepthsBand);
                                         }
-                                        if (double.IsNaN(slopeDrop)) {
+                                        if (double.IsNaN(floodDrop)) {
                                             // estimate it
-                                            slopeDrop = Math.Abs(lsuData.farElevation - lsuData.sourceElevation);
+                                            floodDrop = Math.Abs(this._gv.useLandscapes ? dropToSource * 0.25 : dropToSource);
                                         }
-                                        tribDrop = Math.Abs(slopeDrop - floodDrop);
-                                    } else {
-                                        tribDistance = floodLen * this._gv.tributaryLengthMultiplier;
-                                        tribDrop = Math.Abs(floodDrop);
+                                        floodLen = floodLsuData.farDistance;
                                     }
-                                    areaHa = lsuData.area / 10000.0;
-                                    if (areaHa == 0) {
-                                        Utils.error(string.Format("LSU {0} in subbasin {1} has zero area", lsuId, SWATBasin), this._gv.isBatch);
-                                    }
-                                    areaKm = areaHa / 100;
-                                    if (!this._gv.isHUC) {
-                                        Debug.Assert(lsuData.cellCount > 0, string.Format("LSU {0} has zero cell count", lsuId));
-                                    }
-                                    meanSlopePercent = lsuData.cellCount == 0 ? 0 : lsuData.totalSlope / lsuData.cellCount * 100 * this._gv.meanSlopeMultiplier;
-                                    var tribSlopePercent = tribDistance < 1 ? 0 : tribDrop / tribDistance * 100 * this._gv.tributarySlopeMultiplier;
-                                    var tribWidth = this._gv.channelWidthMultiplier * Math.Pow(areaKm, this._gv.channelWidthExponent);
-                                    var tribDepth = this._gv.channelDepthMultiplier * Math.Pow(areaKm, this._gv.channelDepthExponent);
-                                    double meanElev;
-                                    if (lsuData.cellCount == 0) {
-                                        lat = 0;
-                                        lon = 0;
-                                        meanElev = 0;
-                                    } else {
-                                        centroid = this._gv.topo.pointToLatLong(new double[3] { lsuData.totalLongitude / lsuData.cellCount, lsuData.totalLatitude / lsuData.cellCount, 0 });
-                                        lat = centroid[1];
-                                        lon = centroid[0];
-                                        meanElev = lsuData.totalElevation / lsuData.cellCount;
-                                    }
-                                    this._db.execNonQuery(DBUtils._LSUSINSERTSQL,
-                                        new object[] { lsuId, landscape, SWATChannel, areaHa, meanSlopePercent, tribDistance, tribSlopePercent, tribWidth, tribDepth, lat, lon, meanElev },
-                                        transaction);
-                                    this._db.addKey(lsutable, lsuId);
-                                    if (addToSubs1) {
-                                        using (var lsus2Ds = Ogr.Open(lsus2File, 1)) {
-                                            var lsus2Layer = lsus2Ds.GetLayerByIndex(0);
-                                            lsus2Layer.SetAttributeFilter(string.Format("{0} = {1}", Topology._LSUID, lsuId));
-                                            lsus2Layer.ResetReading();
-                                            var f = lsus2Layer.GetNextFeature();
-                                            if (f is null) {
-                                                Utils.error(string.Format("Failed to find LSU with LSUId {0} in {1}", lsuId, lsus2File), this._gv.isBatch);
+                                    foreach (var (landscape, lsuData) in channelData) {
+                                        var lsuId = Utils.landscapeUnitId(SWATChannel, landscape);
+                                        if (lsuData.cropSoilSlopeArea == 0) {
+                                            if (!(this._gv.isHUC || this._gv.isHAWQS)) {  //  outside soil/landuse: leave HUC and HAWQS LSUs to avoid complications with channel
                                                 continue;
                                             }
-                                            f.SetField(catlsuIdx, landscape);
-                                            f.SetField(slopelsuIdx, meanSlopePercent);
-                                            f.SetField(len1lsuIdx, tribDistance);
-                                            f.SetField(csllsuIdx, tribSlopePercent);
-                                            f.SetField(wid1lsuIdx, tribWidth);
-                                            f.SetField(dep1lsuIdx, tribDepth);
-                                            f.SetField(latlsuIdx, lat);
-                                            f.SetField(lonlsuIdx, lon);
-                                            f.SetField(elevlsuIdx, meanElev);
-                                            if (lsus2Layer.SetFeature(f) != Ogr.OGRERR_NONE) {
-                                                Utils.error($"Failed to update LSU with LSUId {lsuId} in " + lsus2File, this._gv.isBatch);
+                                        } else if (lsuData.waterBody is not null && !lsuData.waterBody.isUnknown() && lsuData.cropSoilSlopeArea == lsuData.waterBody.originalArea) {
+                                            // was all water
+                                            allWaterLSUs.Add(lsuId);
+                                            continue;
+                                        }
+                                        double slopeDrop;
+                                        double tribDrop;
+                                        double tribDistance;
+                                        if (landscape == Utils._UPSLOPE) {
+                                            tribDistance = (lsuData.farDistance - floodLen) * this._gv.tributaryLengthMultiplier;
+                                            if (valleyDepthsBand is null) {
+                                                slopeDrop = double.NaN;
+                                            } else {
+                                                slopeDrop = Topology.valueAtPoint(new double[3] { lsuData.farPointX, lsuData.farPointY, 0 }, transform, valleyDepthsBand);
+                                            }
+                                            if (double.IsNaN(slopeDrop)) {
+                                                // estimate it
+                                                slopeDrop = Math.Abs(lsuData.farElevation - lsuData.sourceElevation);
+                                            }
+                                            tribDrop = Math.Abs(slopeDrop - floodDrop);
+                                        } else {
+                                            tribDistance = floodLen * this._gv.tributaryLengthMultiplier;
+                                            tribDrop = Math.Abs(floodDrop);
+                                        }
+                                        areaHa = lsuData.area / 10000.0;
+                                        if (areaHa == 0) {
+                                            Utils.error(string.Format("LSU {0} in subbasin {1} has zero area", lsuId, SWATBasin), this._gv.isBatch);
+                                        }
+                                        areaKm = areaHa / 100;
+                                        if (!this._gv.isHUC) {
+                                            Debug.Assert(lsuData.cellCount > 0, string.Format("LSU {0} has zero cell count", lsuId));
+                                        }
+                                        meanSlopePercent = lsuData.cellCount == 0 ? 0 : lsuData.totalSlope / lsuData.cellCount * 100 * this._gv.meanSlopeMultiplier;
+                                        var tribSlopePercent = tribDistance < 1 ? 0 : tribDrop / tribDistance * 100 * this._gv.tributarySlopeMultiplier;
+                                        var tribWidth = this._gv.channelWidthMultiplier * Math.Pow(areaKm, this._gv.channelWidthExponent);
+                                        var tribDepth = this._gv.channelDepthMultiplier * Math.Pow(areaKm, this._gv.channelDepthExponent);
+                                        double meanElev;
+                                        if (lsuData.cellCount == 0) {
+                                            lat = 0;
+                                            lon = 0;
+                                            meanElev = 0;
+                                        } else {
+                                            centroid = this._gv.topo.pointToLatLong(new double[3] { lsuData.totalLongitude / lsuData.cellCount, lsuData.totalLatitude / lsuData.cellCount, 0 });
+                                            lat = centroid[1];
+                                            lon = centroid[0];
+                                            meanElev = lsuData.totalElevation / lsuData.cellCount;
+                                        }
+                                        this._db.execNonQuery(DBUtils._LSUSINSERTSQL,
+                                            new object[] { lsuId, landscape, SWATChannel, SWATBasin, areaHa, meanSlopePercent, tribDistance, tribSlopePercent, tribWidth, tribDepth, lat, lon, meanElev },
+                                            transaction);
+                                        this._db.addKey(lsutable, lsuId);
+                                        if (addToSubs1) {
+                                            using (var lsus2Ds = Ogr.Open(lsus2File, 1)) {
+                                                var lsus2Layer = lsus2Ds.GetLayerByIndex(0);
+                                                lsus2Layer.SetAttributeFilter(string.Format("{0} = {1}", Topology._LSUID, lsuId));
+                                                lsus2Layer.ResetReading();
+                                                var f = lsus2Layer.GetNextFeature();
+                                                if (f is null) {
+                                                    Utils.error(string.Format("Failed to find LSU with LSUId {0} in {1}", lsuId, lsus2File), this._gv.isBatch);
+                                                    continue;
+                                                }
+                                                f.SetField(catlsuIdx, landscape);
+                                                f.SetField(slopelsuIdx, meanSlopePercent);
+                                                f.SetField(len1lsuIdx, tribDistance);
+                                                f.SetField(csllsuIdx, tribSlopePercent);
+                                                f.SetField(wid1lsuIdx, tribWidth);
+                                                f.SetField(dep1lsuIdx, tribDepth);
+                                                f.SetField(latlsuIdx, lat);
+                                                f.SetField(lonlsuIdx, lon);
+                                                f.SetField(elevlsuIdx, meanElev);
+                                                if (lsus2Layer.SetFeature(f) != Ogr.OGRERR_NONE) {
+                                                    Utils.error($"Failed to update LSU with LSUId {lsuId} in " + lsus2File, this._gv.isBatch);
+                                                }
                                             }
                                         }
                                     }
@@ -5279,17 +5330,17 @@ namespace ArcSWATPlus
                         }
                     }
                 }
-            }
-            // add subs1 layer in place of watershed layer, unless using grid model
-            if (!this._gv.useGridModel) {
-                var ft = this._gv.existingWshed ? FileTypes._EXISTINGSUBBASINS : FileTypes._SUBBASINS;
-                var subbasinsLayer = (await Utils.getLayerByFilename(this._gv.subbasinsFile, ft, null, null, null)).Item1;
-                var subs1Layer = (await Utils.getLayerByFilename(subs1File, ft, this._gv, subbasinsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer; ;
-                //subs1Layer.setLabelsEnabled(true);
-                // no need to expand legend since any subbasins upstream from inlets have been removed
-                await QueuedTask.Run(() => { subs1Layer.SetExpanded(false); });
-                if (subbasinsLayer is not null) {
-                    await Utils.setLayerVisibility(subbasinsLayer, false);
+                // add subs1 layer in place of watershed layer, unless using grid model
+                if (!this._gv.useGridModel) {
+                    var ft = this._gv.existingWshed ? FileTypes._EXISTINGSUBBASINS : FileTypes._SUBBASINS;
+                    var subbasinsLayer = (await Utils.getLayerByFilename(this._gv.subbasinsFile, ft, null, null, null)).Item1;
+                    var subs1ArcLayer = (await Utils.getLayerByFilename(subs1File, ft, this._gv, subbasinsLayer, Utils._WATERSHED_GROUP_NAME)).Item1 as FeatureLayer; ;
+                    //subs1ArcLayer.setLabelsEnabled(true);
+                    // no need to expand legend since any subbasins upstream from inlets have been removed
+                    await QueuedTask.Run(() => { subs1ArcLayer.SetExpanded(false); });
+                    if (subbasinsLayer is not null) {
+                        await Utils.setLayerVisibility(subbasinsLayer, false);
+                    }
                 }
             }
             await this.createAquifers();
@@ -5297,7 +5348,7 @@ namespace ArcSWATPlus
             return true;
         }
 
-        // Create aquifers and deep aquifers shapefiles, and write gis_aquifers and gis_deep_aquifers tables.
+                // Create aquifers and deep aquifers shapefiles, and write gis_aquifers and gis_deep_aquifers tables.
         public async Task createAquifers() {
             int SWATBasin;
             OSGeo.OGR.Layer aqLayer;
@@ -5354,7 +5405,7 @@ namespace ArcSWATPlus
             void makeOutbasins(Dictionary<int, int> downSubbasins, Dictionary<int, int> outbasins) {
                 var path = new List<int>();
                 int maxx = downSubbasins.Count;
-                //TUtils.loginfo(string.Format("Downsubbasins: {0}", downSubbasins)
+                // Utils.loginfo(string.Format("Downsubbasins: {0}", downSubbasins)
                 foreach (var basin in downSubbasins.Keys) {
                     var nxt = basin;
                     while (path.Count <= maxx) {
@@ -5397,6 +5448,36 @@ namespace ArcSWATPlus
                 }
             }
 
+            int addOutletBasin(HashSet<int> outlets, int outBasin) {
+                // If outBasin has the same outlet point as an existing outlet basin in outlets, return that outlet basin.
+                // Else add outBasin to outlets and return outBasin.
+                (int, double[], List<int>) triple;
+                int outPoint = -1;
+                if (!this._gv.topo.outlets.TryGetValue(outBasin, out triple)) {
+                    outPoint = -1;
+                } else {
+                    outPoint = triple.Item1;
+                }
+                if (outPoint < 0) { // should not happen but safety first
+                    outlets.Add(outBasin);
+                    return outBasin;
+                }
+                foreach (var outletBasin in outlets) {
+                    int outPoint1 = -1;
+                    if (!this._gv.topo.outlets.TryGetValue(outletBasin, out triple)) {
+                        outPoint1 = -1;
+                    } else {
+                        outPoint1 = triple.Item1;
+                    }
+                    if (outPoint1 == outPoint) {
+                        return outletBasin;
+                    }
+                }
+                // no matching existing outlet found
+                outlets.Add(outBasin);
+                return outBasin;
+            }
+
             void writeAquifersTables(Dictionary<int, int> outletSubbasins, Dictionary<int, int> outletLakes) {
                 using (var transaction = this._db.conn.BeginTransaction()) {
                     using (var cmd = new SQLiteCommand("", this._db.conn, transaction)) {
@@ -5408,8 +5489,8 @@ namespace ArcSWATPlus
                             var demBand = demDs.GetRasterBand(1);
                             var transform = new double[6];
                             demDs.GetGeoTransform(transform);
-                            // map of outlet SWATBasin (same as deep aquifer id) to area, elevation * area, x * area, y * area, lakeId or zero
-                            var deepData = new Dictionary<int, (double, double, double, double, int)>();
+                            // map of outlet deep aquifer id to SWATBasin, area, elevation * area, x * area, y * area, lakeId or zero
+                            var deepData = new Dictionary<int, (int, double, double, double, double, int)>();
                             foreach (var (basin, basinData) in this.basins) {
                                 SWATBasin = this._gv.topo.subbasinToSWATBasin[basin];
                                 var aquiferId = SWATBasin * 10;
@@ -5457,10 +5538,11 @@ namespace ArcSWATPlus
                                     double aqElevMoment = 0;
                                     double aqXMoment = 0;
                                     double aqYMoment = 0;
+                                    //  take care not to go back to old SWATBasin or lakeId
                                     if (deepData.ContainsKey(deepAquiferId)) {
-                                        (deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId) = deepData[deepAquiferId];
+                                        (_, deepArea, deepElevMoment, deepXMoment, deepYMoment, _) = deepData[deepAquiferId];
                                     } else {
-                                        deepData.Add(deepAquiferId, (deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId));
+                                        deepData.Add(deepAquiferId, (SWATBasin, deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId));
                                     }
                                     double elev;
                                     if (hasUp) {
@@ -5520,10 +5602,10 @@ namespace ArcSWATPlus
                                     // upAreaSoFar = aquiferData[upAquiferId][0]
                                     // floodAreaSoFar = aquiferData[floodAquiferId][0]
                                     // Utils.loginfo('So far: Up: {0}: Flood: {1}', upAreaSoFar, floodAreaSoFar))
-                                    deepData[deepAquiferId] = (deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId);
+                                    deepData[deepAquiferId] = (SWATBasin, deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId);
                                     // Utils.loginfo('Deep area so far: {0}', deepArea))
-                                    // write gis_aquifers and route aquifers
                                 }
+                                // write gis_aquifers and route aquifers
                                 var centroidll = this._gv.topo.pointToLatLong(centroid);
                                 foreach (var (aqId, (area, elevMoment, xMoment, yMoment)) in aquiferData) {
                                     var landscape = aqId % 10;
@@ -5577,13 +5659,12 @@ namespace ArcSWATPlus
                             this._db.execCmdQuery(cmd);
                             cmd.CommandText = DBUtils._CREATEADEEPQUIFERS;
                             this._db.execCmdQuery(cmd);
-                            foreach (var (deepAqId, (deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId)) in deepData) {
+                            foreach (var (deepAqId, (SWATBasin, deepArea, deepElevMoment, deepXMoment, deepYMoment, lakeId)) in deepData) {
                                 var elev = deepElevMoment / deepArea;
                                 var centroid = new double[3] { deepXMoment / deepArea, deepYMoment / deepArea, 0 };
                                 var centroidll = this._gv.topo.pointToLatLong(centroid);
-                                // SWATbasin is same as aquifer id
                                 cmd.CommandText = DBUtils._INSERTDEEPAQUIFERS;
-                                this._db.execCmdQuery(cmd, new object[] { deepAqId, deepAqId, deepArea / 10000.0, centroidll[1], centroidll[0], elev });
+                                this._db.execCmdQuery(cmd, new object[] { deepAqId, SWATBasin, deepArea / 10000.0, centroidll[1], centroidll[0], elev });
                                 // route total flow from deep aquifer to watershed outlet
                                 int pointId;
                                 if (lakeId > 0) {
@@ -5594,7 +5675,11 @@ namespace ArcSWATPlus
                                 }
                                 this._gv.db.addToRouting(deepAqId, "DAQ", pointId, "PT", Topology._TOTAL, 100, cmd);
                                 // route point in case not done
-                                this._gv.db.addToRouting(pointId, "PT", 0, "X", Topology._TOTAL, 100, cmd);
+                                if (!this._gv.topo.routedPoints.Contains(pointId)) {
+                                    this._gv.db.addToRouting(pointId, "PT", 0, "X", Topology._TOTAL, 100, cmd);
+                                } else {
+                                    this._gv.db.updateRouting(pointId, "PT", 0, "X", Topology._TOTAL, 100, cmd);
+                                }
                             }
                         }
                     }
@@ -5725,10 +5810,10 @@ namespace ArcSWATPlus
                         Utils.error(string.Format("Cannot find watershed outlet for subbasin {0}", SWATBasin), this._gv.isBatch);
                         continue;
                     }
-                    outlets.Add(outBasin);
+                    outBasin = addOutletBasin(outlets, outBasin);
                     // check if outlet in lake
                     int lakeId;
-                    if (!this._gv.topo.outletsInLake.TryGetValue(basin, out lakeId)) {
+                    if (!this._gv.topo.outletsInLake.TryGetValue(outBasin, out lakeId)) {
                         lakeId = -1;
                     }
                     if (lakeId > 0) {
@@ -5736,6 +5821,9 @@ namespace ArcSWATPlus
                         var deepAquiferId = baseDeepAquiferId + lakeId;
                         outletSubbasins[SWATBasin] = deepAquiferId;
                         outletLakes[SWATBasin] = lakeId;
+                        // store mapping of deepAquiferId to its basin in SWATBasinToSubbasin so it can be recovered later
+                        // when routing DAQ to its outlet point
+                        this._gv.topo.SWATBasinToSubbasin[deepAquiferId] = outBasin;
                     } else {
                         int outlet;
                         if (!this._gv.topo.subbasinToSWATBasin.TryGetValue(outBasin, out outlet)) {
@@ -5746,6 +5834,15 @@ namespace ArcSWATPlus
                             Utils.error(string.Format("Cannot find watershed outlet for subbasin {0}", SWATBasin), this._gv.isBatch);
                             continue;
                         }
+                    }
+                }
+            }
+            // make all subbasins with outletsubbasin in lake have outletsubbasin deepAquiferId
+            foreach (var (outSWATBasin, lakeId) in outletLakes) {
+                var deepAquiferId = baseDeepAquiferId + lakeId;
+                foreach (var SWATBsn in outletSubbasins.Keys) {
+                    if (outletSubbasins[SWATBsn] == outSWATBasin) {
+                        outletSubbasins[SWATBsn] = deepAquiferId;
                     }
                 }
             }
@@ -5760,7 +5857,17 @@ namespace ArcSWATPlus
                 using (var tempDs = Ogr.Open(tempDeepAqFile, 1)) {
                     var tempLayer = tempDs.GetLayerByIndex(0);
                     // add Aquifer field, set to number of outlet subbasin
-                    addNewField(tempLayer, tempDeepAqFile, Topology._AQUIFER, Topology._SUBBASIN, x => outletSubbasins[x]);
+
+                    int getOutletSubbasin(int bsn) {
+                        int outletBasin;
+                        if (outletSubbasins.TryGetValue(bsn, out outletBasin)) {
+                            return outletBasin;
+                        } else {
+                            return 0;
+                        }
+                    }
+
+                    addNewField(tempLayer, tempDeepAqFile, Topology._AQUIFER, Topology._SUBBASIN, x => getOutletSubbasin(x));
                     Topology.removeFields(tempLayer, new List<string> { Topology._AQUIFER }, tempDeepAqFile, this._gv.isBatch);
                     // dissolve on Aquifer field
                     var parms = Geoprocessing.MakeValueArray(tempDeepAqFile, deepAqFile, Topology._AQUIFER);
@@ -5922,6 +6029,13 @@ namespace ArcSWATPlus
                         // out point may have no subbasin if internal to lake
                         int SWATBasin;
                         if (!this._gv.topo.subbasinToSWATBasin.TryGetValue(subbasin, out SWATBasin)) { SWATBasin = 0; }
+                        // out point may have no subbasin if internal to lake
+                        if (SWATBasin == 0) {
+                            if (!this._gv.topo.subbasinsInLakes.TryGetValue(subbasin, out SWATBasin)) { SWATBasin = 0; }
+                            if (SWATBasin == 0) {
+                                Utils.error(string.Format("Cannot find subbasin for outlet of lake {0}", lakeId), this._gv.isBatch);
+                            }
+                        }
                         var areaHa = lakeData.overrideArea / 10000.0;
                         var centroid = lakeData.centroid;
                         var centroidll = this._gv.topo.pointToLatLong(centroid);
@@ -6298,6 +6412,10 @@ namespace ArcSWATPlus
                 } else {
                     numPlaya += 1;
                 }
+            }
+            if (this._gv.isHUC || this._gv.isHAWQS) {
+                //  playas not included in lakesData as generated from unconnected lakes
+                numPlaya += this._gv.playaCount;
             }
             return (numRes, numPond, numWetland, numPlaya);
         }
@@ -7132,12 +7250,24 @@ namespace ArcSWATPlus
                         var fullHRUsLayer = Utils.getLayerByLegend(Utils._FULLHRUSLEGEND);
                         if (fullHRUsLayer is not null) {
                             var fullHRUsFile = await Utils.layerFilename(fullHRUsLayer);
-                            await Utils.removeLayer(fullHRUsFile);
+                            await Utils.removeLayerAndFiles(fullHRUsFile);
                             ArcGIS.Desktop.Mapping.Layer actHRUsLayer = Utils.getLayerByLegend(Utils._ACTHRUSLEGEND);
                             if (actHRUsLayer is not null) {
                                 var actHRUsFile = await Utils.layerFilename(actHRUsLayer);
-                                await Utils.removeLayer(actHRUsFile);
+                                await Utils.removeLayerAndFiles(actHRUsFile);
                             }
+                        }
+                        var hrus1File = Utils.join(this._gv.shapesDir, "hrus1.shp");
+                        if (File.Exists(hrus1File)) {
+                            await Utils.removeLayerAndFiles(hrus1File);
+                        }
+                        var hrus2File = Utils.join(this._gv.shapesDir, "hrus2.shp");
+                        if (File.Exists(hrus2File)) {
+                            await Utils.removeLayerAndFiles(hrus2File);
+                        }
+                        var hrusFile = Utils.join(this._gv.resultsDir, "hrus.shp");
+                        if (File.Exists(hrusFile)) {
+                            await Utils.removeLayerAndFiles(hrusFile);
                         }
                     }
                     time1 = DateTime.Now;
@@ -7229,7 +7359,7 @@ namespace ArcSWATPlus
             }
             if (this._db.useSSURGO) {
                 // no lookup table needed
-                this._db.ssurgoSoils = new HashSet<int>();
+                this._db.usedSSURGOSoils = new HashSet<int>();
                 return true;
             } else {
                 this._db.usedSoilNames = new Dictionary<int, string>();
@@ -7250,6 +7380,7 @@ namespace ArcSWATPlus
         // Create HRUs.
         public async Task calcHRUs() {
             this._gv.writeProjectConfig(-1, 0);
+            this.completed = false;
             var time1 = DateTime.Now;
             try {
                 using (new CursorWait()) {
@@ -7314,18 +7445,26 @@ namespace ArcSWATPlus
                             //Debug.Assert(soilTreeLayer is not null);
                             //treeModel.refreshLayerLegend(soilTreeLayer);
                         }
-                        if (this._db.writeSoilsTable() && this._db.writeLanduseTables()) {
-                            this.completed = true;
-                            this._gv.writeProjectConfig(-1, 1);
-                            this._dlg.readFromPreviousEnabled = true;
-                            var msg = string.Format("HRUs done: {0} HRUs formed with {1} channels in {2} subbasins.", this.CreateHRUs.countHRUs(), this.CreateHRUs.countChannels(), this.CreateHRUs.basins.Count);
-                            Utils.loginfo(msg);
-                            if (this._gv.isBatch) {
-                                Console.WriteLine(msg);
+                        this._dlg.progress("Writing soil data ...");
+                        var ok = this._db.writeSoilsTable();
+                        if (ok) { 
+                            this._dlg.progress("Writing landuse data ...");
+                            ok = this._db.writeLanduseTables();
+                            if (ok) {
+                                this.completed = true;
+                                this._gv.writeProjectConfig(-1, 1);
+                                this._dlg.readFromPreviousEnabled = true;
+                                var msg = string.Format("HRUs done: {0} HRUs formed with {1} channels in {2} subbasins.", this.CreateHRUs.countHRUs(), this.CreateHRUs.countChannels(), this.CreateHRUs.basins.Count);
+                                Utils.loginfo(msg);
+                                if (this._gv.isBatch) {
+                                    Console.WriteLine(msg);
+                                }
                             }
                         }
                     }
+                    this._dlg.progress("Checking routing ...");
                     this._gv.db.checkRoutingTable();
+                    this._dlg.progress("");
                 }
             }
             catch (Exception ex) {
@@ -7333,13 +7472,18 @@ namespace ArcSWATPlus
             }
             finally {
                 this._dlg.saveProj();
+                this._dlg._gw.saveToProject();
                 var time2 = DateTime.Now;
                 Utils.loginfo(string.Format("Calculating HRUs took {0} seconds", Convert.ToInt32(time2.Subtract(time1).TotalSeconds)));
                 if (this._dlg.gwflowButtonChecked) {
-                    // TODO
-                    //var gwf = GWFlow(this._gv, this._dlg.progress);
-                    //gwf.run();
-                    this._gv.writeProjectConfig(-1, -1, use_gwflow: 1);
+                    using (new CursorWait()) {
+                        var gwdb = new GwflowDB(this._gv, this._dlg);
+                        if (await gwdb.run()) {
+                            this._gv.writeProjectConfig(-1, -1, use_gwflow: 1);
+                        } else {
+                            this.completed = false;
+                        }
+                    }
                 } else {
                     this._gv.writeProjectConfig(-1, -1, use_gwflow: 0);
                 }

@@ -403,23 +403,18 @@ namespace ArcSWATPlus {
                 // much output is on standard error when there is nothing wrong,
                 // so use existence of output files as check
                 result = "";
-                while (!proc.StandardOutput.EndOfStream) {
-                    string line = proc.StandardOutput.ReadLine();
-                    if (!string.IsNullOrEmpty(line)) {
-                        if (hasGIS) {
-                            output.AppendText("\r\n" + line);
-                        }
-                        result += line + "\r\n";
+                string line;
+                while ((line = await proc.StandardOutput.ReadLineAsync()) is not null) {
+                    if (hasGIS) {
+                        output.AppendText("\r\n" + line);
                     }
+                    result += line + "\r\n";
                 }
-                while (!proc.StandardError.EndOfStream) {
-                    string line = proc.StandardError.ReadLine();
-                    if (!string.IsNullOrEmpty(line)) {
-                        if (hasGIS) {
-                            output.AppendText("\r\n" + line);
-                        }
-                        result += line + "\r\n";
+                while ((line = await proc.StandardError.ReadLineAsync()) is not null) {
+                    if (hasGIS) {
+                        output.AppendText("\r\n" + line);
                     }
+                    result += line + "\r\n";
                 }
             }
             bool ok = true;

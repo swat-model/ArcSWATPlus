@@ -1,24 +1,30 @@
-﻿using ArcGIS.Core.Internal.CIM;
+﻿using ArcGIS.Core.Data.UtilityNetwork.Trace;
+using ArcGIS.Core.Internal.CIM;
+using ArcGIS.Desktop.Catalog;
+using ArcGIS.Desktop.Core;
+using ArcGIS.Desktop.Framework.Threading.Tasks;
+using ArcGIS.Desktop.Mapping;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Internal;
+using Microsoft.Win32;
+using OSGeo.GDAL;
+using OSGeo.OGR;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.IO;
-using Path = System.IO.Path;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
-using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
-using Microsoft.Extensions.FileSystemGlobbing.Internal;
-using Microsoft.Extensions.FileSystemGlobbing;
-using Microsoft.Win32;
-using ArcGIS.Desktop.Mapping;
-using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using System.Windows;
-using ArcGIS.Desktop.Framework.Threading.Tasks;
+using System.Windows.Forms;
+using System.Windows.Media.Media3D;
+using System.Windows.Navigation;
+using OpenFileDialog = System.Windows.Forms.OpenFileDialog;
+using Path = System.IO.Path;
 
 namespace ArcSWATPlus
 {
@@ -28,6 +34,9 @@ namespace ArcSWATPlus
         public HRUs _parent;
         public DBUtils _db;
         public CreateHRUs _createHRUs;
+        public GwflowHru _gw;
+        public GridGenerator _gridGen;
+        public double _watershedArea;
 
         public HRUsForm(GlobalVars gv, HRUs parent) {
             this._gv = gv;
@@ -41,6 +50,11 @@ namespace ArcSWATPlus
         // Set up HRUs dialog.
         public async Task init() {
             this._createHRUs = this._parent.CreateHRUs;
+            this._gw = new GwflowHru(this);
+            this._gridGen = new GridGenerator(this._gv);
+            // set watershed boundary and extent
+            await this._gridGen.init();
+            this.initGridGenerator();
             this._parent._db.populateTableNames();
             this.selectLanduseTable.Items.AddRange(this._parent._db.landuseTableNames.ToArray());
             this.selectLanduseTable.Items.Add(Parameters._USECSV);
@@ -62,7 +76,7 @@ namespace ArcSWATPlus
             this.areaGroup.Enabled = false;
             this.targetGroup.Enabled = false;
             this.createButton.Enabled = false;
-            this.progressBar.Visible = false;
+            this.progressBar1.Visible = false;
             this.shortChannelGroup.Visible = !this._gv.useGridModel;
             this.remerge.Visible = !this._gv.useGridModel;
             // this.channelPercentButton.toggled.connect(this.setChannelChoice);
@@ -121,6 +135,24 @@ namespace ArcSWATPlus
             //this.splitButton.clicked.connect(this.doSplit);
             //this.elevBandsButton.clicked.connect(this.doElevBands);
             //this.HRUsTab.currentChanged.connect(this.switchTabs);
+            this._updateMinSizeLabel();
+        }
+
+        // Set up background grid generation and auto-size cells for ~200 cells.
+        public async void initGridGenerator() {
+            var extent = this._gridGen.basinExtent;
+            if (extent is not null) {
+                var areaM2 = Math.Abs((extent.MaxX - extent.MinX) * (extent.MaxY - extent.MinY));
+                this._watershedArea = areaM2;
+                var targetCells = 200;
+                var idealSize = Convert.ToInt32(Math.Sqrt(areaM2 / targetCells));
+                int magnitude = (int)Math.Pow(10, Convert.ToInt32(Math.Log10(Math.Max(idealSize, 1))));
+                idealSize = (int)Math.Max(magnitude, Math.Round((double)(idealSize / magnitude)) * magnitude);
+                this.cellSize.Value = idealSize;
+                this.maxCellSize.Value = idealSize * 3;
+                this.updateCellEstimate(areaM2);
+                this._updateMinSizeLabel();
+            }
         }
 
         // Debugging information when tab switched in HRUs form.
@@ -208,7 +240,7 @@ namespace ArcSWATPlus
                 this.selectUsersoilTableLabel.Visible = false;
                 this._db.soilDatabase = Utils.join(this._gv.dbPath, Parameters._SOILDB);
                 if (!File.Exists(this._db.soilDatabase)) {
-                    Utils.information(string.Format("To use STATSGO soils with QSWAT+ you need to download the SWAT+ STATSGO/SSURGO soil database {0} and save it as {1}.", "https://bitbucket.org/swatplus/swatplus.editor/downloads/swatplus_soils.sqlite", this._db.soilDatabase), this._gv.isBatch);
+                    Utils.information(string.Format("To use STATSGO soils with QSWAT+ you need to download the SWAT+ STATSGO/SSURGO soil database {0} and save it as {1}.", "https://plus.swat.tamu.edu/downloads/swatplus_soils.zip", this._db.soilDatabase), this._gv.isBatch);
                 }
             } else if (this.SSURGOButton.Checked) {
                 this.dbLabel.Text = "Select landuse database";
@@ -220,22 +252,15 @@ namespace ArcSWATPlus
                 this.selectUsersoilTableLabel.Visible = false;
                 this._db.soilDatabase = Utils.join(this._gv.dbPath, Parameters._SOILDB);
                 if (!File.Exists(this._db.soilDatabase)) {
-                    Utils.information(string.Format("To use SSURGO soils with QSWAT+ you need to download the SWAT+ STATSGO/SSURGO soil database {0} and save it as {1}.", "https://bitbucket.org/swatplus/swatplus.editor/downloads/swatplus_soils.sqlite", this._db.soilDatabase), this._gv.isBatch);
+                    Utils.information(string.Format("To use SSURGO soils with QSWAT+ you need to download the SWAT+ STATSGO/SSURGO soil database {0} and save it as {1}.", "https://plus.swat.tamu.edu/downloads/swatplus_soils.zip", this._db.soilDatabase), this._gv.isBatch);
                 }
             }
         }       // Allow user to select plant and soil database.
         public virtual void selectPlantSoilDatabase() {
-            string path = "";
-            //var settings = QSettings();
-            //if (settings.contains("/QSWATPlus/LastInputPath")) {
-            //    path = settings.value("/QSWATPlus/LastInputPath").ToString();
-            //} else {
-            //    path = "";
-            //}
             string db = null;
             var ft = FileTypes._SQLITE;
             using (OpenFileDialog dlg = new OpenFileDialog()) {
-                dlg.InitialDirectory = path;
+                //dlg.InitialDirectory = path;
                 dlg.Title = "Select landuse and soil database";
                 dlg.Filter = FileTypes.filter(ft);
                 //dlg.RestoreDirectory = false;
@@ -260,9 +285,8 @@ namespace ArcSWATPlus
             }
         }        // Set dialog to read from maps or from previous run.
         public virtual void setRead() {
-            // for safety always rerun reading files for HUC projects
             //Utils.loginfo("Checking BASINSDATA");
-            if (this._db.hasData("BASINSDATA") && !this._gv.isHUC) {
+            if (this._db.hasData("BASINSDATA")) {
                 this.readFromPrevious.Enabled = true;
                 this.readFromPrevious.Checked = true;
             } else {
@@ -417,8 +441,8 @@ namespace ArcSWATPlus
         }        // Load landuse file.
         public async Task getLanduseFile() {
             await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._LANDUSES));
-            (string landuseFile, Layer landuseLayer) = await Utils.openAndLoadFile(FileTypes._LANDUSES, this.selectLanduse, this._gv.landuseDir, this._gv, null, Utils._LANDUSE_GROUP_NAME, clipToDEM: true);
-            if (landuseFile is not null  && landuseLayer is not null) {
+            (string landuseFile, ArcGIS.Desktop.Mapping.Layer landuseLayer) = await Utils.openAndLoadFile(FileTypes._LANDUSES, this.selectLanduse, this._gv.landuseDir, this._gv, null, Utils._LANDUSE_GROUP_NAME, clipToDEM: true);
+            if (landuseFile is not null && landuseLayer is not null) {
                 this._parent.landuseFile = landuseFile;
                 this._parent.landuseLayer = landuseLayer as RasterLayer;
                 await QueuedTask.Run(() => landuseLayer.SetVisibility(false));
@@ -428,7 +452,7 @@ namespace ArcSWATPlus
         // Load soil file.
         public async Task getSoilFile() {
             await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._SOILS));
-            (string soilFile, Layer soilLayer) = await Utils.openAndLoadFile(FileTypes._SOILS, this.selectSoil, this._gv.soilDir, this._gv, null, Utils._SOIL_GROUP_NAME, clipToDEM: true);
+            (string soilFile, ArcGIS.Desktop.Mapping.Layer soilLayer) = await Utils.openAndLoadFile(FileTypes._SOILS, this.selectSoil, this._gv.soilDir, this._gv, null, Utils._SOIL_GROUP_NAME, clipToDEM: true);
             if (soilFile is not null && soilLayer is not null) {
                 this._parent.soilFile = soilFile;
                 this._parent.soilLayer = soilLayer as RasterLayer;
@@ -757,7 +781,7 @@ namespace ArcSWATPlus
             int index;
             string soilFile;
             string possFile;
-            Layer layer;
+            ArcGIS.Desktop.Mapping.Layer layer;
             string landuseFile;
             var proj = this._gv.proj;
             var title = proj.Name;
@@ -984,11 +1008,20 @@ namespace ArcSWATPlus
             if (found && this._createHRUs.targetVal > 0) {
                 this.targetVal.Text = this._createHRUs.targetVal.ToString();
             }
+            this.gwGroupBox.Visible = true;
             (bool useGWFlow, found) = proj.readBoolEntry(title, "hru/useGWFlow", false);
-            if (found && useGWFlow) {
-                this.gwGroupBox.Visible = true;
-                this.gwflowButton.Checked = true;
+            if (found) {
+                if (useGWFlow) {
+                    this.gwflowButton.Checked = true;
+                    // gwflow needs actHRUs shapefile, which needs fullHRUs shapefile
+                    if (this.readFromMapsChecked) {
+                        this.generateFullHRUsChecked = true;
+                    }
+                } else {
+                    this.SWATAquifersButton.Checked = true;
+                }
             }
+            this._gw.loadFromProject();
         }
 
         // Write landuse, soil, and landscape choices to project file.
@@ -1177,6 +1210,8 @@ namespace ArcSWATPlus
             await this._parent.calcHRUs();
         }
 
+
+
         private void cancelButton_Click(object sender, EventArgs e) {
             this._parent.cancel();
         }
@@ -1246,12 +1281,284 @@ namespace ArcSWATPlus
             this.switchTabs();
         }
 
-        public GroupBox gwGroup {
-            get { return this.gwGroupBox; }
+        private void structuredRadio_CheckedChanged(object sender, EventArgs e) {
+            this._toggleGridType(this.structuredRadio.Checked);
+        }
+
+        private void unstructuredRadio_CheckedChanged(object sender, EventArgs e) {
+            this._toggleGridType(this.structuredRadio.Checked);
+        }
+
+        public virtual void _toggleGridType(bool structured) {
+            this.structuredWidget.Visible = structured;
+            this.unstructuredWidget.Visible = !structured;
+        }
+
+        private void useTileDrains_CheckedChanged(object sender, EventArgs e) {
+            this._toggleTile(useTileDrains.Checked);
+        }
+
+        public virtual void _toggleTile(bool on) {
+            this.tileDrains.Enabled = on;
+            this.tileDrainsButton.Enabled = on;
+        }
+
+        private void refineTopography_CheckedChanged(object sender, EventArgs e) {
+            this._toggleElevTolerance(this.refineTopography.Checked);
+        }
+
+        public virtual void _toggleElevTolerance(bool on) {
+            this.elevTolLabel.Visible = on;
+            this.elevTolerance.Visible = on;
+        }
+
+        public void enableCreateButton (bool enable) {
+            this.createButton.Enabled = enable;
+        }
+
+        private void transitionSlider_Scroll(object sender, EventArgs e) {
+            this.transitionSpin.Value = Convert.ToDecimal(this.transitionSlider.Value / 10.0);
+        }
+
+        private void transitionSpin_ValueChanged(object sender, EventArgs e) {
+            this.transitionSlider.Value = Convert.ToInt32(this.transitionSpin.Value * 10);
+        }
+
+        private void SWATAquifersButton_CheckedChanged(object sender, EventArgs e) {
+            bool useGwflow = !SWATAquifersButton.Checked;
+            gwflowHruWidget.Visible = useGwflow;
+        }
+
+        private void gwflowButton_CheckedChanged(object sender, EventArgs e) {
+            bool useGwflow = gwflowButton.Checked;
+            gwflowHruWidget.Visible = useGwflow;
+        }
+
+        private async void aquiferThicknessButton_Click(object sender, EventArgs e) {
+            await this._browseThickness();
+        }
+
+        private void aquiferPermeabilityButton_Click(object sender, EventArgs e) {
+            this._browsePermeability();
+        }
+
+        private void tileDrainsButton_Click(object sender, EventArgs e) {
+            this._browseTileDrains();
+        }
+
+        public virtual async Task _browseThickness() {
+            var gwflowDir = Utils.join(this._gv.projDir, "gwflowFiles");
+            if (!Directory.Exists(gwflowDir)) {
+                Directory.CreateDirectory(gwflowDir);
+            }
+            // for this filetype the file will not be loaded or opened, but will be copied if nesessary to gwflowDir
+            var thicknessFile = (await Utils.openAndLoadFile(FileTypes._AQUIFERTHICKNESS, this.aquiferThickness, gwflowDir,
+                this._gv, null, "")).Item1;
+            if (thicknessFile is null) { return; }
+            this.aquiferThickness.Text = thicknessFile;
+            // check projection
+            var projEpsg = this._gv.crsProject.LatestWkid.ToString();
+            using (Dataset ds = Gdal.Open(thicknessFile, Access.GA_ReadOnly)) {
+                var projection = ds.GetSpatialRef();
+                var epsg = projection.GetAuthorityCode(null);
+                if (epsg != projEpsg) {
+                    Utils.information(string.Format("Thickness raster {0} has projection EPSG '{1}' different from the project EPSG '{2}'.  " +
+                        "Do you need to reproject it?", thicknessFile, epsg, projEpsg), this._gv.isBatch);
+                }
+            }
+        }
+
+        public virtual void _browsePermeability() {
+            var dlg = new OpenItemDialog {
+                Title = "Select aquifer permeability shapefile",
+                MultiSelect = false,
+                Filter = FileTypes.filter(FileTypes._PERMEABILITY)
+            };
+            var ok = dlg.ShowDialog();
+            if (!ok.HasValue || dlg.Items.Count == 0) {
+                return;
+            }
+            var item = dlg.Items.FirstOrDefault();
+            var gwflowDir = Utils.join(this._gv.projDir, "gwflowFiles");
+            if (!Directory.Exists(gwflowDir)) {
+                Directory.CreateDirectory(gwflowDir);
+            }
+            var permFile = item.Path;
+            if (File.Exists(permFile)) {
+                // this is a no-op if permFile is gwflowDir/permeability.shp
+                Utils.copyShapefile(permFile, "permeability", gwflowDir);
+                permFile = Utils.join(gwflowDir, "permeability.shp");
+                this.aquiferPermeability.Text = permFile;
+                // check projection
+                var projEpsg = this._gv.crsProject.LatestWkid.ToString();
+                using (var driver = Ogr.GetDriverByName("ESRI Shapefile")) {
+                    var ds = driver.Open(permFile, 0);
+                    var layer = ds.GetLayerByIndex(0);
+                    var projection = layer.GetSpatialRef();
+                    var epsg = projection.GetAuthorityCode(null);
+                    if (epsg != projEpsg) {
+                        Utils.information(string.Format("Permeability shapefile {0} has projection EPSG '{1}' different from the project EPSG '{2}'.  " +
+                            "Do you need to reproject it?", item.Path, epsg, projEpsg), this._gv.isBatch);
+                    }
+                }
+            }
+        }
+
+        public virtual void _browseTileDrains() {
+            var dlg = new OpenItemDialog {
+                Title = "Select tile drains shapefile",
+                MultiSelect = false,
+                Filter = FileTypes.filter(FileTypes._TILEDRAINS)
+            };
+            var ok = dlg.ShowDialog();
+            if (!ok.HasValue || dlg.Items.Count == 0) {
+                return;
+            }
+            var item = dlg.Items.FirstOrDefault();
+            var gwflowDir = Utils.join(this._gv.projDir, "gwflowFiles");
+            if (!Directory.Exists(gwflowDir)) {
+                Directory.CreateDirectory(gwflowDir);
+            }
+            var tileDrainsFile = item.Path;
+            if (File.Exists(tileDrainsFile)) {
+                // this is a no-op if tileDrainsFile is gwflowDir/tileDrains.shp
+                Utils.copyShapefile(tileDrainsFile, "tileDrains", gwflowDir);
+                tileDrainsFile = Utils.join(gwflowDir, "tileDrains.shp");
+                this.tileDrains.Text = tileDrainsFile;
+                // check projection
+                var projEpsg = this._gv.crsProject.LatestWkid.ToString();
+                using (var driver = Ogr.GetDriverByName("ESRI Shapefile")) {
+                    var ds = driver.Open(tileDrainsFile, 0);
+                    var layer = ds.GetLayerByIndex(0);
+                    var projection = layer.GetSpatialRef();
+                    var epsg = projection.GetAuthorityCode(null);
+                    if (epsg != projEpsg) {
+                        Utils.information(string.Format("Tile drains shapefile {0} has projection EPSG '{1}' different from the project EPSG '{2}'.  " +
+                            "Do you need to reproject it?", item.Path, epsg, projEpsg), this._gv.isBatch);
+                    }
+                }
+            }
+        }
+
+        private void cellSize_ValueChanged(object sender, EventArgs e) {
+            if (this._watershedArea > 0) {
+                this.updateCellEstimate(this._watershedArea);
+            }
+        }
+
+        public virtual void updateCellEstimate(double areaM2) {
+            var size = Convert.ToInt32(this.cellSize.Value);
+            if (size > 0) {
+                var cells = Convert.ToInt32(areaM2 / (size * size));
+                this.cellEstimateLabel.Text = string.Format("\u2248 {0:N0} cells (based on watershed area)", cells);
+            }
+        }
+
+        public virtual void _updateMinSizeLabel() {
+            var maxSz = Convert.ToInt32(this.maxCellSize.Value);
+            var levels = Convert.ToInt32(this.refineLevels.Value);
+            var minSz = maxSz / Math.Pow(2, levels);
+            this.minSizeLabel.Text = string.Format("Min cell size: {0:F1} m  (max / 2^{1})", minSz, levels);
+        }
+
+        private void maxCellSize_ValueChanged(object sender, EventArgs e) {
+            this._updateMinSizeLabel();
+        }
+
+        private void refineLevels_ValueChanged(object sender, EventArgs e) {
+            this._updateMinSizeLabel();
+        }
+
+        public string _aquiferPermeability {
+            get { return this.aquiferPermeability.Text; }
+            set { this.aquiferPermeability.Text = value; }
+        }
+
+        public string _aquiferThickness {
+            get { return this.aquiferThickness.Text; }
+            set { this.aquiferThickness.Text = value; }
+        }
+
+        public string _tileDrains {
+            get { return this.tileDrains.Text; }
+            set { this.tileDrains.Text = value; }
+        }
+
+        public bool isStructured {
+            get { return this.structuredRadio.Checked; }
+            set {
+                if (value) {
+                    this.structuredRadio.Checked = true;
+                } else {
+                    this.unstructuredRadio.Checked = true;
+                }
+            }
+        }
+
+        public bool _useTileDrains {
+            get { return this.useTileDrains.Checked; }
+            set { this.useTileDrains.Checked = value; }
+        }
+
+        public int _cellSize {
+            get { return (int)this.cellSize.Value; }
+            set { this.cellSize.Value = value; }
+        }
+
+        public int _maxCellSize {
+            get { return (int)this.maxCellSize.Value; }
+            set { this.maxCellSize.Value = value; }
+        }
+
+        public int _levels {
+            get { return (int)this.refineLevels.Value; }
+            set { this.refineLevels.Value = value; }
+        }
+
+        public double transitionRate {
+            get { return (double)this.transitionSpin.Value; }
+            set { this.transitionSpin.Value = (decimal)value; }
+        }
+
+        public bool _refineStreams {
+            get { return this.refineStreams.Checked; }
+            set { this.refineStreams.Checked = value; }
+        }
+
+        public bool _refineTopography {
+            get { return this.refineTopography.Checked; }
+            set { this.refineTopography.Checked = value; }
+        }
+
+        public bool _refineBoundary {
+            get { return this.refineBoundary.Checked; }
+            set { this.refineBoundary.Checked = value; }
+        }
+
+        public bool _refineWells {
+            get { return this.refineWells.Checked; }
+            set { this.refineWells.Checked = value; }
+        }
+
+        public int _elevTolerance {
+            get { return (int)this.elevTolerance.Value; }
+            set { this.elevTolerance.Value = value; }
+        }
+
+        public bool alignToGrid {
+            get { return alignGrids.Checked; }
+            set { alignGrids.Checked = value; }
+        }
+
+        private void generateGridButton_Click(object sender, EventArgs e) {
+            if (this._gridGen is null) {
+                return;
+            }
+            this._gridGen.requestGeneration(this);
         }
 
         public TabControl mainTab {
-            get { return this.HRUsTab; } 
+            get { return this.HRUsTab; }
         }
 
         public TabPage tab1 {
@@ -1299,6 +1606,7 @@ namespace ArcSWATPlus
 
         public bool generateFullHRUsChecked {
             get { return this.generateFullHRUs.Checked; }
+            set { this.generateFullHRUs.Checked = value; }
         }
 
         public bool dominantHRUButtonChecked {
@@ -1326,7 +1634,11 @@ namespace ArcSWATPlus
         }
 
         public ProgressBar getProgressBar {
-            get { return this.progressBar; }
+            get {
+                if (this.HRUsTab.SelectedIndex == 0) {
+                    return this.progressBar1;
+                } else { return this.progressBar2; }
+            }
         }
 
         public bool remergeEnabled {
@@ -1335,8 +1647,8 @@ namespace ArcSWATPlus
         }
 
         public bool readFromPreviousEnabled {
-            get { return this.readFromPrevious.Enabled;}
-            set { this.readFromPrevious.Enabled = value;}
+            get { return this.readFromPrevious.Enabled; }
+            set { this.readFromPrevious.Enabled = value; }
         }
 
         public bool hruChoiceGroupEnabled {

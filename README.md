@@ -1,10 +1,10 @@
-### Building and using SWATPlus for ArcGIS Pro###
+### Building and using SWATPlus for ArcGIS Pro ###
 
-##Introduction##
+## Introduction ##
 
 ArcSWATPlus (and ArcSWAT) is built as an add-in for ArcGIS Pro, and once installed will be found in Documents/ArcGIS/Addins/ArcGISPro/{*id*}/ArcSWATPlus*M.N*.esriAddinX, where *id* is an identifier unique to the project, and M and N are athe major and minor version numbers of the intended version of ArcGIS Pro.  Each *M.N* pair is a different project.
 
-##Build system file structure##
+## Build system file structure ##
 
 There is a folder ArcSWATPlus which contains 
 1. The Visual Studio solution *ArcSWATPlus.sln*. 
@@ -26,14 +26,14 @@ The *Config.daml* files are identical except that:
 
 Building a project should generate a .esriAddinX file in bin/x64/(Debug|Release)/net8.0-windows7.0.  If it does not, change the Copy to Output Directory property of Config.daml to *Do not copy*, build the project, then change the property back to *Copy always* and build again.  The file is required in the add-in for the version number to be read from it, but this setting can interfere with the build.
 
-##Running ArcSWATPlus##
+## Running ArcSWATPlus ##
 
 Double click on the .esriAddinX file to install it, choosing the one that matches the major.minor version of the ArcGIS Pro you are using.  After starting ArcGIS Pro you will see **ArcSWAT+** in the top row of headings.  Double click it and a start button will appear.  Check that this says it is for the correct major.minor version of ArcGIS Pro you are running.  You can click on Project and then About to see the ArcGIS Pro version.
 
 The main ArcSWAT+ form is the same as that for QGIS and you run projects in the same way.
 
 There are two differences in visualisation:
-1.  Animation does not work in ArcGIS Pro.  
+1.  Animation only works at lower speeds.  
 2.  Static result maps are created in new map panels.  This changes how print layouts are created.  The inital template is selected as in QSWAT+, by choosing lanscape or portrait and the number of maps.  But then the separate panels need to be added by selecting a Map Frame in the Layout, choosing the Element tab on the right, and then selecting the desired map in the pull-down menu under Map Frame.
 
 

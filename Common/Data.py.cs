@@ -112,7 +112,8 @@ namespace ArcSWATPlus {
         _RESERVOIR = 1,
         _POND = 2,
         _WETLAND = 3,
-        _PLAYA = 4
+        _PLAYA = 4,
+        _WELLTYPE = 5
     }
     public class WaterBody {
 

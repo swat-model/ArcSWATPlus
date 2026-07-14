@@ -115,8 +115,6 @@ namespace ArcSWATPlus
 
         public static string _STILLPNG = "still.png";
 
-        public static string _SSURGODB_HUC = "SSURGO_Soils_HUC.sqlite";
-
         public static int _SSURGOWater = 377988;
 
         public static string _WATERBODIES = "WaterBodies.sqlite";
@@ -195,13 +193,15 @@ namespace ArcSWATPlus
 
         public static double _SQMETRESTOSQFEET = 10.76391;
 
+        public static double _ACREFEETTOCUBICMETRES = 1233.4818375475;
+
         public static int _DEFAULTFONTSIZE = 9;
 
         public static int _PLOTFONTSIZE = 9;
 
         public static int _RIVS1SUBS1MAX = 100000;
 
-        public static int _GRIDCELLSMAX = 10000;
+        public static int _GRIDCELLSMAX = 100000;
 
         public static double _NEARNESSTHRESHOLD = 0.51;
 
@@ -217,9 +217,17 @@ namespace ArcSWATPlus
 
         public static double _BURNINDEPTH = 50;
 
+        // percentage of upslope HRU drainage that goes to channel (or reservoir).  Remainder goes to floodplain LSU.
         public static double _UPSLOPEHRUDRAIN = 90;
 
+        //  minimum percentage of the drain area of a lake outlet channel to the lake area for it not to be absorbed into the lake
         public static double _LAKEOUTLETCHANNELAREA = 1;
+
+        //  minimum length of lake outlet channel (in dem cells) for it not to be absorbed
+        public static double _LAKEOUTLETCHANNELLENGTH = 5;
+
+        // in HUC/HAWQS models, minimum volume for lake with FTYPE Pond to be classed as reservoir: cubic metre equivalence to 25000 acre-feet
+        public static double _RESERVOIRVOLUME = 30837046;
 
         public static double _MULTIPLIER = 1.0;
 

@@ -600,18 +600,6 @@ namespace ArcSWATPlus
                     }
                 }
                 this._gv.slopeFile = @base + "slp.tif";
-                // GRASS slope file should be based on original DEM
-                if (this._gv.fromGRASS && this._gv.slopeFile.EndsWith("_burnedslp.tif")) {
-                    var unburnedslp = this._gv.slopeFile.Replace("_burnedslp.tif", "slp.tif");
-                    if (System.IO.File.Exists(unburnedslp)) {
-                        this._gv.slopeFile = unburnedslp;
-                    }
-                }
-                // if slope file was based on burned-in dem, replace with one produced without burning in
-                var noBurnSlopeFile = @base + "slope.tif";
-                if (Utils.isUpToDate(this._gv.slopeFile, noBurnSlopeFile)) {
-                    this._gv.slopeFile = noBurnSlopeFile;
-                }
                 if (!System.IO.File.Exists(this._gv.slopeFile)) {
                     Utils.loginfo("demProcessed failed: no slope raster");
                     return false;
