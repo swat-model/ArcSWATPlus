@@ -139,7 +139,7 @@ namespace ArcSWATPlus
         }
 
         // Set up background grid generation and auto-size cells for ~200 cells.
-        public async void initGridGenerator() {
+        public void initGridGenerator() {
             var extent = this._gridGen.basinExtent;
             if (extent is not null) {
                 var areaM2 = Math.Abs((extent.MaxX - extent.MinX) * (extent.MaxY - extent.MinY));
@@ -276,11 +276,11 @@ namespace ArcSWATPlus
                 this._db.urbanTableNames = this._db.collectPlantSoilTableNames("urban", this.selectUrbanTable);
                 // combo boxes may have changed, so reset plant, urban and usersoil choices
                 // according to first entry in combo box
-                this.setPlantTable();
-                this.setUrbanTable();
+                this._parent.setPlantTable();
+                this._parent.setUrbanTable();
                 if (!(this._db.useSTATSGO || this._db.useSSURGO)) {
                     this._db.usersoilTableNames = this._db.collectPlantSoilTableNames("usersoil", this.selectUsersoilTable);
-                    this.setUsersoilTable();
+                    this._parent.setUsersoilTable();
                 }
             }
         }        // Set dialog to read from maps or from previous run.
@@ -438,93 +438,6 @@ namespace ArcSWATPlus
                     this.landuseSlider.Value = Convert.ToInt32(this._createHRUs.landuseVal);
                 }
             }
-        }        // Load landuse file.
-        public async Task getLanduseFile() {
-            await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._LANDUSES));
-            (string landuseFile, ArcGIS.Desktop.Mapping.Layer landuseLayer) = await Utils.openAndLoadFile(FileTypes._LANDUSES, this.selectLanduse, this._gv.landuseDir, this._gv, null, Utils._LANDUSE_GROUP_NAME, clipToDEM: true);
-            if (landuseFile is not null && landuseLayer is not null) {
-                this._parent.landuseFile = landuseFile;
-                this._parent.landuseLayer = landuseLayer as RasterLayer;
-                await QueuedTask.Run(() => landuseLayer.SetVisibility(false));
-            }
-        }
-
-        // Load soil file.
-        public async Task getSoilFile() {
-            await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._SOILS));
-            (string soilFile, ArcGIS.Desktop.Mapping.Layer soilLayer) = await Utils.openAndLoadFile(FileTypes._SOILS, this.selectSoil, this._gv.soilDir, this._gv, null, Utils._SOIL_GROUP_NAME, clipToDEM: true);
-            if (soilFile is not null && soilLayer is not null) {
-                this._parent.soilFile = soilFile;
-                this._parent.soilLayer = soilLayer as RasterLayer;
-                await QueuedTask.Run(() => soilLayer.SetVisibility(false));
-            }
-        }
-
-        // Set landuse table.
-        public virtual void setLanduseTable() {
-            var table = this.selectLanduseTable.Text;
-            if (table == Parameters._USECSV) {
-                table = this._db.readLanduseCsv();
-                if (table != "") {
-                    this.selectLanduseTable.Items.Insert(0, table);
-                    this.selectLanduseTable.SelectedIndex = 0;
-                }
-            }
-            this._parent.landuseTable = table;
-            this.setToReadFromMaps();
-        }
-
-        // Set soil table.
-        public virtual void setSoilTable() {
-            var table = this.selectSoilTable.Text;
-            if (table == Parameters._USECSV) {
-                table = this._db.readSoilCsv();
-                if (table != "") {
-                    this.selectSoilTable.Items.Insert(0, table);
-                    this.selectSoilTable.SelectedIndex = 0;
-                }
-            }
-            this._parent.soilTable = table;
-            this.setToReadFromMaps();
-        }
-
-        // Set plant table.
-        public virtual void setPlantTable() {
-            var table = this.selectPlantTable.Text;
-            if (table == Parameters._USECSV) {
-                table = this._db.readPlantCsv();
-                if (table != "") {
-                    this.selectPlantTable.Items.Insert(0, table);
-                    this.selectPlantTable.SelectedIndex = 0;
-                }
-            }
-            this._db.plantTable = table;
-        }
-
-        // Set urban table.
-        public virtual void setUrbanTable() {
-            var table = this.selectUrbanTable.Text;
-            if (table == Parameters._USECSV) {
-                table = this._db.readUrbanCsv();
-                if (table != "") {
-                    this.selectUrbanTable.Items.Insert(0, table);
-                    this.selectUrbanTable.SelectedIndex = 0;
-                }
-            }
-            this._db.urbanTable = table;
-        }
-
-        // Set usersoil table.
-        public virtual void setUsersoilTable() {
-            var table = this.selectUsersoilTable.Text;
-            if (table == Parameters._USECSV) {
-                table = this._db.readUsersoilCsv();
-                if (table != "") {
-                    this.selectUsersoilTable.Items.Insert(0, table);
-                    this.selectUsersoilTable.SelectedIndex = 0;
-                }
-            }
-            this._db.usersoilTable = table;
         }
 
         // Read channel merge threshold.
@@ -1083,6 +996,21 @@ namespace ArcSWATPlus
             proj.writeEntryBool(title, "hru/useGWFlow", this.gwflowButton.Checked);
         }
 
+        public TextBox hrusSelectLanduse => selectLanduse;
+
+        public TextBox hrusSelectSoil => selectSoil;
+
+        public ComboBox hrusSelectLanduseTable => selectLanduseTable;
+
+        public ComboBox hrusSelectSoilTable => selectSoilTable;
+
+        public ComboBox hrusSelectPlantTable => selectPlantTable;
+
+        public ComboBox hrusSelectUrbanTable => selectUrbanTable;
+
+        public ComboBox hrusSelectUsersoilTable => selectUsersoilTable;
+
+
         private void usersoilButton_CheckedChanged(object sender, EventArgs e) {
             this.setSoilData();
         }
@@ -1160,31 +1088,31 @@ namespace ArcSWATPlus
         }
 
         private async void selectLanduseButton_Click(object sender, EventArgs e) {
-            await this.getLanduseFile();
+            await this._parent.getLanduseFile();
         }
 
         private async void selectSoilButton_Click(object sender, EventArgs e) {
-            await this.getSoilFile();
+            await this._parent.getSoilFile();
         }
 
         private void selectLanduseTable_SelectedIndexChanged(object sender, EventArgs e) {
-            this.setLanduseTable();
+            this._parent.setLanduseTable();
         }
 
         private void selectSoilTable_SelectedIndexChanged(object sender, EventArgs e) {
-            this.setSoilTable();
+            this._parent.setSoilTable();
         }
 
         private void selectPlantTable_SelectedIndexChanged(object sender, EventArgs e) {
-            this.setPlantTable();
+            this._parent.setPlantTable();
         }
 
         private void selectUrbanTable_SelectedIndexChanged(object sender, EventArgs e) {
-            this.setUrbanTable();
+            this._parent.setUrbanTable();
         }
 
         private void selectUsersoilTable_SelectedIndexChanged(object sender, EventArgs e) {
-            this.setUsersoilTable();
+            this._parent.setUsersoilTable();
         }
 
         private void insertButton_Click(object sender, EventArgs e) {

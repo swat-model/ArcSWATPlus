@@ -1314,15 +1314,15 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 }
 
                 using (var transaction = this.conn.BeginTransaction()) {
-                    using (var cmd = new SQLiteCommand("", localConn, transaction)) {
-                        cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_NAME);
-                        cmd.ExecuteNonQuery();
-                        cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_TABLE);
-                        cmd.ExecuteNonQuery();
-                        cmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_LAYER_NAME);
-                        cmd.ExecuteNonQuery();
-                        cmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_LAYER_NAME, DBUtils._SOILS_SOL_LAYER_TABLE);
-                        cmd.ExecuteNonQuery();
+                    using (SQLiteCommand writeCmd = new SQLiteCommand("", this.conn, transaction), readCmd = new SQLiteCommand("", localConn)) {
+                        writeCmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_NAME);
+                        writeCmd.ExecuteNonQuery();
+                        writeCmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_TABLE);
+                        writeCmd.ExecuteNonQuery();
+                        writeCmd.CommandText = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._SOILS_SOL_LAYER_NAME);
+                        writeCmd.ExecuteNonQuery();
+                        writeCmd.CommandText = string.Format("CREATE TABLE {0} {1}", DBUtils._SOILS_SOL_LAYER_NAME, DBUtils._SOILS_SOL_LAYER_TABLE);
+                        writeCmd.ExecuteNonQuery();
                         var insert = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)", DBUtils._SOILS_SOL_NAME);
                         var insertLayer = string.Format("INSERT INTO {0} VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17)", DBUtils._SOILS_SOL_LAYER_NAME);
                         string sql = null;
@@ -1350,12 +1350,12 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                         }
                         var sid = 0;
                         var lid = 0;
-                        cmd.CommandText = sql;
+                        readCmd.CommandText = sql;
                         if (this.useSSURGO) {
                             foreach (var ssurgoId in this.usedSSURGOSoils) {
-                                cmd.Parameters.Clear();
-                                cmd.Parameters.AddWithValue("@p1", ssurgoId);
-                                using (var readerSSURGO = cmd.ExecuteReader()) {
+                                readCmd.Parameters.Clear();
+                                readCmd.Parameters.AddWithValue("@p1", ssurgoId);
+                                using (var readerSSURGO = readCmd.ExecuteReader()) {
                                     if (!readerSSURGO.HasRows) {
                                         if (this.isHUC || this.isHAWQS) {
                                             continue;
@@ -1368,38 +1368,38 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                     }
                                     sid += 1;
                                     if (hasSeparateLayerTable) {
-                                        lid = this.writeUsedSoilRowSeparate(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, sqlLayer, transaction);
+                                        lid = this.writeUsedSoilRowSeparate(sid, lid, ssurgoId.ToString(), writeCmd, readerSSURGO, insert, insertLayer, localConn, sqlLayer);
                                     } else {
-                                        lid = this.writeUsedSoilRow(sid, lid, ssurgoId.ToString(), cmd, readerSSURGO, insert, insertLayer, transaction);
+                                        lid = this.writeUsedSoilRow(sid, lid, ssurgoId.ToString(), writeCmd, readerSSURGO, insert, insertLayer);
                                     }
                                 }
                             }
                         } else {
                             foreach (string name in this.usedSoilNames.Values) {
                                 // Utils.loginfo("Used soil " + name);
-                                cmd.Parameters.Clear();
+                                readCmd.Parameters.Clear();
                                 if (this.useSTATSGO) {
                                     if (this.useS5id) {
-                                        cmd.Parameters.AddWithValue("@p1", name);
+                                        readCmd.Parameters.AddWithValue("@p1", name);
                                     } else if (this.addSeqn || this.addName) {
-                                        cmd.Parameters.AddWithValue("@p1", name.Substring(0, 5));
-                                        cmd.Parameters.AddWithValue("@p2", name.Substring(6));
+                                        readCmd.Parameters.AddWithValue("@p1", name.Substring(0, 5));
+                                        readCmd.Parameters.AddWithValue("@p2", name.Substring(6));
                                     } else {
-                                        cmd.Parameters.AddWithValue("@p1", name);
+                                        readCmd.Parameters.AddWithValue("@p1", name);
                                     }
                                 } else {
-                                    cmd.Parameters.AddWithValue("@p1", name);
+                                    readCmd.Parameters.AddWithValue("@p1", name);
                                 }
-                                using (var reader = cmd.ExecuteReader()) {
+                                using (var reader = readCmd.ExecuteReader()) {
                                     if (!reader.HasRows) {
                                         Utils.error(string.Format("Soil name {0} (and perhaps others) not defined in {1} table in database {2}.  {3} table not written.", name, usersoilTable, database, DBUtils._SOILS_SOL_NAME), this.isBatch);
                                         return false;
                                     }
                                     sid += 1;
                                     if (hasSeparateLayerTable) {
-                                        lid = this.writeUsedSoilRowSeparate(sid, lid, name, cmd, reader, insert, insertLayer, sqlLayer, transaction);
+                                        lid = this.writeUsedSoilRowSeparate(sid, lid, name, writeCmd, reader, insert, insertLayer, localConn, sqlLayer);
                                     } else {
-                                        lid = this.writeUsedSoilRow(sid, lid, name, cmd, reader, insert, insertLayer, transaction);
+                                        lid = this.writeUsedSoilRow(sid, lid, name, writeCmd, reader, insert, insertLayer);
                                     }
                                 }
                             }
@@ -1426,43 +1426,40 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             int sid,
             int lid,
             string name,
-            SQLiteCommand cmd0,
+            SQLiteCommand writeCmd,
             SQLiteDataReader reader,
             string insert,
-            string insertLayer,
-            SQLiteTransaction transaction) {
-            reader.Read();
-            // needs new command since existing one used to make reader
-            SQLiteCommand cmd = new SQLiteCommand("", this.conn, transaction);  
-            cmd.CommandText = insert;
-            cmd.Parameters.Clear();
-            cmd.Parameters.AddWithValue("@p1", sid);
-            cmd.Parameters.AddWithValue("@p2", name);
-            cmd.Parameters.AddWithValue("@p3", reader.GetValue(7));
-            cmd.Parameters.AddWithValue("@p4", reader.GetValue(8));
-            cmd.Parameters.AddWithValue("@p5", reader.GetValue(9));
-            cmd.Parameters.AddWithValue("@p6", reader.GetValue(10));
-            cmd.Parameters.AddWithValue("@p7", reader.GetValue(11));
-            cmd.Parameters.AddWithValue("@p8", null);
-            cmd.ExecuteNonQuery();
+            string insertLayer) {
+            reader.Read();  
+            writeCmd.CommandText = insert;
+            writeCmd.Parameters.Clear();
+            writeCmd.Parameters.AddWithValue("@p1", sid);
+            writeCmd.Parameters.AddWithValue("@p2", name);
+            writeCmd.Parameters.AddWithValue("@p3", reader.GetValue(7));
+            writeCmd.Parameters.AddWithValue("@p4", reader.GetValue(8));
+            writeCmd.Parameters.AddWithValue("@p5", reader.GetValue(9));
+            writeCmd.Parameters.AddWithValue("@p6", reader.GetValue(10));
+            writeCmd.Parameters.AddWithValue("@p7", reader.GetValue(11));
+            writeCmd.Parameters.AddWithValue("@p8", null);
+            writeCmd.ExecuteNonQuery();
             var startLayer1 = 12; // index of SOL_Z1
             var layerWidth = 12;  // number of entries per layer
             var startCal = 132;   // index of SOL_CAL1
             var startPh = 142;    // index of SOL_PH1
-            cmd.CommandText = insertLayer;
+            writeCmd.CommandText = insertLayer;
             var nLayers = Convert.ToInt32(reader.GetValue(6));
             foreach (var i in Enumerable.Range(0, nLayers)) {
                 lid += 1;
                 var startLayer = startLayer1 + i * layerWidth;
-                cmd.Parameters.AddWithValue("@p1", lid);
-                cmd.Parameters.AddWithValue("@p2", sid);
-                cmd.Parameters.AddWithValue("@p3", i + 1);
+                writeCmd.Parameters.AddWithValue("@p1", lid);
+                writeCmd.Parameters.AddWithValue("@p2", sid);
+                writeCmd.Parameters.AddWithValue("@p3", i + 1);
                 for (int j = 0; j < layerWidth; j++) {
-                    cmd.Parameters.AddWithValue(string.Format("@p{0}", j + 4), reader.GetValue(startLayer + j));
+                    writeCmd.Parameters.AddWithValue(string.Format("@p{0}", j + 4), reader.GetValue(startLayer + j));
                 }
-                cmd.Parameters.AddWithValue("@p16", reader.GetValue(startCal + i));
-                cmd.Parameters.AddWithValue("@p17", reader.GetValue(startPh + i));
-                cmd.ExecuteNonQuery();
+                writeCmd.Parameters.AddWithValue("@p16", reader.GetValue(startCal + i));
+                writeCmd.Parameters.AddWithValue("@p17", reader.GetValue(startPh + i));
+                writeCmd.ExecuteNonQuery();
             }
             return lid;
         }
@@ -1474,59 +1471,55 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             int sid,
             int lid,
             string name,
-            SQLiteCommand cmd0,
+            SQLiteCommand writeCmd,
             SQLiteDataReader reader,
             string insert,
             string insertLayer,
-            string sqlLayer,
-            SQLiteTransaction transaction)
+            SQLiteConnection localConn,
+            string sqlLayer)
         {
             reader.Read();
-            // needs new command since existing one used to make reader
-            SQLiteCommand cmd = new SQLiteCommand("", this.conn, transaction);
-            cmd.CommandText = insert;
-            cmd.Parameters.Clear();
-            cmd.Parameters.AddWithValue("@p1", sid);
-            cmd.Parameters.AddWithValue("@p2", name);
+            writeCmd.CommandText = insert;
+            writeCmd.Parameters.Clear();
+            writeCmd.Parameters.AddWithValue("@p1", sid);
+            writeCmd.Parameters.AddWithValue("@p2", name);
             //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(6)));
-            cmd.Parameters.AddWithValue("@p3", reader.GetValue(6));
+            writeCmd.Parameters.AddWithValue("@p3", reader.GetValue(6));
             //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(7)));
-            cmd.Parameters.AddWithValue("@p4", reader.GetValue(7));
+            writeCmd.Parameters.AddWithValue("@p4", reader.GetValue(7));
             //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(8)));
-            cmd.Parameters.AddWithValue("@p5", reader.GetValue(8));
+            writeCmd.Parameters.AddWithValue("@p5", reader.GetValue(8));
             //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(9)));
-            cmd.Parameters.AddWithValue("@p6", reader.GetValue(9));
+            writeCmd.Parameters.AddWithValue("@p6", reader.GetValue(9));
             //Utils.loginfo(String.Format("Value |{0}|", reader.GetValue(10)));
-            cmd.Parameters.AddWithValue("@p7", reader.GetValue(10));
+            writeCmd.Parameters.AddWithValue("@p7", reader.GetValue(10));
             // check whether there is a non-null description item
             if (reader.VisibleFieldCount == 11) {
-                cmd.Parameters.AddWithValue("@p8", null);
+                writeCmd.Parameters.AddWithValue("@p8", null);
             } else {
-                cmd.Parameters.AddWithValue("@p8", reader.GetValue(11));
+                writeCmd.Parameters.AddWithValue("@p8", reader.GetValue(11));
             }
-            cmd.ExecuteNonQuery(); 
-            SQLiteCommand cmd1 = new SQLiteCommand("", this.conn, transaction);
-            cmd1.CommandText = sqlLayer;
-            cmd1.Parameters.Clear();
+            writeCmd.ExecuteNonQuery(); 
+            SQLiteCommand readCmd = new SQLiteCommand(sqlLayer, localConn);
+            readCmd.Parameters.Clear();
             var soilId = reader.GetValue(0);
-            cmd1.Parameters.AddWithValue("@p1", soilId);
-            using (var readLayer = cmd1.ExecuteReader()) {
+            readCmd.Parameters.AddWithValue("@p1", soilId);
+            using (var readLayer = readCmd.ExecuteReader()) {
                 if (!readLayer.HasRows) {
                     Utils.error(string.Format("Failed to find soil layers in table {0} with soil_id {1}", this.getUsersoilTable() + "_layer", soilId), this.isBatch);
                     return lid;
                 }
-                SQLiteCommand cmd2 = this.conn.CreateCommand();
-                cmd2.CommandText = insertLayer;
+                writeCmd.CommandText = insertLayer;
                 while (readLayer.Read()) {
-                    cmd2.Parameters.Clear();
+                    writeCmd.Parameters.Clear();
                     lid += 1;
-                    cmd2.Parameters.AddWithValue("@p1", lid);
-                    cmd2.Parameters.AddWithValue("@p2", sid);
+                    writeCmd.Parameters.AddWithValue("@p1", lid);
+                    writeCmd.Parameters.AddWithValue("@p2", sid);
                     // layer table has 17 fields
                     for (int i = 2; i < 17; i++) {
-                        cmd2.Parameters.AddWithValue(string.Format("@p{0}", i + 1), readLayer.GetValue(i));
+                        writeCmd.Parameters.AddWithValue(string.Format("@p{0}", i + 1), readLayer.GetValue(i));
                     }
-                    cmd2.ExecuteNonQuery();
+                    writeCmd.ExecuteNonQuery();
                 }
             }
             return lid;
@@ -1638,23 +1631,23 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 localConn.Open();
             }
             try {
-                using (var transaction = localConn.BeginTransaction()) {
-                    using (var cmd = new SQLiteCommand("", localConn, transaction)) {
+                using (var transaction = this.conn.BeginTransaction()) {
+                    using (SQLiteCommand writeCmd = new SQLiteCommand("", this.conn, transaction)) {
                         if (copyPlant) {
                             sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._PLANTS_PLT_NAME);
-                            cmd.CommandText = sql;
-                            cmd.ExecuteNonQuery();
+                            writeCmd.CommandText = sql;
+                            writeCmd.ExecuteNonQuery();
                             sql = string.Format("CREATE TABLE {0} {1}", DBUtils._PLANTS_PLT_NAME, DBUtils._PLANTS_PLT_TABLE);
-                            cmd.CommandText = sql;
-                            cmd.ExecuteNonQuery();
+                            writeCmd.CommandText = sql;
+                            writeCmd.ExecuteNonQuery();
                         }
                         if (copyUrban) {
                             sql = string.Format("DROP TABLE IF EXISTS {0}", DBUtils._URBAN_URB_NAME);
-                            cmd.CommandText = sql;
-                            cmd.ExecuteNonQuery();
+                            writeCmd.CommandText = sql;
+                            writeCmd.ExecuteNonQuery();
                             sql = string.Format("CREATE TABLE {0} {1}", DBUtils._URBAN_URB_NAME, DBUtils._URBAN_URB_TABLE);
-                            cmd.CommandText = sql;
-                            cmd.ExecuteNonQuery();
+                            writeCmd.CommandText = sql;
+                            writeCmd.ExecuteNonQuery();
                         }
                         var plantSelect = DBUtils.sqlSelect(this.plantTable, "*", "", "name=@p1 COLLATE NOCASE");
                         var urbanSelect = DBUtils.sqlSelect(this.urbanTable, "*", "", "name=@p1 COLLATE NOCASE");
@@ -1693,14 +1686,14 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 var plantAll = DBUtils.sqlSelect(this.plantTable, "*", "", "");
                                 readCmd.Parameters.Clear();
                                 readCmd.CommandText = plantAll;
-                                using (var writeCommand = new SQLiteCommand(insertPlant, localConn, transaction)) {
-                                    using (var reader = readCmd.ExecuteReader()) {
-                                        while (reader.Read()) {
-                                            for (int i = 0; i < 55; i++) {
-                                                writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
-                                            }
-                                            writeCommand.ExecuteNonQuery();
+                                writeCmd.Parameters.Clear();
+                                writeCmd.CommandText = insertPlant;
+                                using (var reader = readCmd.ExecuteReader()) {
+                                    while (reader.Read()) {
+                                        for (int i = 0; i < 55; i++) {
+                                            writeCmd.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
                                         }
+                                        writeCmd.ExecuteNonQuery();
                                     }
                                 }
                             }
@@ -1708,18 +1701,17 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 var urbanAll = DBUtils.sqlSelect(this.urbanTable, "*", "", "");
                                 readCmd.Parameters.Clear();
                                 readCmd.CommandText = urbanAll;
-                                using (var writeCommand = new SQLiteCommand(insertUrban, localConn, transaction)) {
-                                    using (var reader = readCmd.ExecuteReader()) {
-                                        while (reader.Read()) {
-                                            for (int i = 0; i < 13; i++) {
-                                                writeCommand.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
-                                            }
-                                            writeCommand.ExecuteNonQuery();
+                                writeCmd.Parameters.Clear();
+                                writeCmd.CommandText = insertUrban;
+                                using (var reader = readCmd.ExecuteReader()) {
+                                    while (reader.Read()) {
+                                        for (int i = 0; i < 13; i++) {
+                                            writeCmd.Parameters.AddWithValue(string.Format("@p{0}", i + 1), reader.GetValue(i));
                                         }
+                                        writeCmd.ExecuteNonQuery();
                                     }
                                 }
                             }
-
                         }
                     }
                     transaction.Commit();

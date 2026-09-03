@@ -1,4 +1,4 @@
-﻿using System;
+﻿                                                                                                                                                                                                    using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -38,6 +38,11 @@ namespace ArcSWATPlus
         public int pointSizeValue {
             get { return Convert.ToInt32(this.pointSizeBox.Value); }
             set { this.pointSizeBox.Value = value; }
+        }
+
+        public int decimalPlacesValue {
+            get { return Convert.ToInt32(this.decimalPlaces.Value); }
+            set { this.decimalPlaces.Value = value; }
         }
 
         public double burninDepthValue {
@@ -93,7 +98,7 @@ namespace ArcSWATPlus
         public double upslopeHRUDrainValue {
             get { return Convert.ToDouble(this.upslopeHRUDrain.Text); }
             set { this.upslopeHRUDrain.Text = value.ToString(); }
-        } 
+        }
 
         private void checkUseMPI_CheckedChanged(object sender, EventArgs e) {
             if (this.checkUseMPI.Checked) {

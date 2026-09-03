@@ -30,6 +30,8 @@ namespace ArcSWATPlus
 
         public int fontSize;
 
+        public int decimalPlaces;
+
         public string addinPath;
 
         public StyleProjectItem arcSWATPlusStyle;
@@ -576,6 +578,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             //# rasters open that need to be closed if memory exception occurs
             // not used. was tried in hrus2.py
             this.openRasters = new HashSet<Raster>();
+            this.decimalPlaces = 2; // default
         }
 
         // Create subdirectories under project file's directory.

@@ -55,8 +55,8 @@ namespace ArcSWATPlus
                 //GdalBase.ConfigureAll();
 
                 Gdal.AllRegister();
-                //needed for gdal to find proj.db
-                //MaxRev.Gdal.Core.Proj.Configure();
+                //needed for gdal to find proj.db when MaxRev used, so not necessary for ArcGIS version 3.6 and above
+                MaxRev.Gdal.Core.Proj.Configure();
                 var arcSWATPlusProj = new ArcSWATPlus();
                 await arcSWATPlusProj.run();
                 //var pathProExe = System.IO.Path.GetDirectoryName((new System.Uri(Assembly.GetEntryAssembly().Location)).AbsolutePath);

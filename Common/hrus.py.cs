@@ -6992,6 +6992,94 @@ namespace ArcSWATPlus
                 return 0;
             }
         }
+        // Load landuse file.
+        public async Task getLanduseFile() {
+            await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._LANDUSES));
+            (string landuseFile, ArcGIS.Desktop.Mapping.Layer landuseLayer) = await Utils.openAndLoadFile(FileTypes._LANDUSES, this._dlg.hrusSelectLanduse, this._gv.landuseDir, this._gv, null, Utils._LANDUSE_GROUP_NAME, clipToDEM: true);
+            if (landuseFile is not null && landuseLayer is not null) {
+                this.landuseFile = landuseFile;
+                this.landuseLayer = landuseLayer as RasterLayer;
+                await QueuedTask.Run(() => landuseLayer.SetVisibility(false));
+            }
+        }
+
+        // Load soil file.
+        public async Task getSoilFile() {
+            await Utils.removeLayerByLegend(FileTypes.legend(FileTypes._SOILS));
+            (string soilFile, ArcGIS.Desktop.Mapping.Layer soilLayer) = await Utils.openAndLoadFile(FileTypes._SOILS, this._dlg.hrusSelectSoil, this._gv.soilDir, this._gv, null, Utils._SOIL_GROUP_NAME, clipToDEM: true);
+            if (soilFile is not null && soilLayer is not null) {
+                this.soilFile = soilFile;
+                this.soilLayer = soilLayer as RasterLayer;
+                await QueuedTask.Run(() => soilLayer.SetVisibility(false));
+            }
+        }
+
+        // Set landuse table.
+        public virtual void setLanduseTable() {
+            var table = this._dlg.hrusSelectLanduseTable.Text;
+            if (table == Parameters._USECSV) {
+                table = this._db.readLanduseCsv();
+                if (table != "") {
+                    this._dlg.hrusSelectLanduseTable.Items.Insert(0, table);
+                    this._dlg.hrusSelectLanduseTable.SelectedIndex = 0;
+                }
+            }
+            this.landuseTable = table;
+            this._dlg.setToReadFromMaps();
+        }
+
+        // Set soil table.
+        public virtual void setSoilTable() {
+            var table = this._dlg.hrusSelectSoilTable.Text;
+            if (table == Parameters._USECSV) {
+                table = this._db.readSoilCsv();
+                if (table != "") {
+                    this._dlg.hrusSelectSoilTable.Items.Insert(0, table);
+                    this._dlg.hrusSelectSoilTable.SelectedIndex = 0;
+                }
+            }
+            this.soilTable = table;
+            this._dlg.setToReadFromMaps();
+        }
+
+        // Set plant table.
+        public virtual void setPlantTable() {
+            var table = this._dlg.hrusSelectPlantTable.Text;
+            if (table == Parameters._USECSV) {
+                table = this._db.readPlantCsv();
+                if (table != "") {
+                    this._dlg.hrusSelectPlantTable.Items.Insert(0, table);
+                    this._dlg.hrusSelectPlantTable.SelectedIndex = 0;
+                }
+            }
+            this._db.plantTable = table;
+        }
+
+        // Set urban table.
+        public virtual void setUrbanTable() {
+            var table = this._dlg.hrusSelectUrbanTable.Text;
+            if (table == Parameters._USECSV) {
+                table = this._db.readUrbanCsv();
+                if (table != "") {
+                    this._dlg.hrusSelectUrbanTable.Items.Insert(0, table);
+                    this._dlg.hrusSelectUrbanTable.SelectedIndex = 0;
+                }
+            }
+            this._db.urbanTable = table;
+        }
+
+        // Set usersoil table.
+        public virtual void setUsersoilTable() {
+            var table = this._dlg.hrusSelectUsersoilTable.Text;
+            if (table == Parameters._USECSV) {
+                table = this._db.readUsersoilCsv();
+                if (table != "") {
+                    this._dlg.hrusSelectUsersoilTable.Items.Insert(0, table);
+                    this._dlg.hrusSelectUsersoilTable.SelectedIndex = 0;
+                }
+            }
+            this._db.usersoilTable = table;
+        }
 
         // Return true if HRUs are up to date, else false.
         //         

@@ -83,7 +83,7 @@ namespace ArcSWATPlus
             await this._getWatershedGeometry();
         }
 
-        public async void requestGeneration(HRUsForm hf) {
+        public async Task requestGeneration(HRUsForm hf) {
             //                this._params = new dict(@params);
             ///*                this._*/timer.start();
             ///
@@ -101,7 +101,7 @@ namespace ArcSWATPlus
             }
         }
 
-        public async void _startGeneration(HRUsForm hf) {
+        public async Task _startGeneration(HRUsForm hf) {
             //try {
             //    if (this._task is not null && this._task.status() == QgsTask.Running) {
             //        this._task.cancel();

@@ -8,6 +8,7 @@ using ArcGIS.Core.Internal.CIM;
 using ArcGIS.Desktop.Core;
 using ArcGIS.Desktop.Core.Events;
 using ArcGIS.Desktop.Core.Geoprocessing;
+using ArcGIS.Desktop.Framework.Contracts;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
 using ArcGIS.Desktop.Internal.Framework;
 using ArcGIS.Desktop.Internal.Framework.Utilities;
@@ -306,7 +307,7 @@ namespace ArcSWATPlus
             var mapItems = Project.Current.GetItems<MapProjectItem>();
             int mapCount = mapItems.Count();
             if (mapCount == 1) {
-                // maybe new project.  Set map title as "Main" and store link to it
+                // maybe new project.  Store link to only map
                 ArcSWATPlus.mainMapItem = mapItems.First();
                 ArcSWATPlus.mainMap = await QueuedTask.Run(mainMapItem.GetMap);
             } else {
@@ -317,6 +318,12 @@ namespace ArcSWATPlus
                         break;
                     }
                 }
+            }
+            // make mainMap active
+            IMapPane mapViewPane = ProApp.Panes.OfType<IMapPane>().FirstOrDefault((p) => p.Caption == "Map");
+            if (mapViewPane != null) {
+                // activate the MapPane
+                (mapViewPane as Pane).Activate();
             }
             ProjectItemRemovingEvent.Subscribe(OnItemRemoval);
             await setLegendGroups();

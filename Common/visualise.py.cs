@@ -27,6 +27,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using System.Xml;
 using Layer = ArcGIS.Desktop.Mapping.Layer;
 using Path = System.IO.Path;
 
@@ -259,6 +260,10 @@ namespace ArcSWATPlus {
         private DataTable QqData;
 
         private DataTable QbData;
+
+        // string for setting precision of scientific form numbers
+        // defaults to 2 d.p.
+        private string decimalPlaces = ":E2";
         
         public Visualise(GlobalVars gv) {
             this._gv = gv;
@@ -481,6 +486,8 @@ namespace ArcSWATPlus {
             this.scenario1 = "";
             //# second scenario to compare
             this.scenario2 = "";
+            // decimal places to use in displaying scientific form numbers
+            this.decimalPlaces = string.Format(":E{0}", this._gv.decimalPlaces);
         }
         
         // Initialise the visualise form.
@@ -5183,7 +5190,8 @@ namespace ArcSWATPlus {
                 if (l.Count > 0) {
                     l.Sort();
                     var percentile = Visualise.percentile(l, (100 - (double)this._dlg.PQqSpin.Value) / 100);
-                    this.QqData.Rows[m - 1][1] =  string.Format("{0:F2}", percentile);
+                    string formatString = "{0" + this.decimalPlaces + "}";
+                    this.QqData.Rows[m - 1][1] =  string.Format(formatString, percentile);
                     //         QqStore = Utils.join(self._gv.resultsDir, 'q{0}.txt',self._dlg.QqSpin.Value))
                     //         with open(QqStore, 'w', newline='') as f:
                     //             for m, l in monthData:
@@ -5341,6 +5349,8 @@ namespace ArcSWATPlus {
                 totals.Add(minTotal);
             }
             totals.Sort();
+            string formatString1 = "{1" + this.decimalPlaces + "}";
+            string formatString2 = "{2" + this.decimalPlaces + "}";
             //         f.write('Sorted totals:\n')
             //         f.write(str(totals))
             //         f.write('\n')
@@ -5350,10 +5360,10 @@ namespace ArcSWATPlus {
                 var p = (int)this._dlg.PdQpSpinP.Value;
                 var fraction = p / 100.0;
                 this.dQpResult = Visualise.percentile(totals, fraction) / d;
-                this._dlg.PdQpResult.Text = string.Format("Result: {0}Q{1} is {2:F2}", d, p, this.dQpResult);
+                this._dlg.PdQpResult.Text = string.Format("Result: {0}Q{1} is " + formatString2, d, p, this.dQpResult);
             } else {
                 this.dQpResult = (totals.Sum() / totals.Count) / d;
-                this._dlg.PdQpResult.Text = string.Format("Result: {0}Qm is {1:F2}", d, this.dQpResult);
+                this._dlg.PdQpResult.Text = string.Format("Result: {0}Qm is " + formatString1, d, this.dQpResult);
                 //         f.write('Result: {0}',self.dQpResult))
                 //         f.write('\n')
                 //         f.close()
@@ -5405,7 +5415,8 @@ namespace ArcSWATPlus {
                 }
                 var subbasin = this._dlg.PdQpSubbasin.SelectedItem.ToString();
                 var month = this._dlg.PdQpStartMonth.SelectedItem.ToString();
-                f.WriteLine(string.Format("Subbasin {0};  Channel {1};  Starting in {2};  Result: {3:F2}",subbasin, this.subbasinOutletChannels[Convert.ToInt32(subbasin)], month, this.dQpResult));
+                string formatString = "{3" + this.decimalPlaces + "}";
+                f.WriteLine(string.Format("Subbasin {0};  Channel {1};  Starting in {2};  Result: " + formatString,subbasin, this.subbasinOutletChannels[Convert.ToInt32(subbasin)], month, this.dQpResult));
                 f.WriteLine("");
             }
             this.lastdQpResultsFile = resultsFile;
@@ -5466,7 +5477,7 @@ namespace ArcSWATPlus {
                     new List<double>()},
                 {
                     12,
-                    new List<double>()}};
+                    new List<double>()}};                                                                                                                                                                          
             var yearIndex = -1;
             var count = 0;
             var expectedLength = 0;
@@ -5564,7 +5575,8 @@ namespace ArcSWATPlus {
                     }
                 }
             }
-            this._dlg.PQbAnnualResult.Text = string.Format("Annual result: {0:F2}", this.QbResult);
+            string formatString = "{0" + this.decimalPlaces + "}";
+            this._dlg.PQbAnnualResult.Text = string.Format("Annual result: " + formatString, this.QbResult);
             // result for each month is Qb * variation factor
             // variation factor is square root of ratio of Q85 for month to minimum Q85
             // replace above with sqaure root of monthly mean to minimal monthly mean
@@ -5573,7 +5585,7 @@ namespace ArcSWATPlus {
             foreach (var (m, mean) in means) {
                 var factor = minMean == 0 ? 1 : Math.Sqrt(mean / minMean);
                 var Qbm = this.QbResult * factor;
-                this.QbData.Rows[m - 1][1] = string.Format("{0:F2}", Qbm);
+                this.QbData.Rows[m - 1][1] = string.Format(formatString, Qbm);
             }
         }
         
@@ -5612,6 +5624,7 @@ namespace ArcSWATPlus {
             if (result != DialogResult.OK) {
                 return;
             }
+            string formatString = "{0" + this.decimalPlaces + "}";
             using (var f = new StreamWriter(resultsFile, append)) {
                 var startDate = new DateOnly(this.startYear, this.startMonth, this.startDay).ToString(Utils._DATEFORMAT);
                 var finishDate = new DateOnly(this.finishYear, this.finishMonth, this.finishDay).ToString(Utils._DATEFORMAT);
@@ -5619,7 +5632,7 @@ namespace ArcSWATPlus {
                 var subbasin = this._dlg.PQbSubbasin.SelectedItem.ToString();
                 var month = this._dlg.PQbStartMonth.SelectedItem.ToString();
                 f.WriteLine(string.Format("Subbasin {0};  Channel {1};  Starting in {2}",subbasin, this.subbasinOutletChannels[Convert.ToInt32(subbasin)], month));
-                f.WriteLine(string.Format("Annual      {0:F2}", this.QbResult));
+                f.WriteLine(string.Format("Annual      " + formatString, this.QbResult));
                 foreach (var m in Enumerable.Range(0, 12)) {
                     f.Write(Visualise._MONTHS[m].PadRight(12));
                     f.WriteLine(QbData.Rows[m][1].ToString());

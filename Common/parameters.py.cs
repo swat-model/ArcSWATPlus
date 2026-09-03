@@ -1,14 +1,15 @@
 
 
-using System.Collections;
-
+using ActiproSoftware.Windows.Controls.Editors;
+using ArcGIS.Desktop.Core;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Forms;
-using ArcGIS.Desktop.Core;
-using System.Runtime.InteropServices;
 
 namespace ArcSWATPlus
 {
@@ -274,6 +275,7 @@ namespace ArcSWATPlus
             this._dlg.MPIText = this.mpiexecDir;
             this._dlg.SWATPlusText = this.SWATPlusDir;
             this.readProj();
+            this._dlg.decimalPlacesValue = this._gv.decimalPlaces;
             if (!this.isBatch) {
                 this._dlg.ShowDialog();
             }
@@ -310,7 +312,7 @@ namespace ArcSWATPlus
                 }
                 var mpiexec = Parameters._MPIEXEC;
                 mpiexecPath = Utils.join(mpiexecDir, mpiexec);
-                if (!Directory.Exists(mpiexecPath)) {
+                if (!File.Exists(mpiexecPath)) {
                     Utils.error(string.Format("Cannot find mpiexec program {0}", mpiexecPath), this.isBatch);
                     return;
                 }
@@ -346,6 +348,8 @@ namespace ArcSWATPlus
                 this._gv.fontSize = pointSize;
                 this._gv.SetFontSize(this._dlg);
             }
+            this._gv.decimalPlaces = this._dlg.decimalPlacesValue;
+
             this._dlg.Close();
         }
 

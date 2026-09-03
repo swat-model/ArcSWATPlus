@@ -1360,9 +1360,9 @@ namespace ArcSWATPlus
                     //{
                     //    Utils.fixGeometry(inFileName, saveDir);
                     //}
-                        else {
-                        Utils.copyFiles(inInfo, saveDir);
-                    }
+                    //else {
+                    Utils.copyFiles(inInfo, saveDir);
+                    //}
                     } else {
                     // ignore runFix: assume already fixed as inside project
                     outFileName = inFileName;
@@ -1466,7 +1466,7 @@ namespace ArcSWATPlus
             return feature;
         }
 
-        public async static Task<Feature> getFeatureByValue(FeatureLayer layer, string name, object val) {
+        public static async Task<Feature> getFeatureByValue(FeatureLayer layer, string name, object val) {
             var qf = new QueryFilter() {
                 WhereClause = (val is String) ? string.Format("{0} = '{1}'", name, val) : string.Format("{0} = {1}", name, val)
             };
@@ -2518,7 +2518,7 @@ public class ListFuns
 
         // Layer colouring function for DEM.
 
-        public async static Task colourDEM(RasterLayer layer, object gv) {
+        public static async Task colourDEM(RasterLayer layer, object gv) {
             // calculate statistics (in particular max and min values)
             // by first generating a default colorizer
             // Create a new Stretch Colorizer Definition using the default constructor.
@@ -2623,7 +2623,7 @@ public class ListFuns
         }
 
         // symbology for inlets/outlets file
-        public async static Task colourPoints(FeatureLayer featureLayer, GlobalVars gv) {
+        public static async Task colourPoints(FeatureLayer featureLayer, GlobalVars gv) {
             // collect symbols from arcSWATPlusStyle
             CIMSymbolReference outletRef = null;
             CIMSymbolReference reservoirRef = null;
@@ -2700,7 +2700,7 @@ public class ListFuns
         }
 
         // symbology for subbasins file
-        public async static Task colourSubbasins(FeatureLayer featureLayer, GlobalVars gv) {
+        public static async Task colourSubbasins(FeatureLayer featureLayer, GlobalVars gv) {
             // check if it has a subbasin field yet
             if (await gv.topo.getIndex(featureLayer, "Subbasin", true) < 0) {
                 await ApplySymbolToFeatureLayerAsync(featureLayer, FileTypes._SUBBASINS, gv);
@@ -2749,7 +2749,7 @@ public class ListFuns
         }
 
         //Colour streams layer classifying drainage with symbol based on penWidth.
-        public async static Task colourStreams(FeatureLayer layer, string penWidth, string drainage) {
+        public static async Task colourStreams(FeatureLayer layer, string penWidth, string drainage) {
             // ramp from light to darkish blue
             CIMICCColorSpace colorSpace = new CIMICCColorSpace();
             colorSpace.URL = "Default RGB";
@@ -2794,7 +2794,7 @@ public class ListFuns
         }
 
         // symbology for Lakes file
-        public async static Task colourLakes(FeatureLayer featureLayer, GlobalVars gv) {
+        public static async Task colourLakes(FeatureLayer featureLayer, GlobalVars gv) {
             bool alwaysRes = false;
             // check if it has a reservoir field yet
             if (await gv.topo.getIndex(featureLayer, Topology._RES, true) < 0) {
@@ -2898,7 +2898,7 @@ public class ListFuns
         }
 
         // symbology for grid file
-        public async static Task colourGrid(FeatureLayer featureLayer, GlobalVars gv) {
+        public static async Task colourGrid(FeatureLayer featureLayer, GlobalVars gv) {
             // collect symbols from arcSWAT3Style
             CIMSymbolReference gridRef = null;
             CIMSymbolReference lakeRef = null;
@@ -2942,7 +2942,7 @@ public class ListFuns
         }
 
         // symbology for gwflow grid file
-        public async static Task colourCells(FeatureLayer featureLayer, GlobalVars gv) {
+        public static async Task colourCells(FeatureLayer featureLayer, GlobalVars gv) {
             // collect symbols from arcSWAT3Style
             CIMSymbolReference cellRef = null;
             await QueuedTask.Run(() => {
@@ -2956,7 +2956,7 @@ public class ListFuns
 
         // Layer colouring function for landuse grid.
 
-        public async static Task colourLanduses(RasterLayer layer, GlobalVars gv) {
+        public static async Task colourLanduses(RasterLayer layer, GlobalVars gv) {
             await QueuedTask.Run(async () => {
                 var raster = layer.GetRaster();
                 if (raster is null) { return; }
@@ -3004,7 +3004,7 @@ public class ListFuns
 
         // Layer colouring function for soil grid.
 
-        public async static Task colourSoils(RasterLayer layer, GlobalVars gv) {
+        public static async Task colourSoils(RasterLayer layer, GlobalVars gv) {
             await QueuedTask.Run(async () => {
                 var raster = layer.GetRaster();
                 if (raster is null) { return; }
@@ -3063,7 +3063,7 @@ public class ListFuns
 
         // Layer colouring for slope bands grid.
 
-        public async static Task colourSlopes(RasterLayer layer, GlobalVars gv) {
+        public static async Task colourSlopes(RasterLayer layer, GlobalVars gv) {
             await QueuedTask.Run(async () => {
                 var raster = layer.GetRaster();
                 if (raster is null) { return; }
@@ -3107,7 +3107,7 @@ public class ListFuns
 
         // Layer colouring for floodplain grid.
 
-        public async static Task colourFlood(RasterLayer layer, GlobalVars gv) {
+        public static async Task colourFlood(RasterLayer layer, GlobalVars gv) {
             await QueuedTask.Run(async () => {
                 var raster = layer.GetRaster();
                 if (raster is null) { return; }
@@ -3147,7 +3147,7 @@ public class ListFuns
             });
         }
 
-        public async static Task ApplySymbolToFeatureLayerAsync(FeatureLayer featureLayer, int ft, GlobalVars gv) {
+        public static async Task ApplySymbolToFeatureLayerAsync(FeatureLayer featureLayer, int ft, GlobalVars gv) {
             if (ft == FileTypes._OUTLETS || ft == FileTypes._EXTRAPTSRCANDRES) {
                 await colourPoints(featureLayer, gv);
                 return;
