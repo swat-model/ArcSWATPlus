@@ -422,21 +422,36 @@ namespace ArcSWATPlus {
 
 
         public GlobalVars _gv;
-
+#if TESTING
+        public HRUsFormStub _panel;
+#else
         public HRUsForm _panel;
+#endif
 
         public OSGeo.OGR.Geometry basinGeometry;
 
         public Action<string> _progress;
 
+#if TESTING
+#else
         public System.Windows.Forms.ProgressBar _progressBar;
+#endif
 
-        public GwflowDB(GlobalVars gv, HRUsForm panel) {
+        public GwflowDB(GlobalVars gv,
+#if TESTING
+            HRUsFormStub panel
+#else
+            HRUsForm panel
+#endif
+            ) {
             this._gv = gv;
             this._panel = panel;
             this.basinGeometry = this._panel._gridGen.basinGeometry;
             this._progress = panel is not null ? panel.progress : static msg => { };
+#if TESTING
+#else
             this._progressBar = panel is not null ? panel.getProgressBar : null;
+#endif
         }
 
         public class GridData {
@@ -505,16 +520,22 @@ namespace ArcSWATPlus {
                 "Writing solutes",
                 "Done"
                 };
+#if TESTING
+#else
                 if (this._progressBar is not null) {
                     this._progressBar.Visible = true;
                     this._progressBar.Maximum = steps.Count;
                     this._progressBar.Value = 0;
                 }
+#endif
                 void step(int i) {
+#if TESTING
+#else
                     if (this._progressBar is not null) {
                         this._progressBar.Value = i;
                         this._progress(steps[i]);
                     }
+#endif
                 }
                 step(0);
                 this._createTables();

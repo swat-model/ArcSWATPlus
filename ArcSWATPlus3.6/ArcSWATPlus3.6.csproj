@@ -172,6 +172,9 @@
     <None Include="..\Common\runBurnIn.py" Link="runBurnIn.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+	  <None Include="..\Common\runCalcWidthField.py" Link="runCalcWidthField.py">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
     <None Include="..\Common\runConversion.py" Link="runConversion.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

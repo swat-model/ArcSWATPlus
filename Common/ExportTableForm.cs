@@ -33,12 +33,27 @@ namespace ArcSWATPlus
             this._parent.setTables();
         }
 
-        public ComboBox databases {
-           get { return databaseBox; }
-        }
+        //public ComboBox databases {
+        //   get { return databaseBox; }
+        //}
 
-        public ComboBox tables {
-            get { return tableBox; }
+        public Func<string, int> databasesAdd => this.databaseBox.Items.Add;
+        public int databasesIndex {
+            get { return this.databaseBox.SelectedIndex; }
+            set { this.databaseBox.SelectedIndex = value;}
         }
+        public string databasesText => this.databaseBox.Text;
+
+        //public ComboBox tables {
+        //    get { return tableBox; }
+        //}
+
+        public Action tablesClear => this.tableBox.Items.Clear;
+        public Func<string, int> tablesAdd => this.tableBox.Items.Add;
+        public int tablesIndex {
+            get => this.tableBox.SelectedIndex;
+            set { this.tableBox.SelectedIndex = value;}
+        }
+        public string tablesText => this.tableBox.Text;
     }
 }

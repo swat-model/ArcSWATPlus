@@ -105,6 +105,7 @@
     <Compile Include="..\Common\SelectSubbasin.Designer.cs" Link="SelectSubbasin.Designer.cs" />
     <Compile Include="..\Common\SplitForm.cs" Link="SplitForm.cs" />
     <Compile Include="..\Common\SplitForm.Designer.cs" Link="SplitForm.Designer.cs" />
+    <Compile Include="..\Common\StartButton.cs" Link="StartButton.cs" />
     <Compile Include="..\Common\TauDEMUtils.py.cs" Link="TauDEMUtils.py.cs" />
     <Compile Include="..\Common\topology.py.cs" Link="topology.py.cs" />
     <Compile Include="..\Common\Utils.py.cs" Link="Utils.py.cs" />
@@ -176,6 +177,9 @@
     <None Include="..\Common\runBurnIn.py" Link="runBurnIn.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+	  <None Include="..\Common\runCalcWidthField.py" Link="runCalcWidthField.py">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
     <None Include="..\Common\runConversion.py" Link="runConversion.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

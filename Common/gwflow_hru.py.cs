@@ -16,9 +16,17 @@ namespace ArcSWATPlus
 
     public class GwflowHru
     {
+#if TESTING
+        public HRUsFormStub _parent;
+#else
         public HRUsForm _parent;
+#endif
 
+#if TESTING
+        public GwflowHru(HRUsFormStub parent) {
+#else
         public GwflowHru(HRUsForm parent) {
+#endif
             this._parent = parent;
             //this.setupUi(this);
             //this._connect();

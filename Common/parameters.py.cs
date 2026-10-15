@@ -1,15 +1,14 @@
 
 
-using ActiproSoftware.Windows.Controls.Editors;
-using ArcGIS.Desktop.Core;
-using System;
 using System.Collections;
+
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Forms;
+using ArcGIS.Desktop.Core;
+using System.Runtime.InteropServices;
 
 namespace ArcSWATPlus
 {
@@ -19,7 +18,11 @@ namespace ArcSWATPlus
     public class Parameters
     {
 
+#if TESTING
+        public ParamFormStub _dlg;
+#else
         public ParamForm _dlg;
+#endif
 
         public GlobalVars _gv;
 
@@ -249,6 +252,8 @@ namespace ArcSWATPlus
 
         //  percentage of flow for major when there is a bifurcation: HUC and HAWQS models only
         public static int _MAJORPERCENT = 60;
+        
+        public static int _DECIMALPLACESDEFAULT = 2;
 
         public Parameters(GlobalVars gv) {
             this.SWATPlusDir = Parameters._SWATPLUSDEFAULTDIR;
@@ -257,7 +262,11 @@ namespace ArcSWATPlus
             //# number of MPI processes
             this.numProcesses = "0";
             this._gv = gv;
+#if TESTING
+            this._dlg = new ParamFormStub(this);
+#else
             this._dlg = new ParamForm(this);
+#endif
             if (this._gv is not null) {
                 this.isBatch = this._gv.isBatch;
             } else {

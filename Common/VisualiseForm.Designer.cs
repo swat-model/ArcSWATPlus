@@ -583,6 +583,7 @@
             // variableList
             // 
             variableList.FormattingEnabled = true;
+            variableList.ItemHeight = 15;
             variableList.Location = new System.Drawing.Point(97, 54);
             variableList.Name = "variableList";
             variableList.Size = new System.Drawing.Size(136, 109);
@@ -1386,13 +1387,13 @@
             dQpMean.Name = "dQpMean";
             dQpMean.Size = new System.Drawing.Size(55, 19);
             dQpMean.TabIndex = 1;
+            dQpMean.TabStop = true;
             dQpMean.Text = "Mean";
             dQpMean.UseVisualStyleBackColor = true;
             // 
             // dQpPercentile
             // 
             dQpPercentile.AutoSize = true;
-            dQpPercentile.Checked = true;
             dQpPercentile.Location = new System.Drawing.Point(6, 22);
             dQpPercentile.Name = "dQpPercentile";
             dQpPercentile.Size = new System.Drawing.Size(77, 19);

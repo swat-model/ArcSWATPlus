@@ -578,7 +578,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
             //# rasters open that need to be closed if memory exception occurs
             // not used. was tried in hrus2.py
             this.openRasters = new HashSet<Raster>();
-            this.decimalPlaces = 2; // default
+            this.decimalPlaces = Parameters._DECIMALPLACESDEFAULT; // default
         }
 
         // Create subdirectories under project file's directory.
@@ -667,7 +667,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                     this.db.execCmdQuery(cmd);
                     foreach (var luse in this.exemptLanduses) {
                         cmd.CommandText = DBUtils._LANDEXEMPTINSERTSQL;
-                        this.db.execCmdQuery(cmd, new object[1] { luse });
+                        this.db.execCmdQuery(cmd, [luse]);
                     }
                     cmd.CommandText = "DROP TABLE IF EXISTS " + splitTable;
                     this.db.execCmdQuery(cmd);
@@ -676,7 +676,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                     foreach (KeyValuePair<string, Dictionary<string, double>> entry in this.splitLanduses) {
                         foreach (KeyValuePair<string, double> entry1 in entry.Value) {
                             cmd.CommandText = DBUtils._SPLITHRUSINSERTSQL;
-                            this.db.execCmdQuery(cmd, new object[3] { entry.Key, entry1.Key, entry1.Value });
+                            this.db.execCmdQuery(cmd, [entry.Key, entry1.Key, entry1.Value]);
                         }
                     } 
                     //conn.commit();
@@ -794,7 +794,7 @@ Please use the Parameters form to set its location.", SWATPlusDir), isBatch);
                     if (use_gwflow == -1) { use_gwflow = 0; }
                     this.db.execNonQuery(string.Format("DROP TABLE IF EXISTS {0}", table));
                     this.db.execNonQuery(DBUtils._CREATEPROJECTCONFIG);
-                    this.db.execNonQuery(DBUtils._INSERTPROJECTCONFIG, new object[] { 1, projectName, projectDirectory, null, gisType, gisVersion, projectDb, referenceDb, null, null, null, null, null, null, null, doneDelinNum, doneHRUsNum, DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_LAYER_NAME, null, 0, 0, use_gwflow });
+                    this.db.execNonQuery(DBUtils._INSERTPROJECTCONFIG, [1, projectName, projectDirectory, null, gisType, gisVersion, projectDb, referenceDb, null, null, null, null, null, null, null, doneDelinNum, doneHRUsNum, DBUtils._SOILS_SOL_NAME, DBUtils._SOILS_SOL_LAYER_NAME, null, 0, 0, use_gwflow]);
                 }
             }
         }
@@ -839,7 +839,9 @@ Have you installed SWAT+ as a different directory from {2}?
 If so use the ArcSWAT+ Parameters form to set the correct location.", Parameters._SWATEDITOR, editorDir, Parameters._SWATPLUSDEFAULTDIR), this.isBatch);
             return null;
         }
-
+#if TESTING
+        public void SetFontSize(object f) { }
+#else
         public void SetFontSize(Form f) {
             if (f.Font.SizeInPoints != this.fontSize) {
                 Font newFont = new Font(f.Font.Name, this.fontSize, f.Font.Style);
@@ -854,6 +856,7 @@ If so use the ArcSWAT+ Parameters form to set the correct location.", Parameters
                 }
             }
         }
+#endif
 
         // Close open rasters (to enable them to be reopened with new chunk size).
         public virtual void closeOpenRasters() {

@@ -4,6 +4,7 @@ using ArcGIS.Core.Data.Exceptions;
 using ArcGIS.Core.Data.Raster;
 using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using ArcGIS.Core.Internal.CIM;
+using ArcGIS.Desktop.Internal.Mapping.Locate;
 using ArcGIS.Desktop.Layouts;
 using CsvHelper.Configuration.Attributes;
 using Microsoft.Win32;
@@ -478,40 +479,22 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     cmd.Parameters.AddWithValue(string.Format("@p{0}", i), val);
                 }
             }
-            cmd.ExecuteNonQuery();
+            try { 
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex) {
+                Utils.error(string.Format("{0} failed: {1}", cmd.CommandText, ex.Message), this.isBatch);
+            }
         }
 
         public void execNonQuery(string sql, object[] parms = null, SQLiteTransaction transaction = null) {
             if (transaction != null) {
                 using (var cmd = new SQLiteCommand(sql, this.conn, transaction)) {
-                    if (parms != null) {
-                        for (int i = 1; i <= parms.Length; i++) {
-                            var val = parms[i - 1];
-                            if (val == null) { val = DBNull.Value; }
-                            cmd.Parameters.AddWithValue(string.Format("@p{0}", i), val);
-                        }
-                    }
-                    try {
-                        cmd.ExecuteNonQuery();
-                    } catch (Exception ex) {
-                        Utils.error(string.Format("{0} failed: {1}", cmd.CommandText, ex.Message), this.isBatch);
-                    }
+                    execCmdQuery(cmd, parms);
                 }
             } else {
                 using (var cmd = new SQLiteCommand(sql, this.conn)) {
-                    if (parms != null) {
-                        for (int i = 1; i <= parms.Length; i++) {
-                            var val = parms[i - 1];
-                            if (val == null) { val = DBNull.Value; }
-                            cmd.Parameters.AddWithValue(string.Format("@p{0}", i), val);
-                        }
-                    }
-                    try {
-                        cmd.ExecuteNonQuery();
-                    }
-                    catch (Exception ex) {
-                        Utils.error(string.Format("{0} failed: {1}", cmd.CommandText, ex.Message), this.isBatch);
-                    }
+                    execCmdQuery(cmd, parms);
                 }
             }
         }
@@ -626,8 +609,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             }
             this.routingSources.Add((sourceId, sourceCategory));
             this.routingSinks.Add((sinkId, sinkCategory));
-            cmd.CommandText = DBUtils._ROUTINGINSERTSQL;
-            this.execCmdQuery(cmd, new object[] { sourceId, sourceCategory, hydTyp, sinkId, sinkCategory, percent });
+            this.execCmdQuery(cmd, [sourceId, sourceCategory, hydTyp, sinkId, sinkCategory, percent]);
         }
 
         // Change routing of existing (not checked) entry.
@@ -641,7 +623,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             SQLiteCommand cmd) {
             this.routingSinks.Add((sinkId, sinkCategory));
             cmd.CommandText = DBUtils._ROUTINGUPDATESQL;
-            this.execCmdQuery(cmd, new object[] { sinkId, sinkCategory, percent, sourceId, sourceCategory, hydTyp });
+            this.execCmdQuery(cmd, [sinkId, sinkCategory, percent, sourceId, sourceCategory, hydTyp]);
         }
 
         // Checks categories PT, LSU, SUB, SBR sources are defined in gis_table.
@@ -738,8 +720,12 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
 
         // 
         //         Collect table names containing tableName from landuse and soil database, place in comboBox and return.
-        //         
+        //
+#if TESTING
+        public virtual List<string> collectPlantSoilTableNames(string tableName, mimicComboBox comboBox) {
+#else
         public virtual List<string> collectPlantSoilTableNames(string tableName, System.Windows.Forms.ComboBox comboBox) {
+#endif
             // avoid opening proj or ref db again (and closing it!)
             if (!File.Exists(this.plantSoilDatabase)) {
                 Utils.error(string.Format("Cannot find landuse and soil database {0}", this.plantSoilDatabase), this.isBatch);
@@ -2296,9 +2282,12 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         // Write BASINSDATA, LSUSDATA, HRUSDATA and WATERDATA tables in project database.
         public virtual void writeBasinsData(Dictionary<int, BasinData> basins) {
             using (var transaction = this.conn.BeginTransaction()) {
-                using (var cmd = new SQLiteCommand("", this.conn, transaction)) {
+                using (SQLiteCommand basinCmd = new SQLiteCommand(DBUtils._BASINSDATAINSERTSQL, this.conn, transaction),
+                    lsuCmd = new SQLiteCommand(DBUtils._LSUSDATAINSERTSQL, this.conn, transaction),
+                    hruCmd = new SQLiteCommand(DBUtils._HRUSDATAINSERTSQL, this.conn, transaction),
+                    waterCmd = new SQLiteCommand(DBUtils._WATERDATAINSERTSQL, this.conn, transaction)) {
                     foreach (var (basin, data) in basins) {
-                        var OK = this.writeBasinsDataItem(basin, data, cmd);
+                        var OK = this.writeBasinsDataItem(basin, data, basinCmd, lsuCmd, hruCmd, waterCmd);
                         if (!OK) {
                             // error occurred - no point in repeating the failure
                             break;
@@ -2314,16 +2303,16 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
         }
 
         // Write data for one basin in BASINSDATA, LSUSDATA, HRUSDATA and WATERDATA tables in project database.
-        public virtual bool writeBasinsDataItem(int basin, BasinData data, SQLiteCommand cmd) {
+        public virtual bool writeBasinsDataItem(int basin, BasinData data, 
+            SQLiteCommand basinCmd, SQLiteCommand lsuCmd, SQLiteCommand hruCmd, SQLiteCommand waterCmd) {
             try {
-                cmd.CommandText = DBUtils._BASINSDATAINSERTSQL;
-                cmd.Parameters.AddWithValue("@p1", basin);
-                cmd.Parameters.AddWithValue("@p2", data.farDistance);
-                cmd.Parameters.AddWithValue("@p3", data.minElevation);
-                cmd.Parameters.AddWithValue("@p4", data.maxElevation);
-                cmd.Parameters.AddWithValue("@p5", data.waterId);
+                basinCmd.Parameters.AddWithValue("@p1", basin);
+                basinCmd.Parameters.AddWithValue("@p2", data.farDistance);
+                basinCmd.Parameters.AddWithValue("@p3", data.minElevation);
+                basinCmd.Parameters.AddWithValue("@p4", data.maxElevation);
+                basinCmd.Parameters.AddWithValue("@p5", data.waterId);
                 //Utils.loginfo("Writing BASINSDATA item");
-                cmd.ExecuteNonQuery();
+                basinCmd.ExecuteNonQuery();
                 //Utils.loginfo("Finished writing BASINSDATA item");
             }
             catch (Exception) {
@@ -2334,31 +2323,29 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                 foreach (var (landscape, lsuData) in channeldata) {
                     var lsuId = Utils.landscapeUnitId(channel, landscape);
                     try {
-                        cmd.CommandText = DBUtils._LSUSDATAINSERTSQL;
-                        cmd.Parameters.Clear();
-                        cmd.Parameters.AddWithValue("@p1", lsuId);
-                        cmd.Parameters.AddWithValue("@p2", basin);
-                        cmd.Parameters.AddWithValue("@p3", landscape);
-                        cmd.Parameters.AddWithValue("@p4", channel);
-                        cmd.Parameters.AddWithValue("@p5", lsuData.cellCount);
-                        cmd.Parameters.AddWithValue("@p6", lsuData.area);
-                        cmd.Parameters.AddWithValue("@p7", lsuData.outletElevation);
-                        cmd.Parameters.AddWithValue("@p8", lsuData.sourceElevation);
-                        cmd.Parameters.AddWithValue("@p9", lsuData.channelLength);
-                        cmd.Parameters.AddWithValue("@p10", lsuData.channelOrder);
-                        cmd.Parameters.AddWithValue("@p11", lsuData.farElevation);
-                        cmd.Parameters.AddWithValue("@p12", lsuData.farDistance);
-                        cmd.Parameters.AddWithValue("@p13", lsuData.farPointX);
-                        cmd.Parameters.AddWithValue("@p14", lsuData.farPointY);
-                        cmd.Parameters.AddWithValue("@p15", lsuData.midPointX);
-                        cmd.Parameters.AddWithValue("@p16", lsuData.midPointY);
-                        cmd.Parameters.AddWithValue("@p17", lsuData.totalElevation);
-                        cmd.Parameters.AddWithValue("@p18", lsuData.totalSlope);
-                        cmd.Parameters.AddWithValue("@p19", lsuData.totalLatitude);
-                        cmd.Parameters.AddWithValue("@p20", lsuData.totalLongitude);
-                        cmd.Parameters.AddWithValue("@p21", lsuData.cropSoilSlopeArea);
-                        cmd.Parameters.AddWithValue("@p22", lsuData.lastHru);
-                        cmd.ExecuteNonQuery();
+                        lsuCmd.Parameters.AddWithValue("@p1", lsuId);
+                        lsuCmd.Parameters.AddWithValue("@p2", basin);
+                        lsuCmd.Parameters.AddWithValue("@p3", landscape);
+                        lsuCmd.Parameters.AddWithValue("@p4", channel);
+                        lsuCmd.Parameters.AddWithValue("@p5", lsuData.cellCount);
+                        lsuCmd.Parameters.AddWithValue("@p6", lsuData.area);
+                        lsuCmd.Parameters.AddWithValue("@p7", lsuData.outletElevation);
+                        lsuCmd.Parameters.AddWithValue("@p8", lsuData.sourceElevation);
+                        lsuCmd.Parameters.AddWithValue("@p9", lsuData.channelLength);
+                        lsuCmd.Parameters.AddWithValue("@p10", lsuData.channelOrder);
+                        lsuCmd.Parameters.AddWithValue("@p11", lsuData.farElevation);
+                        lsuCmd.Parameters.AddWithValue("@p12", lsuData.farDistance);
+                        lsuCmd.Parameters.AddWithValue("@p13", lsuData.farPointX);
+                        lsuCmd.Parameters.AddWithValue("@p14", lsuData.farPointY);
+                        lsuCmd.Parameters.AddWithValue("@p15", lsuData.midPointX);
+                        lsuCmd.Parameters.AddWithValue("@p16", lsuData.midPointY);
+                        lsuCmd.Parameters.AddWithValue("@p17", lsuData.totalElevation);
+                        lsuCmd.Parameters.AddWithValue("@p18", lsuData.totalSlope);
+                        lsuCmd.Parameters.AddWithValue("@p19", lsuData.totalLatitude);
+                        lsuCmd.Parameters.AddWithValue("@p20", lsuData.totalLongitude);
+                        lsuCmd.Parameters.AddWithValue("@p21", lsuData.cropSoilSlopeArea);
+                        lsuCmd.Parameters.AddWithValue("@p22", lsuData.lastHru);
+                        lsuCmd.ExecuteNonQuery();
                     }
                     catch (Exception) {
                         Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._LSUSDATA, this.dbFile), this.isBatch);
@@ -2370,19 +2357,17 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                     // But after regenerating from the DATA tables the reservoirs will be recreated, so there is no harm.
                     if (waterBody is not null) {
                         try {
-                            cmd.CommandText = DBUtils._WATERDATAINSERTSQL;
-                            cmd.Parameters.Clear();
-                            cmd.Parameters.AddWithValue("@p1", lsuId);
-                            cmd.Parameters.AddWithValue("@p2", waterBody.cellCount);
-                            cmd.Parameters.AddWithValue("@p3", waterBody.area);
-                            cmd.Parameters.AddWithValue("@p4", waterBody.originalArea);
-                            cmd.Parameters.AddWithValue("@p5", waterBody.totalElevation);
-                            cmd.Parameters.AddWithValue("@p6", waterBody.totalLatitude);
-                            cmd.Parameters.AddWithValue("@p7", waterBody.totalLongitude);
-                            cmd.Parameters.AddWithValue("@p8", waterBody.id);
-                            cmd.Parameters.AddWithValue("@p9", waterBody.channelRole);
-                            cmd.Parameters.AddWithValue("@p10", waterBody.waterRole);
-                            cmd.ExecuteNonQuery();
+                            waterCmd.Parameters.AddWithValue("@p1", lsuId);
+                            waterCmd.Parameters.AddWithValue("@p2", waterBody.cellCount);
+                            waterCmd.Parameters.AddWithValue("@p3", waterBody.area);
+                            waterCmd.Parameters.AddWithValue("@p4", waterBody.originalArea);
+                            waterCmd.Parameters.AddWithValue("@p5", waterBody.totalElevation);
+                            waterCmd.Parameters.AddWithValue("@p6", waterBody.totalLatitude);
+                            waterCmd.Parameters.AddWithValue("@p7", waterBody.totalLongitude);
+                            waterCmd.Parameters.AddWithValue("@p8", waterBody.id);
+                            waterCmd.Parameters.AddWithValue("@p9", waterBody.channelRole);
+                            waterCmd.Parameters.AddWithValue("@p10", waterBody.waterRole);
+                            waterCmd.ExecuteNonQuery();
                         }
                         catch (Exception) {
                             Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._WATERDATA, this.dbFile), this.isBatch);
@@ -2394,20 +2379,18 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             foreach (var (slope, hru) in slopeNumbers) {
                                 var cd = lsuData.hruMap[hru];
                                 try {
-                                    cmd.CommandText = DBUtils._HRUSDATAINSERTSQL;
-                                    cmd.Parameters.Clear();
-                                    cmd.Parameters.AddWithValue("@p1", hru);
-                                    cmd.Parameters.AddWithValue("@p2", lsuId);
-                                    cmd.Parameters.AddWithValue("@p3", crop);
-                                    cmd.Parameters.AddWithValue("@p4", soil);
-                                    cmd.Parameters.AddWithValue("@p5", slope);
-                                    cmd.Parameters.AddWithValue("@p6", cd.cellCount);
-                                    cmd.Parameters.AddWithValue("@p7", cd.area);
-                                    cmd.Parameters.AddWithValue("@p8", cd.totalElevation);
-                                    cmd.Parameters.AddWithValue("@p9", cd.totalSlope);
-                                    cmd.Parameters.AddWithValue("@p10", cd.totalLatitude);
-                                    cmd.Parameters.AddWithValue("@p11", cd.totalLongitude);
-                                    cmd.ExecuteNonQuery();
+                                    hruCmd.Parameters.AddWithValue("@p1", hru);
+                                    hruCmd.Parameters.AddWithValue("@p2", lsuId);
+                                    hruCmd.Parameters.AddWithValue("@p3", crop);
+                                    hruCmd.Parameters.AddWithValue("@p4", soil);
+                                    hruCmd.Parameters.AddWithValue("@p5", slope);
+                                    hruCmd.Parameters.AddWithValue("@p6", cd.cellCount);
+                                    hruCmd.Parameters.AddWithValue("@p7", cd.area);
+                                    hruCmd.Parameters.AddWithValue("@p8", cd.totalElevation);
+                                    hruCmd.Parameters.AddWithValue("@p9", cd.totalSlope);
+                                    hruCmd.Parameters.AddWithValue("@p10", cd.totalLatitude);
+                                    hruCmd.Parameters.AddWithValue("@p11", cd.totalLongitude);
+                                    hruCmd.ExecuteNonQuery();
                                 }
                                 catch (Exception) {
                                     Utils.exceptionError(string.Format("Could not write to table {0} in project database {1}", DBUtils._HRUSDATA, this.dbFile), this.isBatch);
@@ -2654,7 +2637,7 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                         var meanSlopePercent = reader.GetDouble(slo1Idx1) * factor;
                         var sll = Utils.getSlsubbsn(meanSlopePercent / 100);
                         var ident = reader.GetInt32(idIdx);
-                        this.execNonQuery(update, new object[] { sll, meanSlopePercent, ident });
+                        this.execNonQuery(update, [sll, meanSlopePercent, ident]);
                     }
                 }
                 // update Slope in lsus2 file
@@ -2994,10 +2977,10 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                     }
                                     // set drain to channel or water body to percent
                                     if (sinkCat == "CH" || sinkCat == "RES" || sinkCat == "PND" || sinkCat == "WETL") {
-                                        this.execNonQuery(update, new object[] { percent, rowId });
+                                        this.execNonQuery(update, [percent, rowId]);
                                         // set drain to LSU to 100 - percent
                                     } else if (sinkCat == "LSU") {
-                                        this.execNonQuery(update, new object[] { 100 - percent, rowId });
+                                        this.execNonQuery(update, [100 - percent, rowId]);
                                     }
                                 }
                             }
@@ -3046,14 +3029,14 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 if (i < indexBound) {
                                     el = bands[i].Item1 + semiWidth;
                                 }
-                                row += string.Format("{:.2F},", el);
+                                row += string.Format("{0:F2},", el);
                             }
                             foreach (var i in Enumerable.Range(0, 10)) {
                                 var frac = 0.0;
                                 if (i < indexBound) {
                                     frac = bands[i].Item2;
                                 }
-                                row += string.Format("{:.4F}", frac / 100.0);
+                                row += string.Format("{0:F4}", frac / 100.0);
                                 var sep = i < 9 ? "," : ")";
                                 row += sep;
                             }
@@ -3604,17 +3587,17 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                                 if (pending.TryGetValue("CH", out channels)) {
                                     outputLoop(channels);
                                 }
-                                // move pending to done
-                                foreach (var (pcat, pids) in pending) {
-                                    if (done.ContainsKey(pcat)) {
-                                        done[pcat].UnionWith(pids);
-                                    } else {
-                                        done[pcat] = new HashSet<int>(pids);
-                                    }
-                                }
-                                pending = new Dictionary<string, List<int>>();
-                                break;
                             }
+                            // move pending to done
+                            foreach (var (pcat, pids) in pending) {
+                                if (done.ContainsKey(pcat)) {
+                                    done[pcat].UnionWith(pids);
+                                } else {
+                                    done[pcat] = new HashSet<int>(pids);
+                                }
+                            }
+                            pending = new Dictionary<string, List<int>>();
+                            break;
                         }
                         var cmd2 = new SQLiteCommand(findSql, localConn);
                         cmd2.Parameters.Clear();
@@ -3644,8 +3627,8 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
                             hasZero = hasZero || percent == 0;
                             // check all percentages are approximately 100
                         }
-                    } //end of while loop
-                } // end of for loop
+                    } //end of while count > 0
+                } // end of while read
             }
             foreach (var (scat, sourceDdata) in percentages) {
                 foreach (var (sid, data) in sourceDdata) {
@@ -3725,7 +3708,9 @@ If so use the QSWAT+ Parameters form to set the correct location.", dbRefTemplat
             elev     REAL
         );
         ";
-        
+
+        public static string _POINTSINSERTSQL = "INSERT INTO gis_points VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)";
+
         public static string _CHANNELSCREATESQL = @"
         CREATE TABLE gis_channels (
             id       INTEGER PRIMARY KEY

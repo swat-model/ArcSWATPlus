@@ -84,6 +84,10 @@ namespace ArcSWATPlus
         }
 
         private async void pushButton_Click(object sender, EventArgs e) {
+            this.selectSubbasinsByThreshold();
+        }
+
+        public async Task selectSubbasinsByThreshold() { 
             double threshold, thresholdM2;
             var num = this.threshold.Text;
             if (string.IsNullOrEmpty(num)) {

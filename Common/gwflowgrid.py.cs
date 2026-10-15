@@ -54,6 +54,11 @@ namespace ArcSWATPlus
 
 
         public GlobalVars _gv;
+#if TESTING
+        public HRUsFormStub hf;
+#else
+        public HRUsForm hf;
+#endif
 
         //public Dictionary<string, object> _params;
 
@@ -65,8 +70,12 @@ namespace ArcSWATPlus
 
         public OSGeo.OGR.Envelope basinExtent;
 
-            public GridGenerator(GlobalVars gv) {
-                this._gv = gv;
+#if TESTING
+        public GridGenerator(GlobalVars gv, HRUsFormStub hf) {
+#else
+        public GridGenerator(GlobalVars gv, HRUsForm hf) {
+#endif
+            this._gv = gv;
             //this._task = null;
             //this._timer = QTimer();
             //this._timer.setSingleShot(true);
@@ -83,7 +92,7 @@ namespace ArcSWATPlus
             await this._getWatershedGeometry();
         }
 
-        public async Task requestGeneration(HRUsForm hf) {
+        public async Task requestGeneration() {
             //                this._params = new dict(@params);
             ///*                this._*/timer.start();
             ///
@@ -91,7 +100,7 @@ namespace ArcSWATPlus
                 try {
                     hf.progress("Generating gwflow grid ...");
                     hf.enableCreateButton(false);
-                    this._startGeneration(hf);
+                    this._startGeneration();
                 }
                 catch (Exception) {; }
                 finally {
@@ -101,7 +110,7 @@ namespace ArcSWATPlus
             }
         }
 
-        public async Task _startGeneration(HRUsForm hf) {
+        public async Task _startGeneration() {
             //try {
             //    if (this._task is not null && this._task.status() == QgsTask.Running) {
             //        this._task.cancel();
@@ -344,10 +353,13 @@ namespace ArcSWATPlus
             public int numProcesses;
 
             public string outPath;
+#if TESTING
+        public HRUsFormStub hf;
+#else
+        public HRUsForm hf;
+#endif
 
-            public HRUsForm hf;
-
-            public List<IReadOnlyList<double>> refineCoords;
+        public List<IReadOnlyList<double>> refineCoords;
 
             public List<OSGeo.OGR.Feature> resultFeatures;
 
@@ -358,7 +370,11 @@ namespace ArcSWATPlus
             public _GridTask(
                 Envelope extent,
                 Geometry wsGeom,
+#if TESTING
+                HRUsFormStub hf,
+#else
                 HRUsForm hf,
+#endif
                 List<IReadOnlyList<double>> refineCoords,
                 string demFile,
                 string outPath,

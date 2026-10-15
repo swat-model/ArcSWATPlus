@@ -25,6 +25,7 @@ using Microsoft.VisualBasic.Logging;
 using Microsoft.Win32;
 using OSGeo.OGR;
 using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 //using System.Data.Entity.Migrations.Sql;
@@ -180,6 +181,10 @@ namespace ArcSWATPlus
                         sw.WriteLine(String.Format("ERROR: {0}", msg));
                     }
                 }
+#if TESTING
+                throw new Exception(String.Format("ERROR: {0}", msg));
+#else
+#endif
             } else {
                 MessageBox.Show("ERROR: " + msg, Utils._ARCSWATPLUSNAME);
             }
@@ -361,7 +366,7 @@ namespace ArcSWATPlus
 
         // 
         //         Copy .prj file, if it exists, from inFile to .prj file of outFile,
-        //         unless outFile is .dat.
+        //         unless outFile is .dat or outFile prj already exists
         //         
 
         public static void copyPrj(string inFile, string outFile) {
@@ -369,7 +374,7 @@ namespace ArcSWATPlus
             if (outSuffix != ".dat") {
                 var inPrj = Path.ChangeExtension(inFile, ".prj");
                 var outPrj = Path.ChangeExtension(outFile, ".prj");
-                if (File.Exists(inPrj)) {
+                if (File.Exists(inPrj) && !File.Exists(outPrj)) {
                     File.Copy(inPrj, outPrj, true);
                 }
             }
@@ -400,6 +405,9 @@ namespace ArcSWATPlus
             // calling processEvents after label.clear can cause QGIS to hang
             label.Refresh();
         }
+
+        // sub for testing
+        public static void progress(string text, string label) { }
 
         // If path is P/X.shp and P/X is a directory, return P/X/X.shp,
         //         else return path.
@@ -910,10 +918,9 @@ namespace ArcSWATPlus
             if (string.IsNullOrEmpty(fileName) || !File.Exists(fileName)) {
                 return (null, false);
             }
-            int index;
             string layerFile;
             // make sure any layer changes have completed by clearing the MCT task queue
-            await QueuedTask.Run(() => {; });
+            //await QueuedTask.Run(() => {; });
             foreach (var layer in ArcSWATPlus.mainMap.GetLayersAsFlattenedList().Where (l => (l is RasterLayer) || (l is FeatureLayer)))
             {
                 layerFile = await Utils.layerFilename(layer);
@@ -959,16 +966,21 @@ namespace ArcSWATPlus
 
                 // multiple layers not allowed
                 await Utils.removeLayerByLegend(legend);
-                var groupLayer =
+                int index = 0;
+                GroupLayer groupLayer = null;
+                groupLayer =
                     ArcSWATPlus.mainMap.Layers.OfType<GroupLayer>().FirstOrDefault(layer => string.Equals(layer.Name, groupName));
                 if (groupLayer is null)
                 {
                     Utils.information(String.Format("Internal error: cannot find group {0}.", groupName), false /* gv.isBatch */);
                     return (null, false);
                 }
+#if TESTING
+#else
                 await QueuedTask.Run(() => {
                     groupLayer.SetExpanded(true);
                 });
+#endif
                 if (subLayer is null)
                 {
                     index = 0;
@@ -1009,7 +1021,11 @@ namespace ArcSWATPlus
                             mapLayer = LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName));
                         });
                     } else {
-                        mapLayer = await QueuedTask.Run(() => LayerFactory.Instance.CreateLayer(new Uri(fileName), groupLayer, index, String.Format("{0} ({1})", legend, baseName)));
+                        await QueuedTask.Run(() => {
+                            var uri = new Uri(fileName);
+                            string txt = String.Format("{0} ({1})", legend, baseName);
+                            mapLayer = LayerFactory.Instance.CreateLayer(uri, groupLayer, index, txt);
+                        });
                         //var dsName = Path.GetFileNameWithoutExtension(fileName);
                         //var parms = Geoprocessing.MakeValueArray(fileName, gv.gdb, dsName);
                         //Utils.runPython("runCopyRaster.py", parms, gv);
@@ -1032,16 +1048,19 @@ namespace ArcSWATPlus
                     //} catch {; }
                     var uri = new Uri(fileName);
                     var legend2 = String.Format("{0} ({1})", legend, baseName);
-                    mapLayer = await QueuedTask.Run(() => 
-                        LayerFactory.Instance.CreateLayer(uri, groupLayer, index, legend2)
-                    );
+                    await QueuedTask.Run(() => {
+                        mapLayer = LayerFactory.Instance.CreateLayer(uri, groupLayer, index, legend2);
+                    });
                     await FileTypes.ApplySymbolToFeatureLayerAsync((FeatureLayer)mapLayer, ft, gv);
                     await setMapTip((FeatureLayer)mapLayer, ft, gv);
                 }
+#if TESTING
+#else
                 var fun = FileTypes.colourFun(ft);
                 if (fun is not null) {
                     fun((RasterLayer)mapLayer, gv);
                 }
+#endif
                 //if (!(styleFile is null || styleFile == "")) {
                 //    mapLayer.loadNamedStyle(Utils.join(gv.plugin_dir, styleFile));
                 //}
@@ -1185,9 +1204,13 @@ namespace ArcSWATPlus
             //    Utils.loginfo("ArcSWAT python environment does not seem to be installed.  Using default, which will not work for some scripts, including visualisation plotting.", EventLog.EventType.Warning);
             //    pathProExeArcSWAT = System.IO.Path.Combine(pathProExe, @"Python\envs\arcgispro-py3");
             //}
+#if TESTING
+            pathProExe = @"C:\Program Files\ArcGIS\Pro\bin";
+#else
             pathProExe = System.IO.Path.GetDirectoryName(new System.Uri(Assembly.GetEntryAssembly().Location).AbsolutePath);
             if (pathProExe == null) return "";
             pathProExe = Uri.UnescapeDataString(pathProExe);
+#endif
             string pathProExeArcSWAT = System.IO.Path.Combine(pathProExe, @"Python\envs\arcgispro-py3");
             // Create and format process command string.
             // Create process start info, with instruction settings
@@ -1234,7 +1257,11 @@ namespace ArcSWATPlus
 
         public static async Task<(string, Layer)> openAndLoadFile(
             int ft,
+#if TESTING
+            mimicTextBox box,
+#else
             TextBox box,
+#endif
             string saveDir,
             GlobalVars gv,
             Layer subLayer,
@@ -1257,8 +1284,7 @@ namespace ArcSWATPlus
             //    path = "";
             //}
             var title = Utils.trans(FileTypes.title(ft));
-            if (gv.isBatch)
-            {
+            if (gv.isBatch) {
                 // filename in box
                 inFileName = box.Text;
             }
@@ -1382,6 +1408,7 @@ namespace ArcSWATPlus
                 }
                 // layer name will have changed if clipped
                 outFileName = await Utils.layerFilename(layer);
+
                 if (!(box is null))
                 {
                     box.Text = outFileName;
@@ -1992,11 +2019,32 @@ namespace ArcSWATPlus
             // return true if numbers less than rel_tol apart
             return Math.Abs(v1 - v2) < rel_tol;
         }
+
+        public static void CopyAll(DirectoryInfo source, DirectoryInfo target) {
+            if (source.FullName.ToLower() == target.FullName.ToLower()) {
+                return;
+            }
+
+            // Check if the target directory exists, if not, create it.
+            if (Directory.Exists(target.FullName) == false) {
+                Directory.CreateDirectory(target.FullName);
+            }
+
+            // Copy each file into it's new directory.
+            foreach (FileInfo fi in source.GetFiles()) {
+                fi.CopyTo(Path.Combine(target.ToString(), fi.Name), true);
+            }
+
+            // Copy each subdirectory using recursion.
+            foreach (DirectoryInfo diSourceSubDir in source.GetDirectories()) {
+                DirectoryInfo nextTargetSubDir = target.CreateSubdirectory(diSourceSubDir.Name);
+                CopyAll(diSourceSubDir, nextTargetSubDir);
+            }
+        }
     }
 
-
-// Inserted list function.
-public class ListFuns
+    // Inserted list function.
+    public class ListFuns
     {
         // int list to string
         public static string listToString(List<int> l) {

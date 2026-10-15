@@ -5,7 +5,7 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://schemas.esri.com/DADF/Registry file:///C:/Program%20Files/ArcGIS/Pro/bin/ArcGIS.Desktop.Framework.xsd">
 
-  <AddInInfo id="{b732ba7e-af7c-4d68-9b51-a1e56c28b871}" version="1.1.1" desktopVersion="3.3.52636">
+  <AddInInfo id="{b732ba7e-af7c-4d68-9b51-a1e56c28b871}" version="4.0.1" desktopVersion="3.3.52636">
     <Name>ArcSWATPlus3.3</Name>   
     <Description>Develop models for SWAT+. ArcGIS Pro 3.3 version.</Description>
     <Image>Install/swatplus32.png</Image>

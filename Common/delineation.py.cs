@@ -1,41 +1,28 @@
 
 
 using ArcGIS.Core.Data;
-using ArcGIS.Core.Data.Analyst3D;
-using ArcGIS.Core.Data.Raster;
-using ArcGIS.Core.Data.UtilityNetwork.Trace;
 using ArcGIS.Core.Geometry;
-using ArcGIS.Core.Internal.CIM;
 using ArcGIS.Desktop.Core;
 using ArcGIS.Desktop.Core.Geoprocessing;
 using ArcGIS.Desktop.Editing;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
 using ArcGIS.Desktop.Internal.Catalog;
-using ArcGIS.Desktop.Internal.Core;
-using ArcGIS.Desktop.Internal.Editing;
 using ArcGIS.Desktop.Mapping;
 using Microsoft.Extensions.FileSystemGlobbing;
 using OSGeo.GDAL;
 using OSGeo.OGR;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 //using System.Data.Entity.Infrastructure;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Security.Policy;
 using System.Threading.Tasks;
 using System.Windows;
+#if TESTING
+#else
 using System.Windows.Forms;
-using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using static ArcGIS.Desktop.Editing.Templates.EditingGroupTemplate;
-using static System.Net.WebRequestMethods;
+#endif
 
 namespace ArcSWATPlus {
 
@@ -123,8 +110,11 @@ namespace ArcSWATPlus {
 
     // Do watershed delineation.
     public class Delineation {
-
+#if TESTING
+        public DelineationFormStub _dlg;
+#else
         public DelineationForm _dlg;
+#endif
 
         public GlobalVars _gv;
 
@@ -177,7 +167,11 @@ namespace ArcSWATPlus {
         public Delineation(GlobalVars gv, bool isDelineated, ArcSWATPlus parent) {
             this._gv = gv;
             this._parent = parent;
+#if TESTING
+            this._dlg = new DelineationFormStub(gv, this);
+#else
             this._dlg = new DelineationForm(gv, this);
+#endif
             //this._dlg.move(this._gv.delineatePos);
             //# when a snap file is created this is set to the file path
             this.snapFile = "";
@@ -275,7 +269,7 @@ namespace ArcSWATPlus {
             // Prevent annoying "error 4 .shp not recognised" messages.
             // These should become exceptions but instead just disappear.
             // Safer in any case to raise exceptions if something goes wrong.
-            OSGeo.GDAL.Gdal.UseExceptions();
+            OSGeo.GDAL.Gdal.UseExceptions(); 
             OSGeo.OGR.Ogr.UseExceptions();
         }
 
@@ -395,7 +389,7 @@ namespace ArcSWATPlus {
             this._dlg.saveProj();
             string outletFile;
             if (this.checkDEMProcessed()) {
-                var recalculate = this._gv.existingWshed && this._dlg.delinRecalcButton.Checked;
+                var recalculate = this._gv.existingWshed && this._dlg.delinRecalcButtonChecked;
                 this.progress("Constructing topology ...");
                 if (this._gv.outletFile == "") {
                     outletFile = "";
@@ -518,8 +512,8 @@ namespace ArcSWATPlus {
                 }
                 // avoid running again
                 this.lakesDone = true;
-                this._dlg.delinLakesTab.Enabled = false;
-                this._dlg.delinMergeTab.Enabled = false;
+                this._dlg.delinLakesTabEnabled = false;
+                this._dlg.delinMergeTabEnabled = false;
                 this.progress("Adding lakes ...");
                 using (new CursorWait()) {
                     this._gv.topo.lakesData.Clear();
@@ -527,7 +521,7 @@ namespace ArcSWATPlus {
                     channelsLayer = this._gv.useGridModel ? null : channelsDs.GetLayerByIndex(0);
                     if (this._gv.useGridModel) {
                         await this._gv.topo.addGridReservoirsPondsAndWetlands(subbasinsLayer, streamsLayer, demLayer, this._gv);
-                        this._gv.topo.addGridPlayas(lakesLayer, demLayer, this._gv);
+                        await this._gv.topo.addGridPlayas(lakesLayer, demLayer, this._gv);
                     } else if (this._gv.existingWshed) {
                         await this._gv.topo.addExistingLakes(lakesLayer, channelsLayer, demLayer, this._gv);
                     } else {
@@ -995,6 +989,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
                             ArcGIS.Core.Data.QueryFilter qf = new ArcGIS.Core.Data.QueryFilter {
                                 ObjectIDs = new List<long>() { lake.GetFID() }
                             };
+#if TESTING
+#else
                             if (ArcSWATPlus.mainMap != MapView.Active.Map) {
                                 await ArcSWATPlus.mainMap.OpenViewAsync();
                             }
@@ -1010,14 +1006,15 @@ assumed that its crossing the lake boundary is an inaccuracy.
     try editing the lake boundary if it is already close to a channel, 
     or you could change it to a playa lake by setting its RES field to 4.
     ", lakeId);
-                            this._dlg.WindowState = FormWindowState.Minimized;
+                            this._dlg.windowState = FormWindowState.Minimized;
                             var result = ArcGIS.Desktop.Framework.Dialogs.MessageBox.Show(Utils.trans(text), "Remove lake?", MessageBoxButton.YesNo);
-                            this._dlg.WindowState = FormWindowState.Normal;
+                            this._dlg.windowState = FormWindowState.Normal;
                             if (result == MessageBoxResult.Yes) {
                                 lakesToRemove.Add(lake.GetFID());
                             }
                             await QueuedTask.Run(() => arcLakesLayer.ClearSelection());
                             continue;
+#endif
                         }
                     } while (lake is not null);
                     foreach (var newPoint in newPoints) {
@@ -1476,15 +1473,21 @@ assumed that its crossing the lake boundary is an inaccuracy.
             //Utils.printLayers(root, 1)
             if (!string.IsNullOrEmpty(demFile) && demMapLayer is not null) {
                 this._gv.demFile = demFile;
-                if (ArcSWATPlus.mainMap != MapView.Active.Map) {
+                if (ArcSWATPlus.mainMap != MapView.Active?.Map) {
                     await ArcSWATPlus.mainMap.OpenViewAsync();
                 }
+#if TESTING
+                // mapviewer not available when testing
+#else
                 await QueuedTask.Run(() => {
                     MapView.Active.ZoomTo(demMapLayer);
                     // set extent to DEM as otherwise defaults to full globe
                     var demExtent = demMapLayer.QueryExtent();
                     var map = ArcSWATPlus.mainMap;
                     map.SetCustomFullExtent(demExtent);
+                });
+#endif
+                await QueuedTask.Run(() => {
                     dynamic nodata = demMapLayer.GetRaster().GetNoDataValue();
                     var typ = nodata.GetType();
                     if (typ.IsArray) {
@@ -1608,12 +1611,16 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // Open and load inlets/outlets shapefile.
         public async Task btnSetOutlets() {
+#if TESTING
+            mimicTextBox box;
+#else
             TextBox box;
+#endif
             if (this._gv.existingWshed) {
-                Debug.Assert(this._dlg.delinTabWidget.SelectedIndex == 1);
+                Debug.Assert(this._dlg.delinTabWidgetIndex == 1);
                 box = this._dlg.delinSelectExistOutlets;
             } else {
-                Debug.Assert(this._dlg.delinTabWidget.SelectedIndex == 0);
+                Debug.Assert(this._dlg.delinTabWidgetIndex == 0);
                 box = this._dlg.delinSelectOutlets;
                 this.thresholdChanged = true;
             }
@@ -1734,7 +1741,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // Change between using existing and delineating watershed.
         public virtual void changeExisting() {
-            var tab = this._dlg.delinTabWidget.SelectedIndex;
+            var tab = this._dlg.delinTabWidgetIndex;
             if (tab > 1) {
                 // DEM properties or TauDEM output
                 return;
@@ -1847,7 +1854,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 this._dlg.numberOfProcesses = 0;
             }
             if (this._dlg.showTaudemChecked) {
-                this._dlg.delinTabWidget.SelectedIndex = 3;
+                this._dlg.delinTabWidgetIndex = 3;
             }
             using (new CursorWait()) {
                 this._dlg.getTaudemOutput.Clear();
@@ -2226,7 +2233,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     channelLayer = channelLayer0 as FeatureLayer;
                 }
                 var possSnapFile = this._dlg.useOutletsChecked ? this._gv.snapFile : "";
-                if (!await this._gv.topo.setUp0(demLayer, chanFile, possSnapFile, null, this._gv)) {
+                if (!await this._gv.topo.setUp0(demLayer, chanFile, possSnapFile, this._gv)) {
                     this.cleanUp(-1);
                     return;
                 }
@@ -2390,7 +2397,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 }
                 if (willRun) {
                     if (this._dlg.showTaudemChecked) {
-                        this._dlg.delinTabWidget.SelectedIndex = 3;
+                        this._dlg.delinTabWidgetIndex = 3;
                     }
                     var ok = await this._gv.taudem.runDinfFlowDir(demFile, slpFile, angFile, numProcesses, this._dlg.getTaudemOutput);
                     if (!ok) {
@@ -2484,7 +2491,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
                     }
                 }
                 this._gv.outletFile = outletFile;
-                if (await this._gv.topo.setUp0(demLayer, channelFile, outletFile, null, this._gv)) {
+                if (await this._gv.topo.setUp0(demLayer, channelFile, outletFile, this._gv)) {
                     this.isDelineated = true;
                     this._dlg.setMergeResGroups(this.isDelineated);
                     this._dlg.saveProj();
@@ -2665,6 +2672,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
         //         or a new one.
         //      
         public async Task drawOutlets() {
+#if TESTING
+#else
             DialogResult result;
             //SelectPointViewModel vm = new SelectPointViewModel(null, false);
             //this.mapTool = new PointTool();
@@ -2702,6 +2711,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             var outletForm = new OutletForm(this.drawOutletLayer, this);
             await outletForm.setup();
             outletForm.Show();
+#endif
         }
 
         // return function from OutletForm
@@ -2821,6 +2831,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // Allow user to select points in inlets/outlets layer.
         public async Task selectOutlets() {
+#if TESTING
+#else
             if (ArcSWATPlus.mainMap != MapView.Active.Map) {
                 await ArcSWATPlus.mainMap.OpenViewAsync();
             }
@@ -2861,6 +2873,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             });
             var selectPoint = new SelectPoint(this);
             selectPoint.Show();
+#endif
         }
 
         public async Task selectPoints(bool saveSelected) {
@@ -2980,6 +2993,8 @@ assumed that its crossing the lake boundary is an inaccuracy.
 
         // Allow user to remove cells from lake.
         public async Task removeLakeCells() {
+#if TESTING
+#else
             var ft = FileTypes._GRID;
             this.gridLayer = await Utils.getLayerByFilenameOrLegend(this._gv.subbasinsFile, ft, FileTypes.legend(ft), this._gv.isBatch) as FeatureLayer;
             if (this.gridLayer is null) {
@@ -3026,10 +3041,13 @@ assumed that its crossing the lake boundary is an inaccuracy.
             });
             var selectLake = new SelectLake(this, false);
             selectLake.Show();
+#endif
         }
 
         // Allow user to Add cells to lake.
         public async Task addLakeCells() {
+#if TESTING
+#else
             var ft = FileTypes._GRID;
             this.gridLayer = await Utils.getLayerByFilenameOrLegend(this._gv.subbasinsFile, ft, FileTypes.legend(ft), this._gv.isBatch) as FeatureLayer;
             if (this.gridLayer is null) {
@@ -3081,7 +3099,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             });
             var selectLake = new SelectLake(this, false);
             selectLake.Show();
-
+#endif
         }
 
         // if selecting, set lakeId of selected cells if adding, else nullify the lakeId of selected cells
@@ -3303,6 +3321,11 @@ assumed that its crossing the lake boundary is an inaccuracy.
                 Utils.error("Cannot find subbasins layer", this._gv.isBatch);
                 return;
             }
+#if TESTING
+            var selSubs = new SelectSubbasinStub(subbasinsLayer, this, this._gv);
+            await selSubs.setup();
+            await selSubs.selectSubbasinsByThreshold(5);
+#else
             // make only subbasins layer selectable
             if (ArcSWATPlus.mainMap != MapView.Active.Map) {
                 await ArcSWATPlus.mainMap.OpenViewAsync();
@@ -3324,6 +3347,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
             var selSubs = new SelectSubbasin(subbasinsLayer, this, this._gv);
             await selSubs.setup();
             selSubs.Show();
+#endif
         }
 
         // Merged selected subbasin with its parent.  Not used with grid models.
@@ -3923,7 +3947,7 @@ assumed that its crossing the lake boundary is an inaccuracy.
         //         
         public void cleanUp(int tabIndex) {
             if (tabIndex >= 0) {
-                this._dlg.delinTabWidget.SelectedIndex = tabIndex;
+                this._dlg.delinTabWidgetIndex = tabIndex;
             }
             this.progress("");
             return;
@@ -3948,7 +3972,39 @@ assumed that its crossing the lake boundary is an inaccuracy.
             // runRasterToPolygon.py creates this temporary file, and should overwrite if necessary, but can fail
             var tempFile = System.IO.Path.ChangeExtension(subbasinsFile, null) + "_temp.shp";
             await Utils.removeLayerAndFiles(tempFile);
+            //var parms = Geoprocessing.MakeValueArray(wFile, tempFile);
+            //var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+            //var result = await Geoprocessing.ExecuteToolAsync("conversion.RasterToPolygon", parms, environment, null, null, GPExecuteToolFlags.None);
+            //            if (string.IsNullOrEmpty(result.ReturnValue)) {
+            //#if TESTING
+            //#else
+            //                Geoprocessing.ShowMessageBox(result.Messages, "GP Messages", result.IsFailed ? GPMessageBoxStyle.Error : GPMessageBoxStyle.Default);
+            //#endif
+            //                Utils.error($@"Failed to convert raster {wFile} to polygon: " + $@"{result.ErrorMessages}", this._gv.isBatch);
+            //                return;
+            //            } else {
+            //                Utils.loginfo("Converted raster to polygon: " + tempFile + $@" {result.ReturnValue}");
+            //            }
+            //Debug.Assert(System.IO.File.Exists(tempFile));
+            //parms = Geoprocessing.MakeValueArray(tempFile,
+            //                  subbasinsFile,
+            //                  "gridcode",
+            //                  null,
+            //                  "MULTI_PART",
+            //                  "DISSOLVE_LINES");
+            //result = await Geoprocessing.ExecuteToolAsync("management.Dissolve", parms, environment, null, null, GPExecuteToolFlags.None);
+            //            if (string.IsNullOrEmpty(result.ReturnValue)) {
+            //#if TESTING
+            //#else
+            //                Geoprocessing.ShowMessageBox(result.Messages, "GP Messages", result.IsFailed ? GPMessageBoxStyle.Error : GPMessageBoxStyle.Default);
+            //#endif
+            //                Utils.error($@"Failed to dissolve {tempFile} to {subbasinsFile}: " + $@"{result.ErrorMessages}", this._gv.isBatch);
+            //                return;
+            //            } else {
+            //                Utils.loginfo("Converted raster to polygon: " + tempFile + $@" {result.ReturnValue}");
+            //            }
             var parms = Geoprocessing.MakeValueArray(wFile, subbasinsFile);
+            var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
             Utils.runPython("runRasterToPolygon.py", parms, this._gv);
             // remove temporary files
             Utils.removeFiles(tempFile);

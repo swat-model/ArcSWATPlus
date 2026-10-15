@@ -3,6 +3,7 @@ using ArcGIS.Core.Internal.CIM;
 using ArcGIS.Desktop.Catalog;
 using ArcGIS.Desktop.Core;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
+using ArcGIS.Desktop.Internal.Catalog.PropertyPages.NetworkDataset;
 using ArcGIS.Desktop.Mapping;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Internal;
@@ -38,10 +39,10 @@ namespace ArcSWATPlus
         public GridGenerator _gridGen;
         public double _watershedArea;
 
-        public HRUsForm(GlobalVars gv, HRUs parent) {
-            this._gv = gv;
+        public HRUsForm(HRUs parent) {
+            this._gv = parent._gv;
             this._parent = parent;
-            this._db = gv.db;
+            this._db = this._gv.db;
             // parent.CreateHRUs is null at this point: set in init
             //this._createHRUs = parent.CreateHRUs;
             InitializeComponent();
@@ -50,8 +51,15 @@ namespace ArcSWATPlus
         // Set up HRUs dialog.
         public async Task init() {
             this._createHRUs = this._parent.CreateHRUs;
+#if TESTING
+            // should never get here, but need to protect from compiler when TESTING
+            var hf = new HRUsFormStub(this._parent);
+            this._gw = new GwflowHru(hf);
+            this._gridGen = new GridGenerator(this._gv, hf);
+#else
             this._gw = new GwflowHru(this);
-            this._gridGen = new GridGenerator(this._gv);
+            this._gridGen = new GridGenerator(this._gv, this);
+#endif
             // set watershed boundary and extent
             await this._gridGen.init();
             this.initGridGenerator();
@@ -148,8 +156,16 @@ namespace ArcSWATPlus
                 var idealSize = Convert.ToInt32(Math.Sqrt(areaM2 / targetCells));
                 int magnitude = (int)Math.Pow(10, Convert.ToInt32(Math.Log10(Math.Max(idealSize, 1))));
                 idealSize = (int)Math.Max(magnitude, Math.Round((double)(idealSize / magnitude)) * magnitude);
+                // avoid silly problems with preset maxima
+                if (idealSize >= this.cellSize.Maximum) {
+                    this.cellSize.Maximum = idealSize + 1;
+                }
                 this.cellSize.Value = idealSize;
-                this.maxCellSize.Value = idealSize * 3;
+                var maxSize = idealSize * 3;
+                if (maxSize >= this.maxCellSize.Maximum) {
+                    this.maxCellSize.Maximum = maxSize + 1;
+                }
+                this.maxCellSize.Value = maxSize;
                 this.updateCellEstimate(areaM2);
                 this._updateMinSizeLabel();
             }
@@ -160,6 +176,10 @@ namespace ArcSWATPlus
             // @UnusedVariable
             //Utils.information('Switched to tab {}', i), False)
             this.progress("");
+        }
+
+        public void setMainTab(int index) {
+            this.mainTab.SelectedIndex = index;
         }
 
         // 
@@ -195,21 +215,31 @@ namespace ArcSWATPlus
                 this.plantSoilDatabase.Text = this._db.dbFile;
                 this._db.plantSoilDatabase = this._db.dbFile;
             }
+#if TESTING
+            // will never get here
+#else
             this._db.plantTableNames = this._db.collectPlantSoilTableNames("plant", this.selectPlantTable);
+#endif
             var plantSearch = this._db.plantTable.Contains("plant") ? this._db.plantTable : "plant";
             var plantIndex = this.selectPlantTable.FindString(plantSearch);
             if (plantIndex >= 0) {
                 this.selectPlantTable.SelectedIndex = plantIndex;
             }
             this._db.plantTable = this.selectPlantTable.Text;
+#if TESTING
+// will never get here
+#else
             this._db.urbanTableNames = this._db.collectPlantSoilTableNames("urban", this.selectUrbanTable);
+#endif
             var urbanSearch = this._db.urbanTable.Contains("urban") ? this._db.urbanTable : "urban";
             var urbanIndex = this.selectUrbanTable.FindString(urbanSearch);
             if (urbanIndex >= 0) {
                 this.selectUrbanTable.SelectedIndex = urbanIndex;
             }
             this._db.urbanTable = this.selectUrbanTable.Text;
-        }       // Read usersoil/STATSGO/SSURGO choice and set variables.
+        }
+        
+        // Read usersoil/STATSGO/SSURGO choice and set variables.
         public virtual void setSoilData() {
             if (this.usersoilButton.Checked) {
                 this.dbLabel.Text = "Select landuse and soil database";
@@ -223,7 +253,11 @@ namespace ArcSWATPlus
                     this.plantSoilDatabase.Text = this._db.dbFile;
                     this._db.plantSoilDatabase = this._db.dbFile;
                 }
+#if TESTING
+// will never get here
+#else
                 this._db.usersoilTableNames = this._db.collectPlantSoilTableNames("usersoil", this.selectUsersoilTable);
+#endif
                 var searchTable = this._db.usersoilTable.Contains("usersoil") ? this._db.usersoilTable : "usersoil";
                 var usersoilIndex = this.selectUsersoilTable.FindString(searchTable);
                 if (usersoilIndex >= 0) {
@@ -255,7 +289,9 @@ namespace ArcSWATPlus
                     Utils.information(string.Format("To use SSURGO soils with QSWAT+ you need to download the SWAT+ STATSGO/SSURGO soil database {0} and save it as {1}.", "https://plus.swat.tamu.edu/downloads/swatplus_soils.zip", this._db.soilDatabase), this._gv.isBatch);
                 }
             }
-        }       // Allow user to select plant and soil database.
+        } 
+
+        // Allow user to select plant and soil database.
         public virtual void selectPlantSoilDatabase() {
             string db = null;
             var ft = FileTypes._SQLITE;
@@ -272,18 +308,28 @@ namespace ArcSWATPlus
                 this.plantSoilDatabase.Text = db;
                 this._db.plantSoilDatabase = db;
                 this._db.plantSoilDatabaseSelected = true;
+#if TESTING
+// will never get here
+#else
                 this._db.plantTableNames = this._db.collectPlantSoilTableNames("plant", this.selectPlantTable);
                 this._db.urbanTableNames = this._db.collectPlantSoilTableNames("urban", this.selectUrbanTable);
+#endif
                 // combo boxes may have changed, so reset plant, urban and usersoil choices
                 // according to first entry in combo box
                 this._parent.setPlantTable();
                 this._parent.setUrbanTable();
                 if (!(this._db.useSTATSGO || this._db.useSSURGO)) {
+#if TESTING
+// will never get here
+#else
                     this._db.usersoilTableNames = this._db.collectPlantSoilTableNames("usersoil", this.selectUsersoilTable);
+#endif
                     this._parent.setUsersoilTable();
                 }
             }
-        }        // Set dialog to read from maps or from previous run.
+        }
+        
+        // Set dialog to read from maps or from previous run.
         public virtual void setRead() {
             //Utils.loginfo("Checking BASINSDATA");
             if (this._db.hasData("BASINSDATA")) {
@@ -329,11 +375,15 @@ namespace ArcSWATPlus
             //self.subbasinsLabel.Text = '')
             //self.channelsLabel.Text = '')
             //self.fullHRUsLabel.Text = '')
-        }       // Save channel merge parameters.
+        } 
+        
+        // Save channel merge parameters.
         public virtual void setChannelMergeChoice() {
             this._createHRUs.channelMergeByPercent = this.channelPercentButton.Checked;
             this._createHRUs.channelMergeThreshold = this.channelMergeSlider.Value;
-        }        // Set dialog according to choice of multiple/single HRUs.
+        } 
+        
+        // Set dialog according to choice of multiple/single HRUs.
         public virtual void setHRUChoice() {
             this.landuseSoilSlopeGroup.Visible = false;
             this.areaGroup.Visible = false;
@@ -387,7 +437,12 @@ namespace ArcSWATPlus
                 }
                 this.setAreaPercentChoice();
             }
-        }       // Set dialog according to choice of area or percent thresholds.
+        }
+
+        // used in testing; defined properly in stubs.cs
+        public void setHRUChoiceStub(int choice, bool percent) { }
+
+        // Set dialog according to choice of area or percent thresholds.
         public virtual void setAreaPercentChoice() {
             if (!this._createHRUs.isMultiple) {
                 return;
@@ -655,32 +710,6 @@ namespace ArcSWATPlus
                 }
             }
             this.createButton.Enabled = true;
-        }
-
-        // Insert a new slope limit.
-        public virtual void insertSlope() {
-            var txt = this.slopeBand.Text;
-            double num;
-            if (txt == "") {
-                return;
-            }
-            try {
-                num = Convert.ToDouble(txt);
-            }
-            catch (Exception) {
-                Utils.information(string.Format("Cannot parse {0} as a number", txt), this._gv.isBatch);
-                return;
-            }
-            ListFuns.insertIntoSortedList(num, this._db.slopeLimits, true);
-            this.slopeBrowser.Text = Utils.slopesToString(this._db.slopeLimits);
-            this.slopeBand.Clear();
-        }
-
-        // Reset to no slope bands.
-        public virtual void clearSlopes() {
-            this._db.slopeLimits = new List<double>();
-            this.slopeBrowser.Text = "[0, 9999]";
-            this.slopeBand.Clear();
         }       // Update progress label with message; emit message for display in testing.
 
         public virtual void progress(string msg) {
@@ -1116,17 +1145,17 @@ namespace ArcSWATPlus
         }
 
         private void insertButton_Click(object sender, EventArgs e) {
-            this.insertSlope();
+            this._parent.insertSlope();
         }
 
         private void slopeBand_KeyUp(object sender, KeyEventArgs e) {
             if (e.KeyCode == Keys.Enter) {
-                this.insertSlope();
+                this._parent.insertSlope();
             }
         }
 
         private void clearButton_Click(object sender, EventArgs e) {
-            this.clearSlopes();
+            this._parent.clearSlopes();
         }
 
         private async void readButton_Click(object sender, EventArgs e) {
@@ -1280,8 +1309,13 @@ namespace ArcSWATPlus
                 Directory.CreateDirectory(gwflowDir);
             }
             // for this filetype the file will not be loaded or opened, but will be copied if nesessary to gwflowDir
+#if TESTING
+            // will never get here
+            string thicknessFile = "";
+#else
             var thicknessFile = (await Utils.openAndLoadFile(FileTypes._AQUIFERTHICKNESS, this.aquiferThickness, gwflowDir,
                 this._gv, null, "")).Item1;
+#endif
             if (thicknessFile is null) { return; }
             this.aquiferThickness.Text = thicknessFile;
             // check projection
@@ -1478,11 +1512,11 @@ namespace ArcSWATPlus
             set { alignGrids.Checked = value; }
         }
 
-        private void generateGridButton_Click(object sender, EventArgs e) {
+        private async void generateGridButton_Click(object sender, EventArgs e) {
             if (this._gridGen is null) {
                 return;
             }
-            this._gridGen.requestGeneration(this);
+            await this._gridGen.requestGeneration();
         }
 
         public TabControl mainTab {
@@ -1497,6 +1531,10 @@ namespace ArcSWATPlus
             get { return this.tabPage2; }
         }
 
+        public void enableTab2(bool enable) {
+            tab2.Enabled = enable;
+        }
+
         public Label progressLabel {
             get {
                 if (this.HRUsTab.SelectedIndex == 0) {
@@ -1507,9 +1545,7 @@ namespace ArcSWATPlus
             }
         }
 
-        public ComboBox floodplainComboBox {
-            get { return this.floodplainCombo; }
-        }
+        public ComboBox hrusFloodplainCombo => this.floodplainCombo;
 
         public string selectLanduseTableText {
             get { return this.selectLanduseTable.Text; }
@@ -1530,6 +1566,7 @@ namespace ArcSWATPlus
 
         public bool readFromPreviousChecked {
             get { return this.readFromPrevious.Checked; }
+            set { this.readFromPrevious.Checked = value; }
         }
 
         public bool generateFullHRUsChecked {
@@ -1555,6 +1592,7 @@ namespace ArcSWATPlus
 
         public int reservoirThresholdValue {
             get { return (int)this.reservoirThreshold.Value; }
+            set { this.reservoirThreshold.Value = value; }
         }
 
         public int channelMergeSliderValue {
@@ -1567,6 +1605,15 @@ namespace ArcSWATPlus
                     return this.progressBar1;
                 } else { return this.progressBar2; }
             }
+        }
+
+        public int progressBarValue {
+            get { return getProgressBar.Value; }
+            set { getProgressBar.Value = value; }
+        }
+
+        public void setProgressBarVisible(bool visible) {
+            getProgressBar.Visible = visible;
         }
 
         public bool remergeEnabled {
@@ -1654,8 +1701,8 @@ namespace ArcSWATPlus
             set { this.subbasinsLabel.Text = value; }
         }
 
-        public string slopeBandText {
-            get { return this.slopeBand.Text; }
-        }
+        public TextBox hrusSlopeBand => this.slopeBand;
+
+        public TextBox hrusSlopeBrowser => this.slopeBrowser;
     }
 }
