@@ -150,6 +150,10 @@ namespace ArcSWATPlus
             }
         }
 
+        public bool delinRecalcButtonChecked {
+            get { return this.recalcButton.Checked; }
+        }
+
         // Set connections to controls; read project delineation data.
         public async Task init() {
             //var settings = QSettings();
@@ -2987,28 +2991,28 @@ namespace ArcSWATPlus
 
 
 
-        // Create basin file from watershed shapefile.
-        public async Task<string> createBasinFile(string wshedFile, RasterLayer demLayer) {
-            var demPath = await Utils.layerFilename(demLayer);
-            var @base = Path.ChangeExtension(demPath, null);
-            var wFile = @base + "w.tif";
-            await Utils.removeLayerAndFiles(wFile);
-            //Debug.Assert(!System.IO.File.Exists(wFile));
-            var parms = Geoprocessing.MakeValueArray(wshedFile, Topology._POLYGONID, wFile, this._gv.demFile);
-            var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
-            await Geoprocessing.ExecuteToolAsync("conversion.FeatureToRaster", parms, environment, null, null, GPExecuteToolFlags.None);
-            //Utils.runPython("runFeatureToRaster.py", parms, this._gv);
-            //var xSize = demLayer.rasterUnitsPerPixelX();
-            //var ySize = demLayer.rasterUnitsPerPixelY();
-            //var extent = this.extent;
-            //// need to use extent to align basin raster cells with DEM
-            //var command = "gdal_rasterize -a {0} -tr {1} {2} -te {6} {7} {8} {9} -a_nodata -9999 -ot Int32 -of GTiff -l \"{3}\" \"{4}\" \"{5}\"", Topology._POLYGONID, xSize, ySize, baseName, wshedFile, wFile, extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum());
-            //Utils.loginfo(command);
-            //os.system(command);
-            //Debug.Assert(System.IO.File.Exists(wFile));
-            Utils.copyPrj(wshedFile, wFile);
-            return wFile;
-        }
+        //// Create basin file from watershed shapefile.
+        //public async Task<string> createBasinFile(string wshedFile, RasterLayer demLayer) {
+        //    var demPath = await Utils.layerFilename(demLayer);
+        //    var @base = Path.ChangeExtension(demPath, null);
+        //    var wFile = @base + "w.tif";
+        //    await Utils.removeLayerAndFiles(wFile);
+        //    //Debug.Assert(!System.IO.File.Exists(wFile));
+        //    var parms = Geoprocessing.MakeValueArray(wshedFile, Topology._POLYGONID, wFile, this._gv.demFile);
+        //    var environment = Geoprocessing.MakeEnvironmentArray(overwriteoutput: true);
+        //    await Geoprocessing.ExecuteToolAsync("conversion.FeatureToRaster", parms, environment, null, null, GPExecuteToolFlags.None);
+        //    //Utils.runPython("runFeatureToRaster.py", parms, this._gv);
+        //    //var xSize = demLayer.rasterUnitsPerPixelX();
+        //    //var ySize = demLayer.rasterUnitsPerPixelY();
+        //    //var extent = this.extent;
+        //    //// need to use extent to align basin raster cells with DEM
+        //    //var command = "gdal_rasterize -a {0} -tr {1} {2} -te {6} {7} {8} {9} -a_nodata -9999 -ot Int32 -of GTiff -l \"{3}\" \"{4}\" \"{5}\"", Topology._POLYGONID, xSize, ySize, baseName, wshedFile, wFile, extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum());
+        //    //Utils.loginfo(command);
+        //    //os.system(command);
+        //    //Debug.Assert(System.IO.File.Exists(wFile));
+        //    Utils.copyPrj(wshedFile, wFile);
+        //    return wFile;
+        //}
 
         //// Create grid shapefile for watershed.
         //public virtual void createGridShapefile(object demLayer, string pFile, string ad8File, string wFile) {
@@ -4589,68 +4593,98 @@ namespace ArcSWATPlus
             this.setNumCellsSt();
         }
 
-        public TabControl delinTabWidget {
-            get { return tabWidget; }
+        public string delinSelectDemText {
+            get { return selectDem.Text; }
+            set { selectDem.Text = value; }
         }
 
-        public TabControl delinTabWidget_2 {
-            get { return tabWidget_2; }
+        public string delinSelectBurnText {
+            get { return selectBurn.Text; }
+            set { selectBurn.Text = value; }
         }
 
-        public ComboBox delinHorizontalCombo {
-            get { return horizontalCombo; }
+        public string delinSelectStreamsText {
+            get { return selectStreams.Text; }
+            set { selectStreams.Text = value; }
         }
 
-        public TextBox delinSouthEdit {
-            get { return southEdit; }
+        public string delinSelectOutletsText {
+            get { return selectOutlets.Text; }
+            set { selectOutlets.Text = value; }
         }
 
-        public TextBox delinWestEdit {
-            get { return westEdit; }
+        public string delinSelectExistOutletsText {
+            get { return selectExistOutlets.Text; }
+            set { selectExistOutlets.Text = value; }
         }
 
-        public TextBox delinNorthEdit {
-            get { return northEdit; }
+        public string delinSelectSubbasinsText {
+            get { return selectSubbasins.Text; }
+            set { selectSubbasins.Text = value; }
         }
 
-        public TextBox delinEastEdit {
-            get { return eastEdit; }
+        public string delinSelectWshedText {
+            get { return selectWshed.Text; }
+            set { selectWshed.Text = value; }
         }
 
-        public TextBox delinSizeEdit {
-            get { return sizeEdit; }
+        public string delinSelectLakesText {
+            get { return selectLakes.Text; }
+            set { selectLakes.Text = value; }
         }
 
-        public TextBox delinAreaEdit {
-            get { return areaEdit; }
-        }
 
-        public RadioButton delinReuseButton {
-            get { return reuseButton; }
-        }
 
-        public RadioButton delinRecalcButton {
-            get { return recalcButton; }
+        //public TabControl delinTabWidget {
+        //    get { return tabWidget; }
+        //}
+        public int delinTabWidgetIndex {
+            get { return tabWidget.SelectedIndex; }
+            set { tabWidget.SelectedIndex = value; }
         }
+        
+
+        //public TabControl delinTabWidget_2 {
+        //    get { return tabWidget_2; }
+        //}
+
+        public ComboBox delinHorizontalCombo => horizontalCombo;
+
+        public TextBox delinSouthEdit => southEdit;
+
+        public TextBox delinWestEdit => westEdit;
+
+        public TextBox delinNorthEdit => northEdit;
+
+        public TextBox delinEastEdit => eastEdit;
+
+        public TextBox delinSizeEdit => sizeEdit;
+
+        public TextBox delinAreaEdit => areaEdit;
+
+        public RadioButton delinReuseButton => reuseButton;
+
+        public RadioButton delinRecalcButton => recalcButton;
 
         public bool lakeMessages {
             get { return lakeMessagesBox.Checked; }
         }
 
-        public TabPage delinLakesTab {
-            get { return lakesTab; }
+        //public TabPage delinLakesTab => lakesTab;
+        public bool delinLakesTabEnabled {
+            set { lakesTab.Enabled = value; }
         }
 
-        public TabPage delinMergeTab {
-            get { return mergeTab; }
+        //public TabPage delinMergeTab => mergeTab;
+        public bool delinMergeTabEnabled {
+            set { mergeTab.Enabled = value; }
         }
 
-        public TextBox delinSnapThreshold {
-            get { return snapThreshold; }
-        }
+        public TextBox delinSnapThreshold => snapThreshold;
 
         public bool useOutletsChecked {
             get { return useOutlets.Checked;  }
+            set {  useOutlets.Checked = value; }
         }
 
         public string numCellsChText {
@@ -4663,54 +4697,38 @@ namespace ArcSWATPlus
             set { numCellsSt.Text = value; }
         }
 
+        public FormWindowState windowState {
+            set { this.WindowState = value; }
+        }
+
         public string areaStText {
             get { return areaSt.Text; }
         }
 
-        public TextBox getTaudemOutput {
-            get { return taudemOutput; }
-        }
+        public TextBox getTaudemOutput => taudemOutput;
 
         public int numberOfProcesses {
             get { return (int)numProcesses.Value; }
             set { numProcesses.Value = value; }
         }
 
-        public ComboBox delinLakeIdCombo {
-            get { return lakeIdCombo; }
-        }
+        public ComboBox delinLakeIdCombo => lakeIdCombo;
 
-        public TextBox delinSelectDem {
-            get { return selectDem; }
-        }
+        public TextBox delinSelectDem => selectDem;
 
-        public TextBox delinSelectBurn {
-            get { return selectBurn; }
-        }
+        public TextBox delinSelectBurn => selectBurn;
 
-        public TextBox delinSelectOutlets {
-            get { return selectOutlets; }
-        }
+        public TextBox delinSelectOutlets => selectOutlets;
 
-        public TextBox delinSelectExistOutlets {
-            get { return selectExistOutlets; }
-        }
+        public TextBox delinSelectExistOutlets => selectExistOutlets;
 
-        public TextBox delinSelectSubbasins {
-            get { return selectSubbasins; }
-        }
+        public TextBox delinSelectSubbasins => selectSubbasins;
 
-        public TextBox delinSelectWshed {
-            get { return selectWshed; }
-        }
+        public TextBox delinSelectWshed => selectWshed;
 
-        public TextBox delinSelectStreams {
-            get { return selectStreams; }
-        }
+        public TextBox delinSelectStreams => selectStreams;
 
-        public TextBox delinSelectLakes {
-            get { return selectLakes; }
-        }
+        public TextBox delinSelectLakes => selectLakes;
 
         public string snappedLabelText {
             get { return snappedLabel.Text;}
@@ -4783,9 +4801,9 @@ namespace ArcSWATPlus
 
         // Change use grid setting according to check box state.
         public virtual void changeUseGrid() {
-            if (delinTabWidget.SelectedIndex == 0) {
+            if (tabWidget.SelectedIndex == 0) {
                 this._gv.useGridModel = gridBox.Checked;
-            } else if (delinTabWidget.SelectedIndex == 1) {
+            } else if (tabWidget.SelectedIndex == 1) {
                 this._gv.useGridModel = useGrid.Checked;
             }
             // set both check boxes the same
@@ -4822,7 +4840,7 @@ namespace ArcSWATPlus
 
         // Update form according to drainage option.
         public virtual void setDrainage() {
-            if (delinTabWidget.SelectedIndex == 0) {
+            if (tabWidget.SelectedIndex == 0) {
                 this._parent.streamDrainage = true;
                 return;
             }

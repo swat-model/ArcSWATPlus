@@ -35,11 +35,18 @@ namespace ArcSWATPlus {
     
     // Support visualisation of SWAT outputs, using data in SWAT output database.
     public class Visualise {
-        
+
+#if TESTING
+        public CompareScenariosFormStub _comparedlg;
+#else
         public CompareScenariosForm _comparedlg;
-        
+#endif
+#if TESTING
+        public VisualiseFormStub _dlg;
+#else
         public VisualiseForm _dlg;
-        
+#endif
+
         public GlobalVars _gv;
         
         public List<double> allAnimateVals;
@@ -267,10 +274,18 @@ namespace ArcSWATPlus {
         
         public Visualise(GlobalVars gv) {
             this._gv = gv;
+#if TESTING
+            this._dlg = new VisualiseFormStub(this);
+#else
             this._dlg = new VisualiseForm(this);
+#endif
             //this._dlg.setWindowFlags(this._dlg.windowFlags() & ~Qt.WindowContextHelpButtonHint & Qt.WindowMinimizeButtonHint);
             //this._dlg.move(this._gv.visualisePos);
+#if TESTING
+            this._comparedlg = new CompareScenariosFormStub(this);
+#else
             this._comparedlg = new CompareScenariosForm(this);
+#endif
             //# variables found in various tables that do not contain values used in results
             // note we also exclude variables that do not have typr REAL
             this.ignoredVars = new List<string> {
@@ -492,7 +507,7 @@ namespace ArcSWATPlus {
         
         // Initialise the visualise form.
         public virtual async Task init() {
-            this._dlg.PtabWidget.SelectedIndex = 0;
+            this._dlg.PtabWidgetIndex = 0;
             this.setSummary();
             this.fillScenarios();
             //this._dlg.scenariosCombo.activated.connect(this.setupDb);
@@ -626,8 +641,8 @@ namespace ArcSWATPlus {
             }
             if (this._dlg.PscenariosCombo.Items.Count > 1) {
                 foreach (var i in Enumerable.Range(0, this._dlg.PscenariosCombo.Items.Count)) {
-                    this._comparedlg.Pscenario1.Items.Add(this._dlg.PscenariosCombo.Items[i]);
-                    this._comparedlg.Pscenario2.Items.Add(this._dlg.PscenariosCombo.Items[i]);
+                    this._comparedlg.Pscenario1Add(this._dlg.PscenariosCombo.Items[i]);
+                    this._comparedlg.Pscenario2Add(this._dlg.PscenariosCombo.Items[i]);
                 }
                 this._dlg.setCompare(true);
             } else {
@@ -765,7 +780,7 @@ namespace ArcSWATPlus {
             //this._dlg.PoutputCombo.Items.Add("");
             var tables = new List<string>();
             // if we are plotting and have at least one non-observed row, only include tables of same frequency
-            var isPlot = this._dlg.PtabWidget.SelectedIndex == 2;
+            var isPlot = this._dlg.PtabWidgetIndex == 2;
             var plotTable = isPlot ? this.getPlotTable() : "";
             var keepDaily = plotTable == "" || Visualise.tableIsDaily(plotTable);
             if (keepDaily) {
@@ -778,7 +793,7 @@ namespace ArcSWATPlus {
             var keepYearly = plotTable == "" || Visualise.tableIsYearly(plotTable);
             if (keepYearly) {
                 this.addTablesByTerminator(ref tables, "_yr");
-                if (this._dlg.PtabWidget.SelectedIndex == 0) {
+                if (this._dlg.PtabWidgetIndex == 0) {
                     // static
                     this.addTablesByTerminator(ref tables, "_aa");
                 }
@@ -860,11 +875,11 @@ namespace ArcSWATPlus {
                 while (reader.Read()) {
                     var table = reader.GetString(0);
                     //Utils.loginfo("Considering " + table + " with terminator " + terminator);
-                    if (this._dlg.PtabWidget.SelectedIndex != 2 && table.StartsWith("basin_")) {
+                    if (this._dlg.PtabWidgetIndex != 2 && table.StartsWith("basin_")) {
                         //Utils.loginfo("continue 1");
                         continue;
                     }
-                    if (!this.hasHRUs && this._dlg.PtabWidget.SelectedIndex != 2 && table.StartsWith("hru_")) {
+                    if (!this.hasHRUs && this._dlg.PtabWidgetIndex != 2 && table.StartsWith("hru_")) {
                         //Utils.loginfo("continue 2");
                         continue;
                     }
@@ -883,7 +898,7 @@ namespace ArcSWATPlus {
                         }
                         foreach (var plotOnly in this.plotOnlyTables) {
                             if (table.StartsWith(plotOnly)) {
-                                ignore = this._dlg.PtabWidget.SelectedIndex != 2;
+                                ignore = this._dlg.PtabWidgetIndex != 2;
                                 //Utils.loginfo("ignored for plot");
                                 break;
                             }
@@ -928,11 +943,11 @@ namespace ArcSWATPlus {
             this.plotData.Columns.Add("Table", typeof(string));
             this.plotData.Columns.Add("Unit", typeof(string));
             this.plotData.Columns.Add("Variable", typeof(string));
-            this._dlg.PtableWidget.DataSource = this.plotData;
-            this._dlg.PtableWidget.Columns[0].Width = 100;
-            this._dlg.PtableWidget.Columns[1].Width = 100;
-            this._dlg.PtableWidget.Columns[2].Width = 45;
-            this._dlg.PtableWidget.Columns[3].Width = 90;
+            this._dlg.PtableWidgetDataSource = this.plotData;
+            this._dlg.setDataGridColumnWidth(0, 100);
+            this._dlg.setDataGridColumnWidth(1, 100);
+            this._dlg.setDataGridColumnWidth(2, 45);
+            this._dlg.setDataGridColumnWidth(3, 90);
             this._dlg.PplotType.Items.Clear();
             //this._dlg.PplotType.Items.Add(Visualise._CHOOSEPLOT);
             this._dlg.PplotType.Items.Add(Visualise._GRAPHORBAR);
@@ -961,7 +976,7 @@ namespace ArcSWATPlus {
             var outFile = Utils.join(outDir, this.table + "results.shp");
             this._dlg.PresultsFileEdit.Text = outFile;
             this.resultsFileUpToDate = false;
-            this._dlg.PsummaryBox.Visible = !this.isAA;
+            this._dlg.PsummaryBoxVisible = !this.isAA;
             // add gis id numbers to unitPlot combo
             this.setGisIdPlot();
             this._dlg.PvariableCombo.Items.Clear();
@@ -970,7 +985,7 @@ namespace ArcSWATPlus {
             this._dlg.PvariablePlot.Items.Clear();
             //this._dlg.PvariablePlot.Items.Add("");
             //this._dlg.PvariablePlot.Text = "";
-            this._dlg.PvariableList.Items.Clear();
+            this._dlg.PvariableListClear();
             var sql = $"PRAGMA TABLE_INFO({table})";
             using (SQLiteDataReader reader = this.getReader(sql)) {
                 if (reader.HasRows) {
@@ -994,11 +1009,10 @@ namespace ArcSWATPlus {
         
         // Return true if plot tab open and plot table has a selected row.
         public virtual bool plotting() {
-            if (this._dlg.PtabWidget.SelectedIndex != 2) {
+            if (this._dlg.PtabWidgetIndex != 2) {
                 return false;
             }
-            var row = this._dlg.PtableWidget.CurrentRow;
-            return row is not null;
+            return this._dlg.hasSelectedDataRow();
         }
 
         // Fill summary combo.
@@ -1206,28 +1220,28 @@ namespace ArcSWATPlus {
             var item = this._dlg.PvariableCombo.SelectedIndex;
             if (item != -1) {
                 var @var = this._dlg.PvariableCombo.SelectedItem.ToString();
-                this._dlg.PvariableList.Items.Add(@var);
+                this._dlg.PvariableListAdd(@var);
             }
         }
         
         // Clear variableList and insert all items from variableCombo.
         public virtual void allClick() {
             this.resultsFileUpToDate = false;
-            this._dlg.PvariableList.Items.Clear();
+            this._dlg.PvariableListClear();
             foreach (var i in Enumerable.Range(0, this._dlg.PvariableCombo.Items.Count)) {
                 var item = this._dlg.PvariableCombo.Items[i].ToString();
-                this._dlg.PvariableList.Items.Add(item);
+                this._dlg.PvariableListAdd(item);
             }
         }
         
         // Delete item from variableList.
         public virtual void delClick() {
             this.resultsFileUpToDate = false;
-            var item = this._dlg.PvariableList.SelectedItem;
+            var item = this._dlg.PvariableListItem;
             if (item is not null) {
-                var index = this._dlg.PvariableList.Items.IndexOf(item.ToString());
+                var index = this._dlg.PvariableListIndexOf(item.ToString());
                 if (index >= 0) {
-                    this._dlg.PvariableList.Items.RemoveAt(index);
+                    this._dlg.PvariableListRemoveAt(index);
                 }
             }
         }
@@ -1235,14 +1249,14 @@ namespace ArcSWATPlus {
         // Clear variableList.
         public virtual void clearClick() {
             this.resultsFileUpToDate = false;
-            this._dlg.PvariableList.Items.Clear();
+            this._dlg.PvariableListClear();
         }
         
         // Return tool tip based on units and description from looking up current table and var in table column_description.
         public virtual string getVarTip(string vari) {
             var sql = "SELECT [units], [description] FROM column_description WHERE table_name=? AND column_name=?";
             try {
-                using (SQLiteDataReader reader = this.getReader(sql, new object[] { this.table, vari })) {
+                using (SQLiteDataReader reader = this.getReader(sql, [this.table, vari])) {
                     if (reader.HasRows) {
                         reader.Read();
                         string unit = reader.GetString(0);
@@ -1262,7 +1276,7 @@ namespace ArcSWATPlus {
         public virtual string getTableTip(string table) {
             var sql = "SELECT [description] FROM table_description WHERE table_name=?";
             try {
-                using (SQLiteDataReader reader = this.getReader(sql, new object[] { table })) {
+                using (SQLiteDataReader reader = this.getReader(sql, [table])) {
                     if (reader.HasRows) {
                         reader.Read();
                         var tip = reader.GetString(0);
@@ -1291,8 +1305,8 @@ namespace ArcSWATPlus {
         
         // Update the unitEdit box and set the unit value in the current row.
         public virtual void plotSetUnit() {
-            var unitStr = this._dlg.PunitPlot.Text;
-            this._dlg.PunitEdit.Text = unitStr;
+            var unitStr = this._dlg.PunitPlotText;
+            this._dlg.PunitEditText = unitStr;
             this.updateCurrentPlotRow(2);
         }
 
@@ -1352,7 +1366,7 @@ namespace ArcSWATPlus {
                 return;
             }
             //Utils.loginfo('Layer is {0}',layer))
-            var val = this._dlg.PunitPlot.Items[index].ToString();
+            var val = this._dlg.getUnitPlotItem(index).ToString();
             //Utils.loginfo('Value is {0}',val))
             await Utils.setLayerVisibility(layer, true);
             await QueuedTask.Run(() => { layer.ClearSelection(); });
@@ -1371,11 +1385,11 @@ namespace ArcSWATPlus {
         // If the unitEdit contains a string in the unitPlot combo box, 
         //         Update the current index of the combo box, and set the unit value in the current row.
         public virtual void plotEditUnit() {
-            var unitStr = this._dlg.PunitEdit.Text;
-            var index = this._dlg.PunitPlot.FindStringExact(unitStr);
+            var unitStr = this._dlg.PunitEditText;
+            var index = this._dlg.PunitPlotFindStringExact(unitStr);
             if (index >= 1) {
                 // avoid initial empty text as well as 'not found' value of -1
-                this._dlg.PunitPlot.SelectedIndex = index;
+                this._dlg.PunitPlotIndex = index;
                 this.updateCurrentPlotRow(2);
             }
         }
@@ -1918,17 +1932,18 @@ namespace ArcSWATPlus {
                 // there will only be one value, so total will simply return it
                 return this.summariseTotal(data);
             }
-            if (this._dlg.PsummaryCombo.SelectedItem.ToString() == Visualise._TOTALS) {
+            var summary = this._dlg.PsummaryCombo.SelectedItem.ToString();
+            if (summary == Visualise._TOTALS) {
                 return this.summariseTotal(data);
-            } else if (this._dlg.PsummaryCombo.SelectedItem.ToString() == Visualise._ANNUALMEANS) {
+            } else if (summary == Visualise._ANNUALMEANS) {
                 return this.summariseAnnual(data);
-            } else if (this._dlg.PsummaryCombo.SelectedItem.ToString() == Visualise._MONTHLYMEANS) {
+            } else if (summary == Visualise._MONTHLYMEANS) {
                 return this.summariseMonthly(data);
-            } else if (this._dlg.PsummaryCombo.SelectedItem.ToString() == Visualise._DAILYMEANS) {
+            } else if (summary == Visualise._DAILYMEANS) {
                 return this.summariseDaily(data);
-            } else if (this._dlg.PsummaryCombo.SelectedItem.ToString() == Visualise._MAXIMA) {
+            } else if (summary == Visualise._MAXIMA) {
                 return this.summariseMaxima(data);
-            } else if (this._dlg.PsummaryCombo.SelectedItem.ToString() == Visualise._MINIMA) {
+            } else if (summary == Visualise._MINIMA) {
                 return this.summariseMinima(data);
             } else {
                 Utils.error("Internal error: unknown summary method: please report", this._gv.isBatch);
@@ -2002,7 +2017,7 @@ namespace ArcSWATPlus {
             if (this.conn is null || this.table == "") {
                 return;
             }
-            this._dlg.PunitPlot.Items.Clear();
+            this._dlg.PunitPlotClear();
             //this._dlg.PunitPlot.Items.Add("");
             var sql = string.Format("SELECT [gis_id] FROM {0}",this.table);
             int firstId = -1;
@@ -2015,10 +2030,10 @@ namespace ArcSWATPlus {
                         } else if (gisId == firstId) {
                             return;
                         }
-                        this._dlg.PunitPlot.Items.Add(gisId.ToString());
+                        this._dlg.PunitPlotAdd(gisId.ToString());
                     }
                 }
-                this._dlg.PunitPlot.SelectedIndex = 0;
+                this._dlg.PunitPlotIndex = 0;
             } catch (Exception ex) {
                 Utils.error(string.Format("Table {0} in {1} has no gis_id column: {2}",this.table, this.db, ex.Message), this._gv.isBatch);
             }
@@ -2027,9 +2042,9 @@ namespace ArcSWATPlus {
         // Return variables in variableList as a list of strings, with square brackets if bracket is true.
         public virtual List<string> varList(bool bracket) {
             var result = new List<string>();
-            var numRows = this._dlg.PvariableList.Items.Count;
+            var numRows = this._dlg.PvariableListCount;
             foreach (var row in Enumerable.Range(0, numRows)) {
-                var vari = this._dlg.PvariableList.Items[row].ToString();
+                var vari = this._dlg.getVariableListItem(row).ToString();
                 // bracket variables when using in sql, to avoid reserved words and '/'
                 if (bracket) {
                     vari = "[" + vari + "]";
@@ -2189,7 +2204,7 @@ namespace ArcSWATPlus {
             var outdir = Path.GetDirectoryName(this.resultsFile);
             var outbase = Path.GetFileNameWithoutExtension(this.resultsFile);
             Utils.copyShapefile(resultsBase, outbase, outdir);
-            var selectVar = this._dlg.PvariableList.SelectedItems[0].ToString();
+            var selectVar = this._dlg.getVariableListItem(0).ToString();
             var summary = this.isAA ? Visualise._ANNUALMEANS : this._dlg.PsummaryCombo.SelectedItem.ToString();
             var legend = string.Format("{0} {1} {2}",this.scenario, selectVar, summary);
             if (baseName == Parameters._SUBS) {
@@ -2491,7 +2506,7 @@ namespace ArcSWATPlus {
                 //        QSWATTopology._PENWIDTH}};
                 symbol = SymbolFactory.Instance.ConstructLineSymbol();
             }
-            var selectVar = this._dlg.PvariableList.SelectedItems[0].ToString();
+            var selectVar = this._dlg.getVariableListItem(0).ToString();
             var selectVarShort = selectVar.Substring(0, Math.Min(selectVar.Length, 10));
             var summary = this.isAA ? Visualise._ANNUALMEANS : this._dlg.PsummaryCombo.SelectedItem.ToString();
             Debug.Assert(layer is not null);
@@ -2624,10 +2639,10 @@ namespace ArcSWATPlus {
                 newVars.Add(fields[i].FieldName);
             }
             foreach (var vari in newVars) {
-                var i = this._dlg.PvariableList.FindString(vari);
+                var i = this._dlg.PvariableListFindString(vari);
                 if (i == System.Windows.Forms.ListBox.NoMatches) {
                     // add vari to variableList
-                    this._dlg.PvariableList.Items.Add(vari);
+                    this._dlg.PvariableListAdd(vari);
                 }
             }
         }
@@ -3027,9 +3042,9 @@ namespace ArcSWATPlus {
                 if (this.capturing) {
                     await this.capture(height, width);
                 }
-                var dat = this.sliderValToDate(this._dlg.Pslider.Value);
+                var dat = this.sliderValToDate(this._dlg.PsliderValue);
                 var date = this.dateToString(dat);
-                this._dlg.PdateLabel.Text = date;
+                this._dlg.PdateLabelText = date;
                 var layerName = this.animateLayer.Name;
                 var animateFile = await Utils.layerFilename(this.animateLayer);
                 var animateIndex = this.animateIndexes[layerName];
@@ -3128,7 +3143,7 @@ namespace ArcSWATPlus {
                 await QueuedTask.Run(() => {
                     MapView.Active.Redraw(false);
                 });
-                this._dlg.PdateLabel.Refresh();
+                this._dlg.PdateLabelRefresh();
             } catch (Exception) {
                 this.animating = false;
                 throw;
@@ -3147,7 +3162,7 @@ namespace ArcSWATPlus {
             var nextStillFile = @base + string.Format("{0:D5}", this.currentStillNumber) + suffix;
             // this does not capture the title
             //self._iface.mapCanvas().saveAsImage(nextStillFile)
-            var composingAnimation = this._dlg.PprintAnimation.Checked;
+            var composingAnimation = this._dlg.PprintAnimationChecked;
             if (composingAnimation) {
                 // remove layout if any
                 // TODO
@@ -3349,11 +3364,11 @@ namespace ArcSWATPlus {
                 Utils.information("Please choose a results file", this._gv.isBatch);
                 return;
             }
-            if (this._dlg.PvariableList.Items.Count == 0) {
+            if (this._dlg.PvariableListCount == 0) {
                 Utils.information("Please choose some variables", this._gv.isBatch);
                 return;
             }
-            if (this._dlg.PvariableList.SelectedItems.Count == 0) {
+            if (this._dlg.PvariableListSelectedCount == 0) {
                 Utils.information("Please select a variable for display", this._gv.isBatch);
                 return;
             }
@@ -3379,14 +3394,14 @@ namespace ArcSWATPlus {
             if (this.summaryChanged) {
                 this.summariseData("", true);
             }
-            if (this.resultsFileUpToDate && this.resultsLayerExists() && this._dlg.PcurrentResultsMap.Checked) {
+            if (this.resultsFileUpToDate && this.resultsLayerExists() && this._dlg.PcurrentResultsMapChecked) {
                 Map map = MapView.Active.Map;
                 if (map == ArcSWATPlus.mainMap) {
                     Utils.error("The current map for showing results cannot be the main map: choose a results map or click New map", this._gv.isBatch);
                     Cursor.Current = Cursors.Default;
                     return;
                 }
-                var selectVar = this._dlg.PvariableList.SelectedItems[0].ToString();
+                var selectVar = this._dlg.getVariableListItem(0).ToString();
                 var legend = string.Format("{0} {1} {2}", this.scenario, selectVar, this._dlg.PsummaryCombo.SelectedItem.ToString());
                 await QueuedTask.Run(() => map.SetName(legend));
                 if (this.summaryChanged) {
@@ -3423,7 +3438,7 @@ namespace ArcSWATPlus {
             var dirname = string.Format("{0}_{1}",this.scenario1, this.scenario2);
             var direc = Utils.join(this._gv.resultsDir, dirname);
             Directory.CreateDirectory(direc);
-            var selectVar = this._dlg.PvariableList.SelectedItems[0].ToString();
+            var selectVar = this._dlg.getVariableListItem(0).ToString();
             var file1Base = this.scenario1 + "-" + this.table + "-" + selectVar + "-results";
             var file1 = Utils.join(direc, file1Base + ".shp");
             var file1Exists = File.Exists(file1);
@@ -3822,33 +3837,33 @@ namespace ArcSWATPlus {
         public async Task printResults() {
             string templ;
             // choose template file 
-            var count = this._dlg.PprintCount.Value;
+            var count = this._dlg.PprintCountValue;
             if (count == 1) {
-                if (this._dlg.PlandscapeButton.Checked) {
+                if (this._dlg.PlandscapeButtonChecked) {
                     templ = "1Landscape.pagx";
                 } else {
                     templ = "1Portrait.pagx";
                 }
             } else if (count == 2) {
-                if (this._dlg.PlandscapeButton.Checked) {
+                if (this._dlg.PlandscapeButtonChecked) {
                     templ = "2Landscape.pagx";
                 } else {
                     templ = "2Portrait.pagx";
                 }
             } else if (count == 3) {
-                if (this._dlg.PlandscapeButton.Checked) {
+                if (this._dlg.PlandscapeButtonChecked) {
                     templ = "3Landscape.pagx";
                 } else {
                     templ = "3Portrait.pagx";
                 }
             } else if (count == 4) {
-                if (this._dlg.PlandscapeButton.Checked) {
+                if (this._dlg.PlandscapeButtonChecked) {
                     templ = "4Landscape.pagx";
                 } else {
                     templ = "4Portrait.pagx";
                 }
             } else if (count == 6) {
-                if (this._dlg.PlandscapeButton.Checked) {
+                if (this._dlg.PlandscapeButtonChecked) {
                     templ = "6Landscape.pagx";
                 } else {
                     templ = "6Portrait.pagx";
@@ -3880,11 +3895,11 @@ namespace ArcSWATPlus {
         
         // Reveal or hide compose options group.
         public virtual void changeAnimationMode() {
-            if (this._dlg.PprintAnimation.Checked) {
-                this._dlg.PcomposeOptions.Visible = true;
-                this._dlg.PcomposeCount.Value = 1; //  Utils.countLayersInGroup(Utils._ANIMATION_GROUP_NAME);
+            if (this._dlg.PprintAnimationChecked) {
+                this._dlg.PcomposeOptionsVisible = true;
+                this._dlg.PcomposeCountValue = 1; //  Utils.countLayersInGroup(Utils._ANIMATION_GROUP_NAME);
             } else {
-                this._dlg.PcomposeOptions.Visible = false;
+                this._dlg.PcomposeOptionsVisible = false;
             }
         }
         
@@ -3930,11 +3945,11 @@ namespace ArcSWATPlus {
                 } else {
                     animateLength = 0;
                 }
-                this._dlg.Pslider.Minimum = 1;
-                this._dlg.Pslider.Maximum = animateLength;
+                this._dlg.PsliderMinimum = 1;
+                this._dlg.PsliderMaximum = animateLength;
                 await this.colourAnimationLayer();
-                this._dlg.Pslider.Value = 1;
-                var sleep = this._dlg.PspinBox.Value;
+                this._dlg.PsliderValue = 1;
+                var sleep = this._dlg.PspinBoxValue;
                 this.changeSpeed(sleep);
                 this.resetSlider();
                 await this.changeAnimate();
@@ -3979,7 +3994,7 @@ namespace ArcSWATPlus {
             if (numFiles == 0) {
                 return;
             }
-            var period = 1.0 / Convert.ToDouble(this._dlg.PspinBox.Value);
+            var period = 1.0 / Convert.ToDouble(this._dlg.PspinBoxValue);
             try {
                 using (var images = new MagickImageCollection()) {
                     foreach (int i in Enumerable.Range(0, numFiles)) {
@@ -4030,33 +4045,33 @@ namespace ArcSWATPlus {
         // Move slide one step to right unless at maximum.
         public virtual void doStep() {
             if (this.animating && !this.animationPaused) {
-                var val = this._dlg.Pslider.Value;
-                if (val < this._dlg.Pslider.Maximum) {
-                    this._dlg.Pslider.Value = val + 1;
+                var val = this._dlg.PsliderValue;
+                if (val < this._dlg.PsliderMaximum) {
+                    this._dlg.PsliderValue = val + 1;
                 }
             }
         }
         
         // Stop any running animation and if possible move the animation slider one step left.
         public virtual void animateStepLeft() {
-            if (this._dlg.PtabWidget.SelectedIndex == 1) {
+            if (this._dlg.PtabWidgetIndex == 1) {
                 this.animating = false;
                 this.animationPaused = false;
-                var val = this._dlg.Pslider.Value;
-                if (val > this._dlg.Pslider.Minimum) {
-                    this._dlg.Pslider.Value = val - 1;
+                var val = this._dlg.PsliderValue;
+                if (val > this._dlg.PsliderMinimum) {
+                    this._dlg.PsliderValue = val - 1;
                 }
             }
         }
         
         // Stop any running animation and if possible move the animation slider one step right.
         public virtual void animateStepRight() {
-            if (this._dlg.PtabWidget.SelectedIndex == 1) {
+            if (this._dlg.PtabWidgetIndex == 1) {
                 this.animating = false;
                 this.animationPaused = false;
-                var val = this._dlg.Pslider.Value;
-                if (val < this._dlg.Pslider.Maximum) {
-                    this._dlg.Pslider.Value = val + 1;
+                var val = this._dlg.PsliderValue;
+                if (val < this._dlg.PsliderMaximum) {
+                    this._dlg.PsliderValue = val + 1;
                 }
             }
         }
@@ -4087,7 +4102,7 @@ namespace ArcSWATPlus {
         
         // Move slide to minimum.
         public virtual void resetSlider() {
-            this._dlg.Pslider.Value = this._dlg.Pslider.Minimum;
+            this._dlg.PsliderValue = this._dlg.PsliderMinimum;
         }
         
         // Convert slider value to date.
@@ -4118,14 +4133,14 @@ namespace ArcSWATPlus {
             string txtInOutDir;
             string resultsDir;
             string scenDir;
-            var scenario1 = this._comparedlg.Pscenario1.SelectedItem.ToString();
-            var scenario2 = this._comparedlg.Pscenario2.SelectedItem.ToString();
+            var scenario1 = this._comparedlg.Pscenario1Item.ToString();
+            var scenario2 = this._comparedlg.Pscenario2Item.ToString();
             if (scenario1 == "" || scenario2 == "" || scenario1 == scenario2) {
                 Utils.information("Please choose two different scenarios to compare", this._gv.isBatch);
                 this.closeCompareScenarios();
                 return;
             }
-            this._dlg.PcompareLabel.Text = string.Format("Compare {0} and {1}", scenario1, scenario2);
+            this._dlg.PcompareLabelText = string.Format("Compare {0} and {1}", scenario1, scenario2);
             this.scenario1 = scenario1;
             this.scenario2 = scenario2;
             // constrict dates if necessary
@@ -4185,7 +4200,7 @@ namespace ArcSWATPlus {
         public virtual void closeCompareScenarios() {
             this.scenario1 = "";
             this.scenario2 = "";
-            this._dlg.PcompareLabel.Text = "Compare X and Y";
+            this._dlg.PcompareLabelText = "Compare X and Y";
             this._comparedlg.Close();
         }
         
@@ -4279,19 +4294,19 @@ namespace ArcSWATPlus {
             if (this.capturing) {
                 // clear any existing png files (can be left eg if making gif failed)
                 this.clearPngDir();
-                if (this._dlg.PprintAnimation.Checked) {
+                if (this._dlg.PprintAnimationChecked) {
                     // TODO
                     //this.createAnimationComposition();
                 }
-                this._dlg.PrecordButton.BackColor = System.Drawing.Color.Red;
-                this._dlg.PrecordLabel.Text = "Stop recording";
-                this._dlg.PplayButton.Enabled = false;
+                this._dlg.PrecordButtonBackColor = System.Drawing.Color.Red;
+                this._dlg.PrecordLabelText = "Stop recording";
+                this._dlg.PplayButtonEnabled = false;
             } else {
                 Cursor.Current = Cursors.WaitCursor;
-                this._dlg.PrecordButton.BackColor = System.Drawing.Color.Green;
-                this._dlg.PrecordLabel.Text = "Start recording";
+                this._dlg.PrecordButtonBackColor = System.Drawing.Color.Green;
+                this._dlg.PrecordLabelText = "Start recording";
                 this.saveVideo();
-                this._dlg.PplayButton.Enabled = true;
+                this._dlg.PplayButtonEnabled = true;
                 Cursor.Current = Cursors.Default;
             }
         }
@@ -4368,10 +4383,10 @@ namespace ArcSWATPlus {
             if (!this.plotting()) {
                 return;
             }
-            var row = this._dlg.PtableWidget.CurrentRow;
+            var row = this._dlg.PtableWidgetCurrentRow;
             if (row is null) {
                 this.doAddPlot();
-                row = this._dlg.PtableWidget.CurrentRow;
+                row = this._dlg.PtableWidgetCurrentRow;
             }
             var dataRow = this.plotData.Rows[row.Index];
             if (colChanged == 0) {
@@ -4382,11 +4397,11 @@ namespace ArcSWATPlus {
                     return;
                 }
                 dataRow[1] = this.table;
-                this._dlg.PunitLabel.Text = this.tableUnitName(this.table);
+                this._dlg.PunitLabelText = this.tableUnitName(this.table);
                 dataRow[2] = "";
                 dataRow[3] = "";
             } else if (colChanged == 2) {
-                dataRow[2] = this._dlg.PunitPlot.SelectedItem.ToString();
+                dataRow[2] = this._dlg.PunitPlotItem.ToString();
             } else {
                 dataRow[3] = this._dlg.PvariablePlot.SelectedItem.ToString();
             }
@@ -4464,8 +4479,8 @@ namespace ArcSWATPlus {
         // if current cell row is observed, else according to current table
         public void setVariablesForRow() {
             try {
-                if (this._dlg.PtableWidget.CurrentCell.ColumnIndex != 3) { return; }
-                var row = this._dlg.PtableWidget.CurrentCell.OwningRow;
+                if (this._dlg.PtableWidgetCurrentColumn != 3) { return; }
+                var row = this._dlg.PtableWidgetCurrentCellOwningRow;
                 var rowTable = (string)row.Cells[1].Value;
                 if (rowTable == "-") {  // observed row
                     this.setObservedVars();
@@ -4480,16 +4495,16 @@ namespace ArcSWATPlus {
         
         // Add a plot row and make it current.
         public virtual void doAddPlot() {
-            if (this._dlg.PunitPlot.SelectedItem is null) {
-                if (!string.IsNullOrEmpty(this._dlg.PunitEdit.Text))
+            if (this._dlg.PunitPlotItem is null) {
+                if (!string.IsNullOrEmpty(this._dlg.PunitEditText))
                     this.plotEditUnit();
             }
-            if (this._dlg.PunitPlot.SelectedItem is null) {
+            if (this._dlg.PunitPlotItem is null) {
                 Utils.information("Please set a unit value for the plot to be added", this._gv.isBatch);
                 return;
             }
-            var unit = this._dlg.PunitPlot.SelectedItem.ToString();
-            var size = this._dlg.PtableWidget.Rows.Count;
+            var unit = this._dlg.PunitPlotItem.ToString();
+            var size = this._dlg.PtableWidgetRowCount;
             if (size > 1 && (string)this.plotData.Rows[size - 2][1] == "-") {
                 // last plot was observed: need to reset variables
                 this.table = "";
@@ -4502,7 +4517,7 @@ namespace ArcSWATPlus {
             row[2] = unit;
             row[3] = vari;
             this.plotData.Rows.InsertAt(row, size - 1);
-            this._dlg.PtableWidget.CurrentCell = this._dlg.PtableWidget.Rows[size - 1].Cells[0];
+            this._dlg.PtableWidgetCurrentCell = this._dlg.PtableWidgetRowCell(size - 1, 0);
             if (this.countPlots() == 1) {
                 // just added first row - reduce tables to those with same frequency
                 if (Visualise.tableIsDaily(this.table)) {
@@ -4517,8 +4532,8 @@ namespace ArcSWATPlus {
         
         // Return the table of a non-observed plot, or empty string if none.
         public virtual string getPlotTable() {
-            foreach (var row in Enumerable.Range(0, this._dlg.PtableWidget.Rows.Count)) {
-                var table = this._dlg.PtableWidget.Rows[row].Cells[1].ToString();
+            foreach (var row in Enumerable.Range(0, this._dlg.PtableWidgetRowCount)) {
+                var table = this._dlg.PtableWidgetRowCell(row, 1).ToString();
                 if (table == "-") {
                     // observed
                     continue;
@@ -4531,7 +4546,7 @@ namespace ArcSWATPlus {
         
         // Delete current plot row.
         public virtual void doDelPlot() {
-            var row = this._dlg.PtableWidget.CurrentRow;
+            var row = this._dlg.PtableWidgetCurrentRow;
             if (row is null) {
                 Utils.information("Please select a row for deletion", this._gv.isBatch);
                 return;
@@ -4546,7 +4561,7 @@ namespace ArcSWATPlus {
         
         // Add a copy of the current plot row and make it current.
         public virtual void doCopyPlot() {
-            var row = this._dlg.PtableWidget.CurrentRow;
+            var row = this._dlg.PtableWidgetCurrentRow;
             if (row is null) {
                 Utils.information("Please select a row to copy", this._gv.isBatch);
                 return;
@@ -4560,13 +4575,13 @@ namespace ArcSWATPlus {
                 }
                 this.plotData.Rows.InsertAt(copyRow, size);
             }
-            this._dlg.PtableWidget.CurrentCell = this._dlg.PtableWidget.Rows[size].Cells[0];
+            this._dlg.PtableWidgetCurrentCell = this._dlg.PtableWidgetRowCell(size, 0);
 
         }
 
         // Move current plot row up 1 place and keep it current.
         public virtual void doUpPlot() {
-            var row = this._dlg.PtableWidget.CurrentRow;
+            var row = this._dlg.PtableWidgetCurrentRow;
             if (row is null) {
                 Utils.information("Please select a row to move up", this._gv.isBatch);
                 return;
@@ -4581,12 +4596,12 @@ namespace ArcSWATPlus {
                     lower[col] = item;
                 }
             }
-            this._dlg.PtableWidget.CurrentCell = this._dlg.PtableWidget.Rows[index - 1].Cells[0];
+            this._dlg.PtableWidgetCurrentCell = this._dlg.PtableWidgetRowCell(index - 1, 0);
         }
 
         // Move current plot row down 1 place and keep it current.
         public virtual void doDownPlot() {
-            var row = this._dlg.PtableWidget.CurrentRow;
+            var row = this._dlg.PtableWidgetCurrentRow;
             if (row is null) {
                 Utils.information("Please select a row to move up", this._gv.isBatch);
                 return;
@@ -4601,7 +4616,7 @@ namespace ArcSWATPlus {
                     lower[col] = item;
                 }
             }
-            this._dlg.PtableWidget.CurrentCell = this._dlg.PtableWidget.Rows[index + 1].Cells[0];
+            this._dlg.PtableWidgetCurrentCell = this._dlg.PtableWidgetRowCell(index + 1, 0);
         }
 
         // set plot variables according to table parameter
@@ -4639,7 +4654,7 @@ namespace ArcSWATPlus {
                 this._dlg.PvariablePlot.SelectedItem.ToString();
             this._dlg.PvariablePlot.Text = (string)row[3];
             this.plotData.Rows.Add(row);
-            this._dlg.PtableWidget.CurrentCell = this._dlg.PtableWidget.Rows[this._dlg.PtableWidget.Rows.Count - 2].Cells[0];
+            this._dlg.PtableWidgetCurrentCell = this._dlg.PtableWidgetRowCell(this._dlg.PtableWidgetRowCount - 2, 0);
         }
 
         // Add variables from 1st line of observed data file, ignoring 'date' if it occurs as the first column.
@@ -5078,17 +5093,17 @@ namespace ArcSWATPlus {
                 this._dlg.PQbSubbasin.Text = mainOutlet.ToString();
             }
             this.QqData = new DataTable();
-            this._dlg.PQqResults.DataSource = this.QqData;
+            this._dlg.PQqResultsDataSource = this.QqData;
             this.QbData = new DataTable();
-            this._dlg.PQbResults.DataSource = this.QbData;
+            this._dlg.PQbResultsDataSource = this.QbData;
             this.QqData.Columns.Add("", typeof(string));
             this.QqData.Columns.Add("", typeof(string));
             this.QbData.Columns.Add("", typeof(string));
             this.QbData.Columns.Add("", typeof(string));
-            this._dlg.PQqResults.Columns[0].Width = 100;
-            this._dlg.PQqResults.Columns[1].Width = 100;
-            this._dlg.PQbResults.Columns[0].Width = 100;
-            this._dlg.PQbResults.Columns[1].Width = 100;
+            this._dlg.PQqResultsColumnsWidth(0, 100);
+            this._dlg.PQqResultsColumnsWidth(1, 100);
+            this._dlg.PQbResultsColumnsWidth(0, 100);
+            this._dlg.PQbResultsColumnsWidth(1, 100);
             this.setQqTableHead();
             this.cleardQpResult();
             this.setQbTableHead();
@@ -5097,12 +5112,12 @@ namespace ArcSWATPlus {
         // Clears results table.  Sets header.
         public virtual void setQqTableHead() {
             this.QqData.Clear();
-            this.QqData.Columns[1].ColumnName = "Q" + this._dlg.PQqSpin.Value.ToString();
+            this.QqData.Columns[1].ColumnName = "Q" + this._dlg.PQqSpinValue.ToString();
         }
         
         // Clears results table.  Sets header.
         public virtual void setQbTableHead() {
-            this._dlg.PQbAnnualResult.Text = "Annual result: ";
+            this._dlg.PQbAnnualResultText = "Annual result: ";
             this.QbData.Clear();
             this.QbData.Columns[1].ColumnName = "Qb";
         }
@@ -5189,7 +5204,7 @@ namespace ArcSWATPlus {
             foreach (var (m, l) in monthData) {
                 if (l.Count > 0) {
                     l.Sort();
-                    var percentile = Visualise.percentile(l, (100 - (double)this._dlg.PQqSpin.Value) / 100);
+                    var percentile = Visualise.percentile(l, (100 - (double)this._dlg.PQqSpinValue) / 100);
                     string formatString = "{0" + this.decimalPlaces + "}";
                     this.QqData.Rows[m - 1][1] =  string.Format(formatString, percentile);
                     //         QqStore = Utils.join(self._gv.resultsDir, 'q{0}.txt',self._dlg.QqSpin.Value))
@@ -5219,7 +5234,7 @@ namespace ArcSWATPlus {
             bool append;
             var title = "Choose results file";
             var filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
-            if (this._dlg.PQqAppend.Checked) {
+            if (this._dlg.PQqAppendChecked) {
                 dlg = new OpenFileDialog() {
                     Title = title,
                     Filter = filter,
@@ -5241,7 +5256,7 @@ namespace ArcSWATPlus {
             using (var f = new StreamWriter(resultsFile, append)) {
                 var startDate = new DateOnly(this.startYear, this.startMonth, this.startDay).ToString(Utils._DATEFORMAT);
                 var finishDate = new DateOnly(this.finishYear, this.finishMonth, this.finishDay).ToString(Utils._DATEFORMAT);
-                f.WriteLine(string.Format("Q{0} for {1} to {2}", this._dlg.PQqSpin.Value, startDate, finishDate));
+                f.WriteLine(string.Format("Q{0} for {1} to {2}", this._dlg.PQqSpinValue, startDate, finishDate));
                 var subbasin = this._dlg.PQqSubbasin.SelectedItem.ToString();
                 f.WriteLine(string.Format("Subbasin {0};  Channel {1}", subbasin, this.subbasinOutletChannels[Convert.ToInt32(subbasin)]));
                 foreach (var m in Enumerable.Range(0, 12)) {
@@ -5255,13 +5270,13 @@ namespace ArcSWATPlus {
         
         // Clear dQp result.
         public virtual void cleardQpResult() {
-            this._dlg.PdQpResult.Text = "Result:";
+            this._dlg.PdQpResultText = "Result:";
             this.dQpResult = -1;
         }
         
         // Enable or not the percentile setting and clear the result.
         public virtual void dQpButtons() {
-            this._dlg.PdQpSpinP.Enabled = this._dlg.PdQpPercentile.Checked;
+            this._dlg.PdQpSpinPEnabled = this._dlg.PdQpPercentileChecked;
             this.cleardQpResult();
         }
         
@@ -5326,7 +5341,7 @@ namespace ArcSWATPlus {
                 Utils.error(string.Format("There is insufficient data.  There must be at least a year starting from 1 {0} {1}.",this._dlg.PdQpStartMonth.SelectedItem.ToString(), this.startYear), this._gv.isBatch);
                 return;
             }
-            var d = (int)this._dlg.PdQpSpinD.Value;
+            var d = (int)this._dlg.PdQpSpinDValue;
             // compute minimum moving total for each year: no point in dividing by d until the end
             var totals = new List<double>();
             //         dQpStore = Utils.join(self._gv.resultsDir, '{0}Q{1}.txt',self._dlg.dQpSpinD.Value, self._dlg.dQpSpinP.Value))
@@ -5356,14 +5371,14 @@ namespace ArcSWATPlus {
             //         f.write('\n')
             // return percentile or mean according to final selection choice
             // remember we need to return a moving average, not a moving total
-            if (this._dlg.PdQpPercentile.Checked) {
-                var p = (int)this._dlg.PdQpSpinP.Value;
+            if (this._dlg.PdQpPercentileChecked) {
+                var p = (int)this._dlg.PdQpSpinPValue;
                 var fraction = p / 100.0;
                 this.dQpResult = Visualise.percentile(totals, fraction) / d;
-                this._dlg.PdQpResult.Text = string.Format("Result: {0}Q{1} is " + formatString2, d, p, this.dQpResult);
+                this._dlg.PdQpResultText = string.Format("Result: {0}Q{1} is " + formatString2, d, p, this.dQpResult);
             } else {
                 this.dQpResult = (totals.Sum() / totals.Count) / d;
-                this._dlg.PdQpResult.Text = string.Format("Result: {0}Qm is " + formatString1, d, this.dQpResult);
+                this._dlg.PdQpResultText = string.Format("Result: {0}Qm is " + formatString1, d, this.dQpResult);
                 //         f.write('Result: {0}',self.dQpResult))
                 //         f.write('\n')
                 //         f.close()
@@ -5386,7 +5401,7 @@ namespace ArcSWATPlus {
             bool append;
             var title = "Choose results file";
             var filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
-            if (this._dlg.PdQpAppend.Checked) {
+            if (this._dlg.PdQpAppendChecked) {
                 dlg = new OpenFileDialog() {
                     Title = title,
                     Filter = filter,
@@ -5408,10 +5423,10 @@ namespace ArcSWATPlus {
             using (var f = new StreamWriter(resultsFile, append)) {
                 var startDate = new DateOnly(this.startYear, this.startMonth, this.startDay).ToString(Utils._DATEFORMAT);
                 var finishDate = new DateOnly(this.finishYear, this.finishMonth, this.finishDay).ToString(Utils._DATEFORMAT);
-                if (this._dlg.PdQpPercentile.Checked) {
-                    f.WriteLine(string.Format("{0}Q{1} for {2} to {3}",this._dlg.PdQpSpinD.Value, this._dlg.PdQpSpinP.Value, startDate, finishDate));
+                if (this._dlg.PdQpPercentileChecked) {
+                    f.WriteLine(string.Format("{0}Q{1} for {2} to {3}",this._dlg.PdQpSpinDValue, this._dlg.PdQpSpinPValue, startDate, finishDate));
                 } else {
-                    f.WriteLine(string.Format("{0}Qm for {1} to {2}",this._dlg.PdQpSpinD.Value, startDate, finishDate));
+                    f.WriteLine(string.Format("{0}Qm for {1} to {2}",this._dlg.PdQpSpinDValue, startDate, finishDate));
                 }
                 var subbasin = this._dlg.PdQpSubbasin.SelectedItem.ToString();
                 var month = this._dlg.PdQpStartMonth.SelectedItem.ToString();
@@ -5477,7 +5492,7 @@ namespace ArcSWATPlus {
                     new List<double>()},
                 {
                     12,
-                    new List<double>()}};                                                                                                                                                                          
+                    new List<double>()}};
             var yearIndex = -1;
             var count = 0;
             var expectedLength = 0;
@@ -5576,7 +5591,7 @@ namespace ArcSWATPlus {
                 }
             }
             string formatString = "{0" + this.decimalPlaces + "}";
-            this._dlg.PQbAnnualResult.Text = string.Format("Annual result: " + formatString, this.QbResult);
+            this._dlg.PQbAnnualResultText = string.Format("Annual result: " + formatString, this.QbResult);
             // result for each month is Qb * variation factor
             // variation factor is square root of ratio of Q85 for month to minimum Q85
             // replace above with sqaure root of monthly mean to minimal monthly mean
@@ -5605,7 +5620,7 @@ namespace ArcSWATPlus {
             bool append;
             var title = "Choose results file";
             var filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
-            if (this._dlg.PQbAppend.Checked) {
+            if (this._dlg.PQbAppendChecked) {
                 dlg = new OpenFileDialog() {
                     Title = title,
                     Filter = filter,
@@ -5671,7 +5686,7 @@ namespace ArcSWATPlus {
             // units can be '---'
             var units = "";
             var description = "";
-            using (var reader = this.getReader(sql, new object[] { table, vari })) {
+            using (var reader = this.getReader(sql, [table, vari])) {
                 if (reader.HasRows) {
                     reader.Read();
                     units = reader.GetString(0);

@@ -35,10 +35,13 @@ using static ArcGIS.Desktop.Internal.Mapping.Views.PropertyPages.Map.Transformat
 using System.Security.Policy;
 
 namespace ArcSWATPlus { 
-    public class Landscape { 
-        
+    public class Landscape {
+#if TESTING
+        public LandscapeFormStub _dlg;
+#else
         public LandscapeForm _dlg;
-        
+#endif
+
         public GlobalVars _gv;
         
         public Action<string> _progress;
@@ -86,16 +89,25 @@ namespace ArcSWATPlus {
         public int ridgeThresh;
         
         public Dictionary<(int, int), (int, float)> sides;
-        
+#if TESTING
+        public mimicTextBox taudemOutput;
+#else
         public TextBox taudemOutput;
-        
+#endif
+
         public double[] transform;
         
         public Raster valleyDepthsRaster;
-        
+
+#if TESTING
+        public Landscape(GlobalVars gv, mimicTextBox taudemOutput, int numProcesses, Action<string> progress) {
+            this._gv = gv;
+            this._dlg = new LandscapeFormStub(gv, this);
+#else
         public Landscape(GlobalVars gv, TextBox taudemOutput, int numProcesses, Action<string> progress) {
             this._gv = gv;
             this._dlg = new LandscapeForm(gv, this);
+#endif
             //this._dlg.setWindowFlags(this._dlg.windowFlags() & ~Qt.WindowContextHelpButtonHint & Qt.WindowMinimizeButtonHint);
             //this._dlg.move(this._gv.landscapePos);
             //# TauDEM output buffer
@@ -431,19 +443,28 @@ namespace ArcSWATPlus {
                     return;
                 }
             }
-            var expr2 = string.Format("{0} * ((!{1}! / 1000000) ** {2}) * {3}", this._gv.channelWidthMultiplier, Topology._DRAINAREA, this._gv.channelWidthExponent, this._dlg.bufferMultiplierValue);
-            var parms2 = Geoprocessing.MakeValueArray(channelsTable, bufferWidthField, expr2, "PYTHON3");
-            var result2 = await Geoprocessing.ExecuteToolAsync("management.CalculateField", parms2);
-            if (result2.ErrorCode != 0) {
-                var msg = "Failed to create field " + bufferWidthField + ": ";
-                foreach (var err in result2.ErrorMessages) {
-                    msg = msg + $@"{err.Text} ";
-                }
-                Utils.error(msg, this._gv.isBatch);
-                return;
-            } else {
-                Utils.loginfo("Created field " + bufferWidthField + ": " + $@"{result2.ReturnValue}");
+            // need to save edits to add Widthnn field and not restrict access to channels table
+            if (Project.Current.HasEdits) {
+                await Project.Current.SaveEditsAsync();
             }
+            // this fails in 3.3, but is OK in 3.7.  Expression too complicated?
+            //var expr2 = string.Format("{0} * ((!{1}! / 1E6) ** {2}) * {3}", this._gv.channelWidthMultiplier, Topology._DRAINAREA, this._gv.channelWidthExponent, this._dlg.bufferMultiplierValue);
+            //var parms2 = Geoprocessing.MakeValueArray(channelsTable, bufferWidthField, expr2, "PYTHON3");
+            //var result2 = await Geoprocessing.ExecuteToolAsync("management.CalculateField", parms2);
+            //if (result2.ErrorCode != 0) {
+            //    var msg = "Failed to create field " + bufferWidthField + ": ";
+            //    foreach (var err in result2.ErrorMessages) {
+            //        msg = msg + $@"{err.Text} ";
+            //    }
+            //    Utils.error(msg, this._gv.isBatch);
+            //    return;
+            //} else {
+            //    Utils.loginfo("Created field " + bufferWidthField + ": " + $@"{result2.ReturnValue}");
+            //}
+            var parms2 = Geoprocessing.MakeValueArray(channelsTable, bufferWidthField,
+                this._gv.channelWidthMultiplier.ToString(), this._gv.channelWidthExponent.ToString(),
+                this._dlg.bufferMultiplierValue.ToString());
+            Utils.runPython("runCalcWidthField.py", parms2, this._gv);
             // need to save edits to register the values in Widthnn field
             if (Project.Current.HasEdits) {
                 await Project.Current.SaveEditsAsync();

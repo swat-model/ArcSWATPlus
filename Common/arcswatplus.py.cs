@@ -45,7 +45,11 @@ namespace ArcSWATPlus
 
         public GlobalVars _gv;
 
+#if TESTING
+        public MainFormStub _odlg;
+#else
         public MainForm _odlg;
+#endif
 
         public Delineation delin;
 
@@ -109,7 +113,11 @@ namespace ArcSWATPlus
             this._gv = null;
             // font = QFont("MS Shell Dlg 2", 8)
             // Create the dialog (after translation) and keep reference
+#if TESTING
+            this._odlg = new MainFormStub();
+#else
             this._odlg = new MainForm(this);
+#endif
             //self._odlg.setWindowFlags(self._odlg.windowFlags() & ~Qt.WindowContextHelpButtonHint & Qt.WindowMinimizeButtonHint)
             // TODO: this._odlg.Move(0, 0);
             //=======================================================================
@@ -360,9 +368,9 @@ namespace ArcSWATPlus
             if (await this.demProcessed(proj)) {
                 this._demIsProcessed = true;
                 this._odlg.allowCreateHRU();
-                var hrus = new HRUs(this._gv, this._odlg.reportsCombo, this);
+                var hrus = new HRUs(this);
                 if (hrus.HRUsAreCreated()) {
-                    this._odlg.showReports();
+                    this._odlg.showReports([Parameters._TOPOITEM, Parameters._BASINITEM, Parameters._HRUSITEM]);
                     this._odlg.allowEdit();
                 }
             }
@@ -432,7 +440,7 @@ namespace ArcSWATPlus
             if (this.hrus is not null && this.hrus._dlg.Enabled) {
                 this.hrus._dlg.Close();
             }
-            this.hrus = new HRUs(this._gv, this._odlg.reportsCombo, this);
+            this.hrus = new HRUs(this);
             //Debug.Assert(this.hrus is not null);
             // non modal
             await this.hrus.run();
@@ -473,30 +481,30 @@ namespace ArcSWATPlus
                     return false;
                 }
                 this._gv.demFile = demFile;
-            	dynamic nodata = null;
+                dynamic nodata = null;
                 await QueuedTask.Run(() => {
                     // set extent to DEM as otherwise defaults to full globe
                     var demExtent = demLayer.QueryExtent();
                     var map = ArcSWATPlus.mainMap;
                     map.SetCustomFullExtent(demExtent);
-                	nodata = demLayer.GetRaster().GetNoDataValue();
-                	if (nodata is not null) { 
-                    	var typ = nodata.GetType();
-                    	if (typ.IsArray) {
-                        	this._gv.elevationNoData = Convert.ToDouble(nodata[0]);
-                    	} else {
-                        	this._gv.elevationNoData = Convert.ToDouble(nodata);
-                    	}
-                	}
+                    nodata = demLayer.GetRaster().GetNoDataValue();
+                    if (nodata is not null) {
+                        var typ = nodata.GetType();
+                        if (typ.IsArray) {
+                            this._gv.elevationNoData = Convert.ToDouble(nodata[0]);
+                        } else {
+                            this._gv.elevationNoData = Convert.ToDouble(nodata);
+                        }
+                    }
                 });
 
-            if (nodata is null) {
-                Utils.loginfo("demProcessed failed: dem does not have a nodata value");
-                return false;
-            }
-            var crsProject = await QueuedTask.Run(() => demLayer.GetSpatialReference());
-            if (!crsProject.IsProjected) { 
-                Utils.loginfo(string.Format("demProcessed failed: DEM is not projected"));
+                if (nodata is null) {
+                    Utils.loginfo("demProcessed failed: dem does not have a nodata value");
+                    return false;
+                }
+                var crsProject = await QueuedTask.Run(() => demLayer.GetSpatialReference());
+                if (!crsProject.IsProjected) {
+                    Utils.loginfo(string.Format("demProcessed failed: DEM is not projected"));
                     return false;
                 }
                 var XYSizes = await QueuedTask.Run<Tuple<double, double>>(() => {
@@ -733,7 +741,7 @@ namespace ArcSWATPlus
                 //        ad8Raster = ad8Ds.CreateFullRaster();
                 //    });
 
-                if (!await this._gv.topo.setUp0(demLayer, chanFile, outFile, null, this._gv)) {
+                if (!await this._gv.topo.setUp0(demLayer, chanFile, outFile, this._gv)) {
                     return false;
                 }
                 var basinIndex = await this._gv.topo.getIndex(subbasinsLayer, Topology._POLYGONID);

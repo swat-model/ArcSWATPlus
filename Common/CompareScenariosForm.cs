@@ -27,7 +27,11 @@ namespace ArcSWATPlus
             this._parent.closeCompareScenarios();
         }
 
-        public ComboBox Pscenario1 => scenario1;
-        public ComboBox Pscenario2 => scenario2;
+        //public ComboBox Pscenario1 => scenario1;
+        public Func<object, int> Pscenario1Add => scenario1.Items.Add;
+        public object Pscenario1Item => scenario1.SelectedItem;
+        //public ComboBox Pscenario2 => scenario2;
+        public Func<object, int> Pscenario2Add => scenario2.Items.Add;
+        public object Pscenario2Item => scenario2.SelectedItem;
     }
 }

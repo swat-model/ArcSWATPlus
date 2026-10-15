@@ -40,8 +40,11 @@ namespace ArcSWATPlus
     // Choose an sqlite database and a table and export table as csv file.
     public class ExportTable
     {
-
+#if TESTING
+        public ExportTableFormStub _dlg;
+#else
         public ExportTableForm _dlg;
+#endif
 
         public GlobalVars _gv;
 
@@ -61,11 +64,15 @@ namespace ArcSWATPlus
             this._db = "";
             //# current connection
             this.conn = null;
+#if TESTING
+            this._dlg = new ExportTableFormStub(this);
+#else
             this._dlg = new ExportTableForm(this);
-            this._dlg.databases.Items.Add(ExportTable._PROJECTDB);
-            this._dlg.databases.Items.Add(ExportTable._REFDB);
-            this._dlg.databases.Items.Add(ExportTable._OTHERDB);
-            this._dlg.databases.SelectedIndex = -1;
+#endif
+            this._dlg.databasesAdd(ExportTable._PROJECTDB);
+            this._dlg.databasesAdd(ExportTable._REFDB);
+            this._dlg.databasesAdd(ExportTable._OTHERDB);
+            this._dlg.databasesIndex = -1;
         }
 
         // Run the form.
@@ -76,11 +83,11 @@ namespace ArcSWATPlus
         // Set tables for currently selected database.
         public virtual void setTables() {
             string db;
-            if (this._dlg.databases.SelectedIndex < 0) {
+            if (this._dlg.databasesIndex < 0) {
                 Utils.information("Please select a database", this._gv.isBatch);
                 return;
             }
-            var item = this._dlg.databases.Text;
+            var item = this._dlg.databasesText;
             if (item == ExportTable._PROJECTDB) {
                 db = this._gv.db.dbFile;
             } else if (item == ExportTable._REFDB) {
@@ -110,7 +117,7 @@ namespace ArcSWATPlus
                     Utils.error(string.Format("Failed to connect to database {0}", db), this._gv.isBatch);
                     return;
                 }
-                this._dlg.tables.Items.Clear();
+                this._dlg.tablesClear();
                 var tables = new List<string>();
                 var sql = "SELECT name FROM sqlite_master WHERE TYPE='table'";
                 var cmd = new SQLiteCommand(sql, this.conn);
@@ -121,10 +128,10 @@ namespace ArcSWATPlus
                 }
                 tables.Sort();
                 foreach (var table in tables) {
-                    this._dlg.tables.Items.Add(table);
+                    this._dlg.tablesAdd(table);
                 }
             }
-            this._dlg.tables.SelectedIndex = -1;
+            this._dlg.tablesIndex = -1;
         }
 
         // Export selected table as csv file.
@@ -132,11 +139,11 @@ namespace ArcSWATPlus
             if (this.conn is null) {
                 this.setTables();
             }
-            if (this._dlg.tables.SelectedIndex < 0) {
+            if (this._dlg.tablesIndex < 0) {
                 Utils.information("Please select a table", this._gv.isBatch);
                 return;
             }
-            var table = this._dlg.tables.Text;
+            var table = this._dlg.tablesText;
             var sql = string.Format("PRAGMA TABLE_INFO({0})", table);
             var varz = new List<string>();
             var cmd = new SQLiteCommand(sql, this.conn);

@@ -101,6 +101,9 @@ namespace ArcSWATPlus
             Utils.progress("Done", this.hrusLabel);
             this.editLabel.Enabled = true;
             this.editButton.Enabled = true;
+            // since editor checks ArcSWAT+ version, make sure this is up to date
+            // as may have updated ARCSWAT+ and then rerun the project
+            this._gv.writeProjectConfig(-1, -1);
         }
 
         public void allowVisualise() {
@@ -192,16 +195,12 @@ namespace ArcSWATPlus
         }
 
         // Show reports combo box and add items if necessary.
-        public virtual void showReports() {
+        public virtual void showReports(List<string> reports) {
             this.reportsBox.Visible = true;
-            if (this.reportsBox.FindString(Parameters._TOPOITEM) < 0) {
-                this.reportsBox.Items.Add(Parameters._TOPOITEM);
-            }
-            if (this.reportsBox.FindString(Parameters._BASINITEM) < 0) {
-                this.reportsBox.Items.Add(Parameters._BASINITEM);
-            }
-            if (this.reportsBox.FindString(Parameters._HRUSITEM) < 0) {
-                this.reportsBox.Items.Add(Parameters._HRUSITEM);
+            foreach (var report in reports) {
+                if (this.reportsBox.FindString(report) < 0) {
+                    this.reportsBox.Items.Add(report);
+                }
             }
         }
 

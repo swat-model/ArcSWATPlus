@@ -13,6 +13,18 @@
 	  <AssemblyName>$(MSBuildProjectName)</AssemblyName>
 	  <RootNamespace>ArcSWATPlus</RootNamespace>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>$(DefineConstants);pre36</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DefineConstants>$(DefineConstants);pre36</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>$(DefineConstants);pre36</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DefineConstants>$(DefineConstants);pre36</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <Content Include="..\Common\Images\AddInDesktop16.png" Link="AddInDesktop16.png">
 	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -170,6 +182,9 @@
     <None Include="..\Common\runBurnIn.py" Link="runBurnIn.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+	  <None Include="..\Common\runCalcWidthField.py" Link="runCalcWidthField.py">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
     <None Include="..\Common\runConversion.py" Link="runConversion.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

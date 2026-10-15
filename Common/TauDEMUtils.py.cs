@@ -25,7 +25,7 @@ namespace ArcSWATPlus {
         }
         
         // Run PitFill.
-        public async Task<bool> runPitFill(string demFile, string depmask, string felFile, int numProcesses, TextBox output) {
+        public async Task<bool> runPitFill(string demFile, string depmask, string felFile, int numProcesses, object output) {
             var inFiles = new List<Tuple<string, string>> {
                 new Tuple<string, string>("-z", demFile)
             };
@@ -44,7 +44,7 @@ namespace ArcSWATPlus {
             string sd8File,
             string pFile,
             int numProcesses,
-            TextBox output) {
+            object output) {
             return await this.run("D8FlowDir", new List<Tuple<string, string>> {
                 new Tuple<string, string>("-fel", felFile)
             }, new List<Tuple<string, string>> (), new List<Tuple<string, string>> {
@@ -60,7 +60,7 @@ namespace ArcSWATPlus {
             string slpFile,
             string angFile,
             int numProcesses,
-            TextBox output) {
+            object output) {
             return await this.run("DinfFlowDir", new List<Tuple<string, string>> {
                 new Tuple < string, string >("-fel", felFile)
             }, new List<Tuple<string, string>> (), new List<Tuple<string, string>> {
@@ -77,7 +77,7 @@ namespace ArcSWATPlus {
             string outletFile,
             string weightFile,
             int numProcesses,
-            TextBox output,
+            object output,
             bool contCheck = false,
             bool mustRun = true) {
             var inFiles = new List<Tuple<string, string>> {
@@ -104,7 +104,7 @@ namespace ArcSWATPlus {
             string scaFile,
             string outletFile,
             int numProcesses,
-            TextBox output,
+            object output,
             bool mustRun = true) {
             var inFiles = new List<Tuple<string, string>> {
                 new Tuple<string, string>("-ang", angFile)
@@ -128,7 +128,7 @@ namespace ArcSWATPlus {
             string gordFile,
             string outletFile,
             int numProcesses,
-            TextBox output,
+            object output,
             bool mustRun = true) {
             var inFiles = new List<Tuple<string, string>> {
                 new Tuple<string, string>("-p", pFile)
@@ -150,7 +150,7 @@ namespace ArcSWATPlus {
             string srcFile,
             string threshold,
             int numProcesses,
-            TextBox output,
+            object output,
             bool mustRun = true) {
             return await this.run("Threshold", new List<Tuple<string, string>> {
                 new Tuple<string, string>("-ssa", ad8File)
@@ -176,7 +176,7 @@ namespace ArcSWATPlus {
             string wFile,
             bool single,
             int numProcesses,
-            TextBox output,
+            object output,
             bool mustRun = true) {
             var inFiles = new List<Tuple<string, string>> {
                 new Tuple<string, string>("-fel", felFile),
@@ -205,7 +205,7 @@ namespace ArcSWATPlus {
             string outletFile,
             string movedOutletFile,
             int numProcesses,
-            TextBox output,
+            object output,
             bool mustRun = true) {
             return await this.run("MoveOutletsToStreams", new List<Tuple<string, string>> {
                 new Tuple<string, string>("-p", pFile),
@@ -224,7 +224,7 @@ namespace ArcSWATPlus {
             string distFile,
             string threshold,
             int numProcesses,
-            TextBox output,
+            object output,
             bool mustRun = true) {
             return await this.run("D8HDistToStrm", new List<Tuple<string, string>> {
                 new Tuple<string, string>("-p", pFile),
@@ -274,10 +274,15 @@ namespace ArcSWATPlus {
             List<Tuple<string, string>> inParms,
             List<Tuple<string, string>> outFiles,
             int numProcesses,
-            TextBox output,
+            object outputobject,
             bool mustRun) {
             string streamDir = "";
             string tauDEMDir;
+#if TESTING
+            var output = outputobject as mimicTextBox;
+#else
+            var output = outputobject as TextBox;
+#endif
             var hasGIS = !(output is null);
             var baseFile = inFiles[0].Item2;
             var needToRun = mustRun;
@@ -380,8 +385,12 @@ namespace ArcSWATPlus {
                 procStartInfo.ArgumentList.Add(commands[i]);
             }
             // TauDEM needs to be able to find proj.db
+#if TESTING
+            var pathPro = @"C:\Program Files\ArcGIS\Pro";
+#else
             var pathProBin = Path.GetDirectoryName(new System.Uri(Assembly.GetEntryAssembly().Location).AbsolutePath);
             var pathPro = Uri.UnescapeDataString(Directory.GetParent(pathProBin).FullName);
+#endif
             // defining PROJ_LIB seems to cause PitRemove to create an all nodata fel file, so leave the error report in TauDEM output
             // which seems to do no harm
             procStartInfo.EnvironmentVariables["PROJ_LIB"] = Path.Combine(pathPro, @"Resources\pedata\gdaldata");

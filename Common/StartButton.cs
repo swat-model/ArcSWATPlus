@@ -11,7 +11,6 @@ using ArcGIS.Desktop.Framework.Dialogs;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
 using ArcGIS.Desktop.Layouts;
 using ArcGIS.Desktop.Mapping;
-//using MaxRev.Gdal.Core;
 using OSGeo.GDAL;
 using System;
 using System.Collections.Generic;
@@ -53,10 +52,11 @@ namespace ArcSWATPlus
                 //var minInfo = AssemblyName.GetAssemblyName(asm.Location);
                 ;
                 //GdalBase.ConfigureAll();
-
                 Gdal.AllRegister();
+#if pre36
                 //needed for gdal to find proj.db when MaxRev used, so not necessary for ArcGIS version 3.6 and above
                 MaxRev.Gdal.Core.Proj.Configure();
+#endif
                 var arcSWATPlusProj = new ArcSWATPlus();
                 await arcSWATPlusProj.run();
                 //var pathProExe = System.IO.Path.GetDirectoryName((new System.Uri(Assembly.GetEntryAssembly().Location)).AbsolutePath);
